@@ -59,6 +59,49 @@ const EMPTY: ShopState = {
 
 const KEY = "shopnest-state-v1";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCartLine(value: unknown): value is CartLine {
+  return (
+    isRecord(value) &&
+    typeof value["productId"] === "string" &&
+    typeof value["quantity"] === "number" &&
+    Number.isFinite(value["quantity"])
+  );
+}
+
+function isChatMessage(value: unknown): value is ChatMessage {
+  return (
+    isRecord(value) &&
+    typeof value["id"] === "string" &&
+    (value["role"] === "user" || value["role"] === "assistant") &&
+    typeof value["text"] === "string"
+  );
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function normalizeStoredState(value: unknown): ShopState {
+  if (!isRecord(value)) return EMPTY;
+
+  return {
+    ...EMPTY,
+    cart: Array.isArray(value["cart"]) ? value["cart"].filter(isCartLine) : EMPTY.cart,
+    wishlist: stringArray(value["wishlist"]),
+    recentlyViewed: stringArray(value["recentlyViewed"]).slice(0, 12),
+    recentSearches: stringArray(value["recentSearches"]).slice(0, 6),
+    user: isRecord(value["user"]) ? (value["user"] as ShopState["user"]) : EMPTY.user,
+    admin: isRecord(value["admin"]) ? (value["admin"] as ShopState["admin"]) : EMPTY.admin,
+    addresses: Array.isArray(value["addresses"]) ? (value["addresses"] as Address[]) : EMPTY.addresses,
+    chat: Array.isArray(value["chat"]) ? value["chat"].filter(isChatMessage) : EMPTY.chat,
+    coupon: typeof value["coupon"] === "string" ? value["coupon"] : EMPTY.coupon,
+  };
+}
+
 interface ShopContextValue extends ShopState {
   hydrated: boolean;
   cartProducts: { product: Product; line: CartLine }[];
@@ -91,7 +134,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) setState({ ...EMPTY, ...(JSON.parse(raw) as Partial<ShopState>) });
+      if (raw) setState(normalizeStoredState(JSON.parse(raw)));
     } catch {
       /* ignore corrupt storage */
     }

@@ -1,0 +1,1 @@
+import{r as e}from"./useRouter-Ch6OGJRG.js";import{M as t,P as n,a as r}from"./index-B19j7Bf3.js";var i=e();function a(){let{admin:e}=r();return e?(0,i.jsx)(t,{}):(0,i.jsx)(n,{to:`/admin/login`})}export{a as component};

@@ -69,6 +69,12 @@ export const productService = {
     return products.find((p) => p.id === id);
   },
 
+  byIds(ids: string[]): Product[] {
+    return ids
+      .map((id) => this.byId(id))
+      .filter((product): product is Product => Boolean(product));
+  },
+
   all(): Product[] {
     // Return all products from mock data
     return products;
@@ -259,14 +265,36 @@ export const authService = {
 // ============================================================================
 
 export const chatbotService = {
-  async reply(message: string, history: ChatMessage[]): Promise<string> {
-    // Mock chatbot response
-    const responses: string[] = [
-      "How can I help you find the perfect product?",
-      "Have you checked our latest deals?",
-      "Would you like me to recommend something?",
-      "Our customer service team is here to help!",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)]!;
+  async reply(message: string): Promise<ChatMessage> {
+    const lower = message.toLowerCase();
+    const matchedProducts = products
+      .filter((product) => {
+        const haystack = [
+          product.id,
+          product.name,
+          product.brand,
+          product.category,
+          product.subcategory,
+          ...product.tags,
+        ]
+          .join(" ")
+          .toLowerCase();
+        return lower
+          .split(/\s+/)
+          .filter((part) => part.length > 2)
+          .some((part) => haystack.includes(part));
+      })
+      .slice(0, 3);
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      text:
+        matchedProducts.length > 0
+          ? "I found a few products that match what you're looking for."
+          : "I can help you find products, compare prices, or look up product IDs.",
+      products: matchedProducts.map((product) => product.id),
+      suggestions: ["Try headphones", "Show running shoes", "Find deals"],
+    };
   },
 };
