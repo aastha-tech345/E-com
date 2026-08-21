@@ -6,13 +6,15 @@ from app.core.config import settings
 from app.core.database import Base, engine
 from app.core.database import get_db_session
 from app.core.rate_limit import build_rate_limiter
+from app.core.security import decode_refresh_token
 from app.modules.identity.application.schemas import (
     AuthTokenResponse,
+    RefreshTokenRequest,
     UserLoginRequest,
     UserProfileResponse,
     UserRegisterRequest,
 )
-from app.modules.identity.application.service import authenticate_user, ensure_default_admin, register_user
+from app.modules.identity.application.service import authenticate_user, ensure_default_admin, register_user, build_auth_response
 from app.modules.identity.presentation.dependencies import get_current_user
 from app.shared.enums.roles import SystemRole
 
@@ -75,3 +77,18 @@ def register_seller(
 @router.get("/me", response_model=UserProfileResponse)
 def me(current_user: UserProfileResponse = Depends(get_current_user)) -> UserProfileResponse:
     return current_user
+
+
+@router.post("/refresh", response_model=AuthTokenResponse)
+def refresh(
+    payload: RefreshTokenRequest,
+    db: Session = Depends(get_db_session),
+) -> AuthTokenResponse:
+    try:
+        token_data = decode_refresh_token(payload.refresh_token)
+        user_id = token_data.get("sub")
+        if not user_id:
+            raise ValueError("Invalid refresh token")
+        return build_auth_response(db, user_id)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc

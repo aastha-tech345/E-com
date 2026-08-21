@@ -13,13 +13,14 @@ import type { Address, CartLine, ChatMessage, Product } from "@/types";
 
 interface User {
   id: string;
-  name: string;
   email: string;
+  full_name: string;
+  roles: string[];
 }
-interface AdminSession {
-  name: string;
-  email: string;
-  role: string;
+
+interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
 }
 
 interface ShopState {
@@ -28,7 +29,8 @@ interface ShopState {
   recentlyViewed: string[];
   recentSearches: string[];
   user: User | null;
-  admin: AdminSession | null;
+  admin: User | null;
+  tokens: AuthTokens | null;
   addresses: Address[];
   chat: ChatMessage[];
   coupon: string | null;
@@ -41,6 +43,7 @@ const EMPTY: ShopState = {
   recentSearches: [],
   user: null,
   admin: null,
+  tokens: null,
   addresses: [
     {
       id: "AD1",
@@ -68,14 +71,14 @@ interface ShopContextValue extends ShopState {
   updateQuantity: (productId: string, quantity: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
-  toggleWishlist: (productId: string) => void;
+  toggleWishlist: (productId: string) => boolean;
   isWishlisted: (productId: string) => boolean;
   markViewed: (productId: string) => void;
   addRecentSearch: (term: string) => void;
   applyCoupon: (code: string) => void;
-  login: (user: User) => void;
+  setUser: (user: User | null, tokens?: AuthTokens) => void;
   logout: () => void;
-  adminLogin: (admin: AdminSession) => void;
+  setAdmin: (admin: User | null, tokens?: AuthTokens) => void;
   adminLogout: () => void;
   addAddress: (address: Address) => void;
   pushChat: (message: ChatMessage) => void;
@@ -92,6 +95,13 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) setState({ ...EMPTY, ...(JSON.parse(raw) as Partial<ShopState>) });
+      
+      // Load user from authUser localStorage
+      const authUserRaw = localStorage.getItem("authUser");
+      if (authUserRaw) {
+        const authUser = JSON.parse(authUserRaw);
+        setState((s) => ({ ...s, user: authUser }));
+      }
     } catch {
       /* ignore corrupt storage */
     }
@@ -182,6 +192,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
               : [productId, ...s.wishlist],
           };
         });
+        return !state.wishlist.includes(productId);
       },
       isWishlisted: (productId) => state.wishlist.includes(productId),
       markViewed: (productId) =>
@@ -202,16 +213,23 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         if (valid) toast.success(`Coupon ${code.toUpperCase()} applied`);
         else toast.error("Invalid coupon code");
       },
-      login: (user) => {
-        patch((s) => ({ ...s, user }));
-        toast.success("Login successful");
+      setUser: (user, tokens) => {
+        patch((s) => ({ ...s, user, tokens: tokens || null }));
+        if (user) toast.success("Login successful");
       },
       logout: () => {
-        patch((s) => ({ ...s, user: null }));
+        patch((s) => ({ ...s, user: null, tokens: null }));
+        localStorage.removeItem("authTokens");
         toast.success("Logged out");
       },
-      adminLogin: (admin) => patch((s) => ({ ...s, admin })),
-      adminLogout: () => patch((s) => ({ ...s, admin: null })),
+      setAdmin: (admin, tokens) => {
+        patch((s) => ({ ...s, admin, tokens: tokens || null }));
+        if (admin) toast.success("Admin login successful");
+      },
+      adminLogout: () => {
+        patch((s) => ({ ...s, admin: null, tokens: null }));
+        localStorage.removeItem("authTokens");
+      },
       addAddress: (address) =>
         patch((s) => ({ ...s, addresses: [...s.addresses, { ...address, id: `AD${Date.now()}` }] })),
       pushChat: (message) => patch((s) => ({ ...s, chat: [...s.chat, message] })),

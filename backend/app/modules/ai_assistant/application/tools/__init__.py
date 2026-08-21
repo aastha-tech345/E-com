@@ -6,12 +6,14 @@ from app.modules.ai_assistant.application.tools.customer import (
     ReturnPolicyTool,
     ShipmentStatusTool,
 )
+from app.modules.ai_assistant.application.tools.langchain_search import LangChainSemanticSearchTool
 from app.modules.ai_assistant.application.tools.recommendations import RecommendationTool
 from app.modules.ai_assistant.application.tools.search import PopularSearchesTool, SearchSuggestionsTool
 
 __all__ = [
     "CatalogSearchTool",
     "CartSnapshotTool",
+    "LangChainSemanticSearchTool",
     "NotificationSummaryTool",
     "OrderLookupTool",
     "PopularSearchesTool",

@@ -49,6 +49,144 @@ export interface Paged<T> {
 }
 
 // ============================================================================
+// AUTH SERVICE
+// ============================================================================
+
+interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    roles: string[];
+  };
+}
+
+interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+}
+
+export const authService = {
+  async register(email: string, full_name: string, password: string): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, full_name, password }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.detail || "Registration failed");
+    }
+    const data = await response.json();
+    this.saveTokens(data.access_token, data.refresh_token);
+    this.saveUser(data.user);
+    return data;
+  },
+
+  async login(email: string, password: string): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.detail || "Login failed");
+    }
+    const data = await response.json();
+    this.saveTokens(data.access_token, data.refresh_token);
+    this.saveUser(data.user);
+    return data;
+  },
+
+  async refresh(): Promise<AuthResponse> {
+    const tokens = this.getTokens();
+    if (!tokens) throw new Error("No refresh token available");
+    
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+    });
+    if (!response.ok) {
+      this.clearTokens();
+      throw new Error("Token refresh failed");
+    }
+    const data = await response.json();
+    this.saveTokens(data.access_token, data.refresh_token);
+    this.saveUser(data.user);
+    return data;
+  },
+
+  async me(): Promise<AuthResponse["user"]> {
+    const tokens = this.getTokens();
+    if (!tokens) throw new Error("Not authenticated");
+    
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${tokens.access_token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) throw new Error("Failed to fetch user profile");
+    const user = await response.json();
+    this.saveUser(user);
+    return user;
+  },
+
+  saveTokens(accessToken: string, refreshToken: string) {
+    localStorage.setItem("authTokens", JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }));
+  },
+
+  saveUser(user: AuthResponse["user"]) {
+    localStorage.setItem("authUser", JSON.stringify(user));
+  },
+
+  getTokens(): AuthTokens | null {
+    const stored = localStorage.getItem("authTokens");
+    return stored ? JSON.parse(stored) : null;
+  },
+
+  getUser(): AuthResponse["user"] | null {
+    const stored = localStorage.getItem("authUser");
+    return stored ? JSON.parse(stored) : null;
+  },
+
+  getAccessToken(): string | null {
+    const tokens = this.getTokens();
+    return tokens?.access_token || null;
+  },
+
+  getUserRoles(): string[] {
+    const user = this.getUser();
+    return user?.roles || [];
+  },
+
+  isAdmin(): boolean {
+    const roles = this.getUserRoles();
+    return roles.includes("super_admin") || roles.includes("admin");
+  },
+
+  isSeller(): boolean {
+    const roles = this.getUserRoles();
+    return roles.includes("seller_owner");
+  },
+
+  clearTokens() {
+    localStorage.removeItem("authTokens");
+    localStorage.removeItem("authUser");
+  },
+
+  logout() {
+    this.clearTokens();
+  },
+};
+
+// ============================================================================
 // PRODUCT SERVICE
 // ============================================================================
 
@@ -67,6 +205,13 @@ export const productService = {
   byId(id: string): Product | undefined {
     // Use mock data only - API not implemented yet
     return products.find((p) => p.id === id);
+  },
+
+  byIds(ids: string[]): Product[] {
+    // Return products by array of IDs
+    return ids
+      .map((id) => products.find((p) => p.id === id))
+      .filter((p) => p !== undefined) as Product[];
   },
 
   all(): Product[] {
@@ -217,43 +362,6 @@ export const customerService = {
 };
 
 // ============================================================================
-// AUTH SERVICE
-// ============================================================================
-
-export const authService = {
-  async login(email: string, password: string) {
-    // Mock for now - will be integrated with backend
-    if (email && password.length >= 4) {
-      return {
-        id: "user-1",
-        name: "Customer",
-        email,
-      };
-    }
-    throw new Error("Invalid credentials");
-  },
-
-  async adminLogin(email: string, password: string) {
-    // Mock for now - will be integrated with backend
-    if (email && password.length >= 4) {
-      return {
-        name: "Admin",
-        email,
-        role: "admin",
-      };
-    }
-    throw new Error("Invalid credentials");
-  },
-
-  async register(email: string, password: string, name: string) {
-    return {
-      id: "user-new",
-      name,
-      email,
-    };
-  },
-};
-
 // ============================================================================
 // CHATBOT SERVICE
 // ============================================================================

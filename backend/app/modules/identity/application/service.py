@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password
 from app.modules.identity.application.schemas import (
     AuthTokenResponse,
     UserLoginRequest,
@@ -88,5 +88,6 @@ def get_user_profile(db: Session, user_id: str) -> UserProfileResponse:
 
 def build_auth_response(db: Session, user_id: str) -> AuthTokenResponse:
     profile = get_user_profile(db, user_id)
-    token = create_access_token(subject=profile.id, extra={"roles": profile.roles, "email": profile.email})
-    return AuthTokenResponse(access_token=token, user=profile)
+    access_token = create_access_token(subject=profile.id, extra={"roles": profile.roles, "email": profile.email})
+    refresh_token = create_refresh_token(subject=profile.id)
+    return AuthTokenResponse(access_token=access_token, refresh_token=refresh_token, user=profile)
