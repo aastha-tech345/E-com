@@ -164,7 +164,8 @@ function ChatBubble({
   message: ChatMessage;
   onAdd: (id: string) => void;
 }) {
-  const items = message.products ? productService.byIds(message.products) : [];
+  const mockItems = message.products ? productService.byIds(message.products) : [];
+  const backendItems = message.productResults ?? [];
   if (message.role === "user") {
     return (
       <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-primary px-3 py-2 text-sm text-primary-foreground">
@@ -177,7 +178,38 @@ function ChatBubble({
       <div className="max-w-[85%] rounded-lg rounded-tl-none bg-muted px-3 py-2 text-sm">
         {message.text}
       </div>
-      {items.map((p) => (
+      {backendItems.map((p) => {
+        const canAddToLocalCart = Boolean(productService.byId(p.id));
+        return (
+          <div key={p.id} className="flex gap-3 rounded-lg border p-2">
+            {p.image && <img src={p.image} alt="" className="h-16 w-16 rounded object-cover" />}
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="truncate text-sm font-medium">{p.name}</p>
+              <Price price={p.price} size="sm" />
+              <p className="line-clamp-2 text-[11px] text-muted-foreground">{p.description}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {p.stock > 0 ? "In stock" : "Currently unavailable"}
+              </p>
+              <div className="flex gap-1.5 pt-1">
+                <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
+                  <Link to="/products/$id" params={{ id: p.id }}>
+                    View Product
+                  </Link>
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={!canAddToLocalCart || p.stock <= 0}
+                  onClick={() => onAdd(p.id)}
+                >
+                  Add to Cart
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {mockItems.map((p) => (
         <div key={p.id} className="flex gap-3 rounded-lg border p-2">
           <img src={p.images[0]} alt="" className="h-16 w-16 rounded object-cover" />
           <div className="min-w-0 flex-1 space-y-1">

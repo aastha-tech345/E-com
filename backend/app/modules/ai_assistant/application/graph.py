@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TypedDict
 
+from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
 
 from app.modules.ai_assistant.application.prompts import SYSTEM_PROMPT
@@ -12,7 +14,7 @@ from app.modules.ai_assistant.infrastructure.llm_client import BaseLLMClient
 
 def classify_intent(prompt: str) -> str:
     normalized = prompt.lower()
-    if any(token in normalized for token in ("return", "refund", "exchange", "replace")):
+    if any(token in normalized for token in ("return", "refund", "exchange", "replace", "damage", "damaged", "broken")):
         return "return_support"
     if any(token in normalized for token in ("track", "shipment", "delivery", "delivered", "courier")):
         return "shipping_support"
@@ -31,41 +33,87 @@ def classify_intent(prompt: str) -> str:
     return "product_search"
 
 
+class LangGraphAssistantState(TypedDict):
+    state: AssistantGraphState
+    selected_tool_names: list[str]
+
+
 @dataclass(slots=True)
 class AssistantGraph:
     tool_registry: ToolRegistry
     llm_client: BaseLLMClient
 
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
+        graph = self._build_graph(db)
+        result = graph.invoke({"state": state, "selected_tool_names": []})
+        return result["state"]
+
+    def _build_graph(self, db: Session):
+        builder = StateGraph(LangGraphAssistantState)
+        builder.add_node("classify_intent", self._classify_intent_node)
+        builder.add_node("select_tools", self._select_tools_node)
+        builder.add_node("run_tools", lambda payload: self._run_tools_node(db, payload))
+        builder.add_node("generate_answer", self._generate_answer_node)
+
+        builder.add_edge(START, "classify_intent")
+        builder.add_edge("classify_intent", "select_tools")
+        builder.add_edge("select_tools", "run_tools")
+        builder.add_edge("run_tools", "generate_answer")
+        builder.add_edge("generate_answer", END)
+        return builder.compile()
+
+    def _classify_intent_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
+        state = payload["state"]
         state.intent = classify_intent(state.prompt)
         state.tool_records.append(
             ToolCallRecord(
-                tool_name="graph.classify_intent",
+                tool_name="langgraph.classify_intent",
                 status="completed",
                 detail=f"Intent classified as {state.intent}.",
             )
         )
+        return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
 
+    def _select_tools_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
+        state = payload["state"]
         selected_tools = self.tool_registry.select_for_intent(state.intent)
         if not selected_tools:
             self.tool_registry.record_skip(
                 state,
-                tool_name="graph.select_tools",
+                tool_name="langgraph.select_tools",
                 detail=f"No tools registered for intent {state.intent}.",
             )
+        else:
+            state.tool_records.append(
+                ToolCallRecord(
+                    tool_name="langgraph.select_tools",
+                    status="completed",
+                    detail=f"Selected {len(selected_tools)} tools for {state.intent}.",
+                    payload={"tools": [tool.name for tool in selected_tools]},
+                )
+            )
+        return {"state": state, "selected_tool_names": [tool.name for tool in selected_tools]}
 
+    def _run_tools_node(self, db: Session, payload: LangGraphAssistantState) -> LangGraphAssistantState:
+        state = payload["state"]
+        selected_names = set(payload.get("selected_tool_names", []))
+        selected_tools = [tool for tool in self.tool_registry.tools if tool.name in selected_names]
         for tool in selected_tools:
             state = tool.run(db, state)
+        return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
 
+    def _generate_answer_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
+        state = payload["state"]
         completion = self.llm_client.complete(system_prompt=SYSTEM_PROMPT, user_prompt=state.prompt)
         product_count = len(state.products)
         if state.metadata.get("auth_required"):
             state.answer = (
                 "I can help with that once you are signed in. "
-                "Please log in so I can safely access your cart, orders, or account details."
+                "Please log in and share your order ID so I can safely access your cart, orders, "
+                "or account details and show refund or replacement options."
             )
             state.confirmation_required = False
-            return state
+            return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
 
         support_intents = {
             "order_support",
@@ -107,8 +155,16 @@ class AssistantGraph:
                 fragments.append(f"You have {notifications.get('unread_count', 0)} unread notifications.")
             if isinstance(knowledge, list) and knowledge:
                 fragments.append(str(knowledge[0].get("content", "")))
+            if state.intent == "return_support":
+                fragments.append(
+                    "For a damaged item, I can help you choose a replacement, similar product, "
+                    "or refund according to the return policy once the order is verified."
+                )
             state.answer = " ".join(fragment for fragment in fragments if fragment).strip()
-            return state
+            state.metadata["llm_provider"] = completion.provider
+            state.metadata["llm_model"] = completion.model
+            state.metadata["orchestrator"] = "langgraph"
+            return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
 
         if product_count > 0:
             state.answer = (
@@ -129,4 +185,5 @@ class AssistantGraph:
                 )
         state.metadata["llm_provider"] = completion.provider
         state.metadata["llm_model"] = completion.model
-        return state
+        state.metadata["orchestrator"] = "langgraph"
+        return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}

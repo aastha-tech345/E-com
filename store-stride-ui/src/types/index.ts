@@ -163,5 +163,19 @@ export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   products?: string[];
+  productResults?: AssistantProductResult[];
   suggestions?: string[];
+  conversationId?: string;
+  intent?: string;
+}
+
+export interface AssistantProductResult {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  image?: string;
+  price: number;
+  currency: string;
+  stock: number;
 }

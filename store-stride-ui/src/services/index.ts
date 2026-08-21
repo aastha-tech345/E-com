@@ -6,7 +6,7 @@
  * API base: http://localhost:8000/api/v1
  */
 
-import type { ChatMessage, Order, Product } from "@/types";
+import type { AssistantProductResult, ChatMessage, Order, Product } from "@/types";
 import {
   adminUsers,
   banners,
@@ -22,6 +22,7 @@ import {
 } from "@/data/catalog";
 
 const API_BASE = import.meta.env["VITE_API_URL"] || "http://localhost:8000/api/v1";
+let assistantConversationId: string | undefined;
 
 export interface ProductQuery {
   search?: string;
@@ -302,6 +303,43 @@ export const authService = {
 
 export const chatbotService = {
   async reply(message: string): Promise<ChatMessage> {
+    try {
+      const response = await fetch(`${API_BASE}/assistant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: message,
+          conversation_id: assistantConversationId,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.detail || "Assistant request failed");
+      }
+
+      const payload = (await response.json()) as {
+        conversation_id: string;
+        answer: string;
+        products: BackendAssistantProduct[];
+        intent?: string;
+        metadata?: { suggestions?: string[]; popular_search_terms?: string[] };
+      };
+
+      assistantConversationId = payload.conversation_id;
+      return {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: payload.answer,
+        conversationId: payload.conversation_id,
+        intent: payload.intent,
+        productResults: payload.products.map(toAssistantProductResult),
+        suggestions: payload.metadata?.suggestions ?? payload.metadata?.popular_search_terms ?? [],
+      };
+    } catch (err) {
+      console.warn("Backend assistant failed, using local fallback:", err);
+    }
+
     const lower = message.toLowerCase();
     const matchedProducts = products
       .filter((product) => {
@@ -334,3 +372,36 @@ export const chatbotService = {
     };
   },
 };
+
+interface BackendAssistantProduct {
+  id: string;
+  name: string;
+  slug: string;
+  short_description: string;
+  description: string;
+  variants: Array<{
+    price: string | number;
+    currency: string;
+    quantity_available: number;
+    is_default: boolean;
+  }>;
+  media: Array<{
+    media_url: string;
+    sort_order: number;
+  }>;
+}
+
+function toAssistantProductResult(product: BackendAssistantProduct): AssistantProductResult {
+  const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
+  const media = [...product.media].sort((a, b) => a.sort_order - b.sort_order)[0];
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description: product.short_description || product.description,
+    image: media?.media_url,
+    price: Number(variant?.price ?? 0),
+    currency: variant?.currency ?? "INR",
+    stock: variant?.quantity_available ?? 0,
+  };
+}
