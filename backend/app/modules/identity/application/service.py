@@ -1,0 +1,92 @@
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+
+from app.core.security import create_access_token, hash_password, verify_password
+from app.modules.identity.application.schemas import (
+    AuthTokenResponse,
+    UserLoginRequest,
+    UserProfileResponse,
+    UserRegisterRequest,
+)
+from app.modules.identity.domain.models import Role, User, UserRole
+from app.shared.enums.roles import SystemRole
+
+
+def ensure_system_roles(db: Session) -> None:
+    existing = {role.name for role in db.scalars(select(Role)).all()}
+    for role_name in SystemRole:
+        if role_name.value not in existing:
+            db.add(Role(name=role_name.value, description=f"System role: {role_name.value}"))
+    db.commit()
+
+
+def ensure_default_admin(db: Session, admin_email: str, admin_password: str) -> None:
+    ensure_system_roles(db)
+    existing_admin = db.scalar(select(User).where(User.email == admin_email))
+    if existing_admin:
+        return
+    user = User(email=admin_email, full_name="Platform Admin", hashed_password=hash_password(admin_password))
+    db.add(user)
+    db.flush()
+    admin_role = db.scalar(select(Role).where(Role.name == SystemRole.SUPER_ADMIN.value))
+    if admin_role is not None:
+        db.add(UserRole(user_id=user.id, role_id=admin_role.id))
+    db.commit()
+
+
+def register_user(
+    db: Session,
+    payload: UserRegisterRequest,
+    *,
+    role: SystemRole = SystemRole.CUSTOMER,
+) -> AuthTokenResponse:
+    ensure_system_roles(db)
+    if db.scalar(select(User).where(User.email == payload.email)):
+        raise ValueError("A user with this email already exists.")
+
+    user = User(
+        email=payload.email,
+        full_name=payload.full_name,
+        hashed_password=hash_password(payload.password),
+    )
+    db.add(user)
+    db.flush()
+
+    assigned_role = db.scalar(select(Role).where(Role.name == role.value))
+    if assigned_role is None:
+        raise ValueError(f"{role.value} role is not configured.")
+    db.add(UserRole(user_id=user.id, role_id=assigned_role.id))
+    db.commit()
+    db.refresh(user)
+    return build_auth_response(db, user.id)
+
+
+def authenticate_user(db: Session, payload: UserLoginRequest) -> AuthTokenResponse:
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user is None or not verify_password(payload.password, user.hashed_password):
+        raise ValueError("Invalid credentials.")
+    if not user.is_active:
+        raise ValueError("User is inactive.")
+    return build_auth_response(db, user.id)
+
+
+def get_user_profile(db: Session, user_id: str) -> UserProfileResponse:
+    user = db.scalar(
+        select(User)
+        .options(joinedload(User.roles).joinedload(UserRole.role))
+        .where(User.id == user_id)
+    )
+    if user is None:
+        raise ValueError("User not found.")
+    return UserProfileResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        roles=[link.role.name for link in user.roles],
+    )
+
+
+def build_auth_response(db: Session, user_id: str) -> AuthTokenResponse:
+    profile = get_user_profile(db, user_id)
+    token = create_access_token(subject=profile.id, extra={"roles": profile.roles, "email": profile.email})
+    return AuthTokenResponse(access_token=token, user=profile)

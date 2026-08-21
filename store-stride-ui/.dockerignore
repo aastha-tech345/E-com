@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+dist
+build
+.git
+.gitignore
+.vscode
+.idea
+*.md
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.turbo
+.next
+.nuxt
+.cache

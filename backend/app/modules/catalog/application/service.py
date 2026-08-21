@@ -1,0 +1,294 @@
+from typing import Any, cast
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.modules.catalog.application.schemas import (
+    BrandCreateRequest,
+    BrandUpdateRequest,
+    CatalogSeedResponse,
+    CategoryCreateRequest,
+    CategoryUpdateRequest,
+    ProductCreateRequest,
+    ProductUpdateRequest,
+)
+from app.modules.catalog.domain.models import Brand, Category, Product, ProductMedia, ProductVariant
+from app.modules.catalog.infrastructure.seed_data import SEED_BRANDS, SEED_CATEGORIES, SEED_PRODUCTS
+from app.modules.inventory.application.service import ensure_inventory_item, get_inventory_item
+from app.modules.pricing.application.service import create_default_price, get_active_price
+
+
+def create_category(db: Session, payload: CategoryCreateRequest) -> Category:
+    category = Category(name=payload.name, slug=payload.slug, parent_id=payload.parent_id)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def create_brand(db: Session, payload: BrandCreateRequest) -> Brand:
+    brand = Brand(name=payload.name, slug=payload.slug)
+    db.add(brand)
+    db.commit()
+    db.refresh(brand)
+    return brand
+
+
+def create_product(db: Session, payload: ProductCreateRequest) -> Product:
+    default_variants = [variant for variant in payload.variants if variant.is_default]
+    if len(default_variants) != 1:
+        raise ValueError("Exactly one default variant is required.")
+
+    product = Product(
+        seller_id=payload.seller_id,
+        category_id=payload.category_id,
+        brand_id=payload.brand_id,
+        name=payload.name,
+        slug=payload.slug,
+        short_description=payload.short_description,
+        description=payload.description,
+        is_published=payload.is_published,
+    )
+    db.add(product)
+    db.flush()
+
+    for variant in payload.variants:
+        variant_model = ProductVariant(
+            product_id=product.id,
+            name=variant.name,
+            sku=variant.sku,
+            price=variant.price,
+            currency=variant.currency,
+            quantity_available=variant.quantity_available,
+            is_default=variant.is_default,
+        )
+        db.add(variant_model)
+        db.flush()
+        create_default_price(
+            db,
+            variant_id=variant_model.id,
+            amount=variant.price,
+            currency=variant.currency,
+        )
+        ensure_inventory_item(
+            db,
+            variant_id=variant_model.id,
+            on_hand=variant.quantity_available,
+        )
+
+    for media in payload.media:
+        db.add(
+            ProductMedia(
+                product_id=product.id,
+                media_url=media.media_url,
+                alt_text=media.alt_text,
+                sort_order=media.sort_order,
+            )
+        )
+
+    db.commit()
+    return get_product_by_slug(db, payload.slug)
+
+
+def seed_catalog(db: Session) -> CatalogSeedResponse:
+    category_map = {category.slug: category for category in list_categories(db)}
+    brand_map = {brand.slug: brand for brand in list_brands(db)}
+    categories_created = 0
+    brands_created = 0
+    products_created = 0
+    products_skipped = 0
+
+    for category_payload in SEED_CATEGORIES:
+        if category_payload.slug in category_map:
+            continue
+        category = create_category(db, category_payload)
+        category_map[category.slug] = category
+        categories_created += 1
+
+    for brand_payload in SEED_BRANDS:
+        if brand_payload.slug in brand_map:
+            continue
+        brand = create_brand(db, brand_payload)
+        brand_map[brand.slug] = brand
+        brands_created += 1
+
+    existing_product_slugs = {product.slug for product in list_admin_products(db)}
+    for product_payload in SEED_PRODUCTS:
+        if product_payload.slug in existing_product_slugs:
+            products_skipped += 1
+            continue
+
+        if product_payload.category_id not in category_map:
+            raise ValueError(f"Seed category '{product_payload.category_id}' is not available.")
+        if product_payload.brand_id is not None and product_payload.brand_id not in brand_map:
+            raise ValueError(f"Seed brand '{product_payload.brand_id}' is not available.")
+
+        create_product(
+            db,
+            product_payload.model_copy(
+                update={
+                    "category_id": category_map[product_payload.category_id].id,
+                    "brand_id": (
+                        brand_map[product_payload.brand_id].id if product_payload.brand_id is not None else None
+                    ),
+                }
+            ),
+        )
+        existing_product_slugs.add(product_payload.slug)
+        products_created += 1
+
+    return CatalogSeedResponse(
+        categories_created=categories_created,
+        brands_created=brands_created,
+        products_created=products_created,
+        products_skipped=products_skipped,
+    )
+
+
+def list_categories(db: Session) -> list[Category]:
+    return list(db.scalars(select(Category).order_by(Category.name)).all())
+
+
+def list_brands(db: Session) -> list[Brand]:
+    return list(db.scalars(select(Brand).order_by(Brand.name)).all())
+
+
+def list_products(db: Session, query: str | None = None, published_only: bool = True) -> list[Product]:
+    statement = (
+        select(Product)
+        .options(selectinload(Product.variants), selectinload(Product.media))
+        .order_by(Product.created_at.desc())
+    )
+    if published_only:
+        statement = statement.where(Product.is_published.is_(True))
+    if query:
+        term = f"%{query.lower()}%"
+        statement = statement.where(
+            or_(
+                Product.name.ilike(term),
+                Product.short_description.ilike(term),
+                Product.description.ilike(term),
+            )
+        )
+    return list(db.scalars(statement).unique().all())
+
+
+def list_admin_products(db: Session) -> list[Product]:
+    return list_products(db, published_only=False)
+
+
+def get_product_by_slug(db: Session, slug: str) -> Product:
+    product = db.scalar(
+        select(Product)
+        .options(selectinload(Product.variants), selectinload(Product.media))
+        .where(Product.slug == slug)
+    )
+    if product is None:
+        raise ValueError("Product not found.")
+    return product
+
+
+def hydrate_product_read_model(db: Session, product: Product) -> Product:
+    for variant in product.variants:
+        variant_view = cast(Any, variant)
+        price = get_active_price(db, variant_id=variant.id)
+        inventory = get_inventory_item(db, variant_id=variant.id)
+        if price is not None:
+            variant.price = price.amount
+            variant.currency = price.currency
+        if inventory is not None:
+            variant.quantity_available = inventory.available
+            variant_view.inventory_on_hand = inventory.on_hand
+            variant_view.inventory_reserved = inventory.reserved
+        else:
+            variant_view.inventory_on_hand = variant.quantity_available
+            variant_view.inventory_reserved = 0
+    return product
+
+
+
+def update_product(db: Session, product_id: str, payload: "ProductUpdateRequest") -> Product:
+    """Update product fields."""
+    product = db.scalar(select(Product).where(Product.id == product_id))
+    if not product:
+        raise ValueError("Product not found.")
+    
+    if payload.category_id is not None:
+        product.category_id = payload.category_id
+    if payload.brand_id is not None:
+        product.brand_id = payload.brand_id
+    if payload.name is not None:
+        product.name = payload.name
+    if payload.slug is not None:
+        product.slug = payload.slug
+    if payload.short_description is not None:
+        product.short_description = payload.short_description
+    if payload.description is not None:
+        product.description = payload.description
+    if payload.is_published is not None:
+        product.is_published = payload.is_published
+    
+    db.commit()
+    db.refresh(product)
+    return product
+
+
+def delete_product(db: Session, product_id: str) -> None:
+    """Delete product."""
+    product = db.scalar(select(Product).where(Product.id == product_id))
+    if not product:
+        raise ValueError("Product not found.")
+    db.delete(product)
+    db.commit()
+
+
+def update_category(db: Session, category_id: str, payload: "CategoryUpdateRequest") -> Category:
+    """Update category fields."""
+    category = db.scalar(select(Category).where(Category.id == category_id))
+    if not category:
+        raise ValueError("Category not found.")
+    
+    if payload.name is not None:
+        category.name = payload.name
+    if payload.slug is not None:
+        category.slug = payload.slug
+    if payload.parent_id is not None:
+        category.parent_id = payload.parent_id
+    
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def delete_category(db: Session, category_id: str) -> None:
+    """Delete category."""
+    category = db.scalar(select(Category).where(Category.id == category_id))
+    if not category:
+        raise ValueError("Category not found.")
+    db.delete(category)
+    db.commit()
+
+
+def update_brand(db: Session, brand_id: str, payload: "BrandUpdateRequest") -> Brand:
+    """Update brand fields."""
+    brand = db.scalar(select(Brand).where(Brand.id == brand_id))
+    if not brand:
+        raise ValueError("Brand not found.")
+    
+    if payload.name is not None:
+        brand.name = payload.name
+    if payload.slug is not None:
+        brand.slug = payload.slug
+    
+    db.commit()
+    db.refresh(brand)
+    return brand
+
+
+def delete_brand(db: Session, brand_id: str) -> None:
+    """Delete brand."""
+    brand = db.scalar(select(Brand).where(Brand.id == brand_id))
+    if not brand:
+        raise ValueError("Brand not found.")
+    db.delete(brand)
+    db.commit()
