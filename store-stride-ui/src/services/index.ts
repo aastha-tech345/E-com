@@ -48,6 +48,21 @@ export interface Paged<T> {
   pages: number;
 }
 
+export interface StripeCheckoutItem {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit_amount: number;
+  image?: string;
+}
+
+export interface StripeCheckoutRequest {
+  items: StripeCheckoutItem[];
+  customer_email?: string;
+  success_path?: string;
+  cancel_path?: string;
+}
+
 // ============================================================================
 // PRODUCT SERVICE
 // ============================================================================
@@ -201,6 +216,27 @@ export const orderService = {
   async byCustomer(customerId: string): Promise<Order[]> {
     // TODO: Implement with backend API
     return [];
+  },
+};
+
+// ============================================================================
+// PAYMENT SERVICE
+// ============================================================================
+
+export const paymentService = {
+  async createStripeCheckoutSession(payload: StripeCheckoutRequest) {
+    const response = await fetch(`${API_BASE}/payments/stripe/checkout-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to start Stripe checkout");
+    }
+
+    return (await response.json()) as { session_id: string; checkout_url: string };
   },
 };
 
