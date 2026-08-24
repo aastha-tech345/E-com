@@ -102,7 +102,7 @@ function AdminLogin() {
         </form>
 
         <p className="text-sm text-gray-600 text-center mt-6">
-          Demo: Use admin@example.com / password (see .env.example)
+          Development login: admin@example.com / Admin123!
         </p>
       </div>
     </div>

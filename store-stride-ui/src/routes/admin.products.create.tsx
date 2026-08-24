@@ -125,7 +125,7 @@ function CreateProduct() {
         </div>
 
         {/* Content */}
-        <div className="p-8 max-w-4xl">
+        <div className="p-6 md:p-8 w-full">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Basic Information */}
             <div className="bg-white p-6 rounded-lg shadow">

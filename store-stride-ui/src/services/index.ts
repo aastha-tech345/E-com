@@ -168,6 +168,36 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export interface PolicyDocument {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+export const policyService = {
+  async list(): Promise<PolicyDocument[]> {
+    const response = await fetch(`${API_BASE}/admin/policies`, { headers: authHeaders() });
+    if (!response.ok) throw new Error("Unable to load policies.");
+    return response.json();
+  },
+
+  async upload(file: File, name?: string): Promise<{ id: string; title: string; chunks: number }> {
+    const body = new FormData();
+    body.append("file", file);
+    if (name) body.append("name", name);
+    const response = await fetch(`${API_BASE}/admin/policies`, {
+      method: "POST",
+      headers: authHeaders(),
+      body,
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to upload policy.");
+    }
+    return response.json();
+  },
+};
+
 // ============================================================================
 // PRODUCT SERVICE
 // ============================================================================
@@ -292,6 +322,19 @@ export const catalogService = {
     return (await response.json()) as CatalogBrandOption[];
   },
 
+  async createCategory(payload: { name: string; slug: string }) {
+    return adminCatalogRequest<CatalogCategoryOption>("/admin/categories", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  async createBrand(payload: { name: string; slug: string }) {
+    return adminCatalogRequest<CatalogBrandOption>("/admin/brands", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   attributes() {
     return productAttributes;
   },
@@ -308,6 +351,18 @@ export const catalogService = {
     return reviews;
   },
 };
+
+async function adminCatalogRequest<T>(path: string, init: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...init.headers },
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail || "Catalog request failed.");
+  }
+  return response.json() as Promise<T>;
+}
 
 // ============================================================================
 // ORDER SERVICE

@@ -25,6 +25,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def bootstrap_admin() -> None:
     from app.core.database import SessionLocal
 
+    # SQLite development databases can predate newly added modules. Create only
+    # missing tables; SQLAlchemy leaves existing data untouched.
+    if settings.auto_create_tables:
+        Base.metadata.create_all(bind=engine)
+
     session = SessionLocal()
     try:
         ensure_default_admin(session, settings.admin_email, settings.admin_password)
