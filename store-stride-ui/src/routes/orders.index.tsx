@@ -83,9 +83,7 @@ function OrdersPage() {
               <OrderCard
                 key={order.id}
                 order={order}
-                onViewDetails={() =>
-                  navigate({ to: "/orders/$id", params: { id: order.id } })
-                }
+                onViewDetails={() => navigate({ to: "/orders/$id", params: { id: order.id } })}
               />
             ))}
           </div>
@@ -106,7 +104,7 @@ function OrdersPage() {
   );
 }
 
-function OrderCard({ order, onViewDetails }: any) {
+function OrderCard({ order, onViewDetails }: { order: Order; onViewDetails: () => void }) {
   const statusColors: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800",
     processing: "bg-blue-100 text-blue-800",
@@ -135,9 +133,7 @@ function OrderCard({ order, onViewDetails }: any) {
         {/* Date */}
         <div>
           <p className="text-sm text-gray-600">Date</p>
-          <p className="font-semibold text-gray-900">
-            {new Date(order.date).toLocaleDateString()}
-          </p>
+          <p className="font-semibold text-gray-900">{new Date(order.date).toLocaleDateString()}</p>
         </div>
 
         {/* Items */}
@@ -148,7 +144,9 @@ function OrderCard({ order, onViewDetails }: any) {
 
         {/* Status */}
         <div>
-          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${statusColors[order.status] || "bg-gray-100 text-gray-800"}`}>
+          <span
+            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${statusColors[order.status] || "bg-gray-100 text-gray-800"}`}
+          >
             {statusLabels[order.status] || order.status}
           </span>
         </div>
@@ -156,11 +154,7 @@ function OrderCard({ order, onViewDetails }: any) {
         {/* Amount & Action */}
         <div className="flex items-center justify-between md:justify-end gap-4">
           <Price value={order.total} className="font-bold text-lg" />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onViewDetails}
-          >
+          <Button variant="outline" size="icon" onClick={onViewDetails}>
             <Eye className="w-4 h-4" />
           </Button>
         </div>

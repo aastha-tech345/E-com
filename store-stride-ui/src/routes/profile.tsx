@@ -9,6 +9,9 @@ import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { useShop } from "@/store/shop";
 import { EmptyState } from "@/components/common/EmptyState";
+import type { Address } from "@/types";
+
+type ProfileUser = { full_name: string; email: string };
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -89,10 +92,10 @@ function ProfilePage() {
   );
 }
 
-function ProfileSection({ user }: any) {
+function ProfileSection({ user }: { user: ProfileUser }) {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: user.name,
+    name: user.full_name,
     email: user.email,
   });
 
@@ -106,7 +109,7 @@ function ProfileSection({ user }: any) {
           onClick={() => {
             setEditing(!editing);
             if (editing) {
-              setFormData({ name: user.name, email: user.email });
+              setFormData({ name: user.full_name, email: user.email });
             }
           }}
         >
@@ -128,26 +131,18 @@ function ProfileSection({ user }: any) {
         {editing ? (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
               <Input
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <Input
                 type="email"
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
             <Button onClick={() => setEditing(false)}>
@@ -161,7 +156,7 @@ function ProfileSection({ user }: any) {
               <User className="w-5 h-5 text-gray-400" />
               <div>
                 <p className="text-sm text-gray-600">Name</p>
-                <p className="font-semibold text-gray-900">{user.name}</p>
+                <p className="font-semibold text-gray-900">{user.full_name}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
@@ -178,7 +173,7 @@ function ProfileSection({ user }: any) {
   );
 }
 
-function AddressesSection({ addresses }: any) {
+function AddressesSection({ addresses }: { addresses: Address[] }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
@@ -187,7 +182,7 @@ function AddressesSection({ addresses }: any) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {addresses.map((addr: any) => (
+        {addresses.map((addr) => (
           <div key={addr.id} className="border rounded-lg p-4 hover:shadow-md transition">
             <div className="flex justify-between items-start mb-3">
               <h3 className="font-semibold text-gray-900">{addr.name}</h3>
@@ -231,9 +226,7 @@ function PreferencesSection() {
         <input type="checkbox" defaultChecked className="rounded" />
         <div>
           <p className="font-medium text-gray-900">Email Notifications</p>
-          <p className="text-sm text-gray-600">
-            Receive order updates and special offers
-          </p>
+          <p className="text-sm text-gray-600">Receive order updates and special offers</p>
         </div>
       </label>
 
@@ -257,9 +250,7 @@ function PreferencesSection() {
         <input type="checkbox" defaultChecked className="rounded" />
         <div>
           <p className="font-medium text-gray-900">Wishlist Reminders</p>
-          <p className="text-sm text-gray-600">
-            Get notified when wishlisted items go on sale
-          </p>
+          <p className="text-sm text-gray-600">Get notified when wishlisted items go on sale</p>
         </div>
       </label>
     </div>

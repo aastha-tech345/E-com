@@ -92,11 +92,7 @@ function OrderDetailsPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Button
-            variant="ghost"
-            onClick={() => navigate({ to: "/orders" })}
-            className="mb-4"
-          >
+          <Button variant="ghost" onClick={() => navigate({ to: "/orders" })} className="mb-4">
             <ChevronLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
@@ -104,9 +100,7 @@ function OrderDetailsPage() {
           <div className="flex justify-between items-start mb-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Order {order.id}</h1>
-              <p className="text-gray-600">
-                Placed on {new Date(order.date).toLocaleDateString()}
-              </p>
+              <p className="text-gray-600">Placed on {new Date(order.date).toLocaleDateString()}</p>
             </div>
             <span
               className={`px-4 py-2 rounded-full font-semibold ${
@@ -130,22 +124,14 @@ function OrderDetailsPage() {
                     <div className="flex flex-col items-center">
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          event.done
-                            ? "bg-green-100 text-green-600"
-                            : "bg-gray-100 text-gray-600"
+                          event.done ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {event.done ? (
-                          <Check className="w-5 h-5" />
-                        ) : (
-                          <Clock className="w-5 h-5" />
-                        )}
+                        {event.done ? <Check className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                       </div>
                       {idx < order.timeline.length - 1 && (
                         <div
-                          className={`w-0.5 h-12 ${
-                            event.done ? "bg-green-100" : "bg-gray-100"
-                          }`}
+                          className={`w-0.5 h-12 ${event.done ? "bg-green-100" : "bg-gray-100"}`}
                         />
                       )}
                     </div>
@@ -248,8 +234,7 @@ function OrderDetailsPage() {
                           : "text-red-600"
                     }`}
                   >
-                    {order.payment.status.charAt(0).toUpperCase() +
-                      order.payment.status.slice(1)}
+                    {order.payment.status.charAt(0).toUpperCase() + order.payment.status.slice(1)}
                   </span>
                 </div>
               </div>

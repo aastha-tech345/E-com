@@ -50,7 +50,8 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
     addRecentSearch(q);
     setOpen(false);
     onNavigate?.();
-    void navigate({ to: "/search", search: { q, page: 1 } });
+    setTerm(q);
+    void navigate({ to: "/products", search: { search: q, page: 1 } });
   };
 
   return (
@@ -226,13 +227,25 @@ export function Header() {
                 </Link>
               ))}
               <div className="my-2 border-t" />
-              <Link to="/orders" onClick={() => setMobileOpen(false)} className="rounded px-3 py-2.5 text-sm hover:bg-muted">
+              <Link
+                to="/orders"
+                onClick={() => setMobileOpen(false)}
+                className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+              >
                 My Orders
               </Link>
-              <Link to="/wishlist" onClick={() => setMobileOpen(false)} className="rounded px-3 py-2.5 text-sm hover:bg-muted">
+              <Link
+                to="/wishlist"
+                onClick={() => setMobileOpen(false)}
+                className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+              >
                 Wishlist
               </Link>
-              <Link to="/profile" onClick={() => setMobileOpen(false)} className="rounded px-3 py-2.5 text-sm hover:bg-muted">
+              <Link
+                to="/profile"
+                onClick={() => setMobileOpen(false)}
+                className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+              >
                 My Profile
               </Link>
             </nav>
@@ -295,7 +308,7 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>{user ? `Hi, ${user.name}` : "Welcome"}</DropdownMenuLabel>
+              <DropdownMenuLabel>{user ? `Hi, ${user.full_name}` : "Welcome"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {user ? (
                 <>
@@ -350,7 +363,11 @@ export function Header() {
               {c.name}
             </Link>
           ))}
-          <Link to="/products" search={{ page: 1, sort: "discount" }} className="whitespace-nowrap font-medium text-accent">
+          <Link
+            to="/products"
+            search={{ page: 1, sort: "discount" }}
+            className="whitespace-nowrap font-medium text-accent"
+          >
             Today's Deals
           </Link>
         </div>

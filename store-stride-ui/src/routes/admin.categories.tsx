@@ -5,7 +5,7 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
-import { catalogService } from "@/services";
+import { type CatalogCategoryOption, catalogService } from "@/services";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/categories")({
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/admin/categories")({
 
 function AdminCategories() {
   const { admin } = useShop();
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: "", slug: "" });

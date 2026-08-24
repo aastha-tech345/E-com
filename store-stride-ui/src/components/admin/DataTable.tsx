@@ -1,4 +1,11 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,30 +14,32 @@ import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 
-interface DataTableProps {
+interface DataTableProps<T extends object> {
   columns: Array<{
     key: string;
     label: string;
     width?: string;
-    render?: (value: any, row: any) => ReactNode;
+    render?: (value: never, row: T) => ReactNode;
   }>;
-  data: any[];
+  data: T[];
   isLoading?: boolean;
   isEmpty?: boolean;
   emptyMessage?: string;
   emptyAction?: ReactNode;
   onSearch?: (query: string) => void;
+  searchFields?: string[];
+  actions?: Array<{ label: string; onClick: (row: T) => void }>;
   pagination?: {
     page: number;
     pageSize: number;
     total: number;
     onPageChange: (page: number) => void;
   };
-  rowActions?: (row: any) => ReactNode;
+  rowActions?: (row: T) => ReactNode;
   className?: string;
 }
 
-export function DataTable({
+export function DataTable<T extends object>({
   columns,
   data,
   isLoading = false,
@@ -38,16 +47,47 @@ export function DataTable({
   emptyMessage = "No data found",
   emptyAction,
   onSearch,
+  searchFields = [],
+  actions,
   pagination,
   rowActions,
   className,
-}: DataTableProps) {
+}: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     onSearch?.(query);
   };
+
+  const filteredData =
+    searchQuery && !onSearch
+      ? data.filter((row) =>
+          searchFields.some((field) =>
+            String((row as Record<string, unknown>)[field] ?? "")
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()),
+          ),
+        )
+      : data;
+  const effectiveRowActions =
+    rowActions ??
+    (actions
+      ? (row: T) => (
+          <div className="flex justify-end gap-2">
+            {actions.map((action) => (
+              <Button
+                key={action.label}
+                size="sm"
+                variant="outline"
+                onClick={() => action.onClick(row)}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        )
+      : undefined);
 
   // Loading state
   if (isLoading) {
@@ -82,7 +122,7 @@ export function DataTable({
   }
 
   // Empty state
-  if (isEmpty || data.length === 0) {
+  if (isEmpty || filteredData.length === 0) {
     return (
       <Card className={className}>
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -97,7 +137,7 @@ export function DataTable({
   return (
     <div className="space-y-4">
       {/* Search Bar */}
-      {onSearch && (
+      {(onSearch || searchFields.length > 0) && (
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
@@ -120,21 +160,21 @@ export function DataTable({
                     {col.label}
                   </TableHead>
                 ))}
-                {rowActions && <TableHead className="w-12">Actions</TableHead>}
+                {effectiveRowActions && <TableHead className="w-12">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((row, idx) => (
+              {filteredData.map((row, idx) => (
                 <TableRow key={idx} className="hover:bg-muted/50 transition-colors">
                   {columns.map((col) => (
                     <TableCell key={`${idx}-${col.key}`} className="py-3">
-                      {col.render ? col.render(row[col.key], row) : row[col.key]}
+                      {col.render
+                        ? col.render((row as Record<string, unknown>)[col.key] as never, row)
+                        : String((row as Record<string, unknown>)[col.key] ?? "")}
                     </TableCell>
                   ))}
-                  {rowActions && (
-                    <TableCell className="text-right pr-4">
-                      {rowActions(row)}
-                    </TableCell>
+                  {effectiveRowActions && (
+                    <TableCell className="text-right pr-4">{effectiveRowActions(row)}</TableCell>
                   )}
                 </TableRow>
               ))}
@@ -156,29 +196,18 @@ export function DataTable({
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() =>
-                pagination.onPageChange(
-                  Math.max(1, pagination.page - 1)
-                )
-              }
+              onClick={() => pagination.onPageChange(Math.max(1, pagination.page - 1))}
               disabled={pagination.page === 1}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm">
-              Page {pagination.page}
-            </span>
+            <span className="text-sm">Page {pagination.page}</span>
             <Button
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() =>
-                pagination.onPageChange(pagination.page + 1)
-              }
-              disabled={
-                pagination.page >=
-                Math.ceil(pagination.total / pagination.pageSize)
-              }
+              onClick={() => pagination.onPageChange(pagination.page + 1)}
+              disabled={pagination.page >= Math.ceil(pagination.total / pagination.pageSize)}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

@@ -64,9 +64,7 @@ function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Email Address</label>
               <Input
                 type="email"
                 value={email}
@@ -78,9 +76,7 @@ function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -143,10 +139,7 @@ function LoginPage() {
           {/* Sign Up Link */}
           <p className="text-center text-sm text-gray-600">
             Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="text-blue-600 hover:text-blue-700 font-semibold"
-            >
+            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold">
               Create one
             </Link>
           </p>
@@ -157,8 +150,8 @@ function LoginPage() {
           By signing in, you agree to our{" "}
           <a href="#" className="text-blue-600 hover:underline">
             Terms of Service
-          </a>
-          {" "}and{" "}
+          </a>{" "}
+          and{" "}
           <a href="#" className="text-blue-600 hover:underline">
             Privacy Policy
           </a>

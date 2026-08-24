@@ -31,8 +31,18 @@ function AdminLogin() {
       const response = await authService.login(email, password);
 
       // Check if user has admin or seller role
-      const hasAdminAccess = response.user.roles.some(role => 
-        ["super_admin", "admin", "admin_catalog", "admin_orders", "admin_payments", "admin_customers", "admin_marketing", "admin_support", "seller_owner"].includes(role)
+      const hasAdminAccess = response.user.roles.some((role: string) =>
+        [
+          "super_admin",
+          "admin",
+          "admin_catalog",
+          "admin_orders",
+          "admin_payments",
+          "admin_customers",
+          "admin_marketing",
+          "admin_support",
+          "seller_owner",
+        ].includes(role),
       );
 
       if (!hasAdminAccess) {
@@ -65,9 +75,7 @@ function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
-              Email Address
-            </label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Email Address</label>
             <Input
               type="email"
               value={email}
@@ -78,9 +86,7 @@ function AdminLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
-              Password
-            </label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Password</label>
             <Input
               type="password"
               value={password}

@@ -117,11 +117,13 @@ function RegisterPage() {
                 I want to register as:
               </label>
               <div className="grid grid-cols-2 gap-3">
-                <label className={`cursor-pointer p-3 rounded-lg border-2 transition ${
-                  userType === "customer" 
-                    ? "border-blue-600 bg-blue-50" 
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}>
+                <label
+                  className={`cursor-pointer p-3 rounded-lg border-2 transition ${
+                    userType === "customer"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 bg-white hover:border-gray-300"
+                  }`}
+                >
                   <input
                     type="radio"
                     name="userType"
@@ -138,11 +140,13 @@ function RegisterPage() {
                   </div>
                 </label>
 
-                <label className={`cursor-pointer p-3 rounded-lg border-2 transition ${
-                  userType === "seller" 
-                    ? "border-blue-600 bg-blue-50" 
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}>
+                <label
+                  className={`cursor-pointer p-3 rounded-lg border-2 transition ${
+                    userType === "seller"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 bg-white hover:border-gray-300"
+                  }`}
+                >
                   <input
                     type="radio"
                     name="userType"
@@ -162,9 +166,7 @@ function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Full Name
-              </label>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Full Name</label>
               <Input
                 type="text"
                 value={fullName}
@@ -176,9 +178,7 @@ function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Email Address</label>
               <Input
                 type="email"
                 value={email}
@@ -190,9 +190,7 @@ function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -239,8 +237,8 @@ function RegisterPage() {
                 I agree to the{" "}
                 <a href="#" className="text-blue-600 hover:underline">
                   Terms of Service
-                </a>
-                {" "}and{" "}
+                </a>{" "}
+                and{" "}
                 <a href="#" className="text-blue-600 hover:underline">
                   Privacy Policy
                 </a>
@@ -279,10 +277,7 @@ function RegisterPage() {
           {/* Sign In Link */}
           <p className="text-center text-sm text-gray-600">
             Already have an account?{" "}
-            <Link
-              to="/login"
-              className="text-blue-600 hover:text-blue-700 font-semibold"
-            >
+            <Link to="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
               Sign in
             </Link>
           </p>

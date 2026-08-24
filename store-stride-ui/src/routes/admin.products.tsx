@@ -5,7 +5,8 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
-import { productService, catalogService } from "@/services";
+import { productService } from "@/services";
+import type { Product } from "@/types";
 
 export const Route = createFileRoute("/admin/products")({
   component: AdminProducts,
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/admin/products")({
 function AdminProducts() {
   const { admin } = useShop();
   const navigate = useNavigate();
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -84,10 +85,7 @@ function AdminProducts() {
           ) : products.length === 0 ? (
             <div className="bg-white rounded-lg p-12 text-center">
               <p className="text-gray-500">No products found</p>
-              <Button
-                onClick={() => navigate({ to: "/admin/products/create" })}
-                className="mt-4"
-              >
+              <Button onClick={() => navigate({ to: "/admin/products/create" })} className="mt-4">
                 Create First Product
               </Button>
             </div>
@@ -125,24 +123,18 @@ function AdminProducts() {
                           <p className="text-gray-500">{product.slug}</p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {product.category_id}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        ₹{product.variants?.[0]?.price || "N/A"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {product.variants?.[0]?.quantity_available || 0}
-                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{product.category}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">₹{product.price || "N/A"}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{product.stock}</td>
                       <td className="px-6 py-4 text-sm">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            product.is_published
+                            product.status === "active"
                               ? "bg-green-100 text-green-800"
                               : "bg-gray-100 text-gray-800"
                           }`}
                         >
-                          {product.is_published ? "Published" : "Draft"}
+                          {product.status === "active" ? "Published" : "Draft"}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm">

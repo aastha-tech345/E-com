@@ -14,7 +14,7 @@ export function useAuth() {
     const currentUser = getCurrentUser();
     return currentUser?.roles ?? authService.getUserRoles();
   };
-  
+
   const isAuthenticated = (): boolean => {
     return !!user || !!admin;
   };
@@ -43,7 +43,7 @@ export function useAuth() {
 
   const hasAnyRole = (roles: string[]): boolean => {
     const userRoles = getCurrentRoles();
-    return roles.some(role => userRoles.includes(role));
+    return roles.some((role) => userRoles.includes(role));
   };
 
   const getUserId = (): string | null => {

@@ -8,6 +8,7 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useShop } from "@/store/shop";
 import { categories, brands, products } from "@/data/catalog";
 import { toast } from "sonner";
+import type { ProductStatus } from "@/types";
 
 export const Route = createFileRoute("/admin/products/$id/edit")({
   component: EditProductPage,
@@ -82,34 +83,24 @@ function EditProductPage() {
                 <Input
                   placeholder="Enter product name"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  SKU *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">SKU *</label>
                 <Input
                   placeholder="SKU-xxxxx"
                   value={formData.sku}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sku: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Brand *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Brand *</label>
                 <select
                   value={formData.brand}
-                  onChange={(e) =>
-                    setFormData({ ...formData, brand: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
@@ -122,9 +113,7 @@ function EditProductPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Category *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
                 <select
                   value={formData.category}
                   onChange={(e) =>
@@ -152,9 +141,7 @@ function EditProductPage() {
                   </label>
                   <select
                     value={formData.subcategory}
-                    onChange={(e) =>
-                      setFormData({ ...formData, subcategory: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select Subcategory</option>
@@ -179,9 +166,7 @@ function EditProductPage() {
               <Input
                 placeholder="Brief product description"
                 value={formData.shortDescription}
-                onChange={(e) =>
-                  setFormData({ ...formData, shortDescription: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
               />
             </div>
             <div>
@@ -191,9 +176,7 @@ function EditProductPage() {
               <textarea
                 placeholder="Detailed product description"
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
               />
@@ -205,16 +188,12 @@ function EditProductPage() {
             <h3 className="text-lg font-semibold text-gray-900">Pricing</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  MRP (₹) *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">MRP (₹) *</label>
                 <Input
                   type="number"
                   placeholder="0"
                   value={formData.mrp}
-                  onChange={(e) =>
-                    setFormData({ ...formData, mrp: Number(e.target.value) })
-                  }
+                  onChange={(e) => setFormData({ ...formData, mrp: Number(e.target.value) })}
                   required
                 />
               </div>
@@ -226,9 +205,7 @@ function EditProductPage() {
                   type="number"
                   placeholder="0"
                   value={formData.price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price: Number(e.target.value) })
-                  }
+                  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
                   required
                 />
               </div>
@@ -256,23 +233,17 @@ function EditProductPage() {
             <h3 className="text-lg font-semibold text-gray-900">Inventory</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stock *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Stock *</label>
                 <Input
                   type="number"
                   placeholder="0"
                   value={formData.stock}
-                  onChange={(e) =>
-                    setFormData({ ...formData, stock: Number(e.target.value) })
-                  }
+                  onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Min Stock
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Min Stock</label>
                 <Input
                   type="number"
                   placeholder="10"
@@ -286,9 +257,7 @@ function EditProductPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Stock
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Max Stock</label>
                 <Input
                   type="number"
                   placeholder="1000"
@@ -332,7 +301,9 @@ function EditProductPage() {
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-gray-600 mb-2">Drag and drop images here or click to browse</p>
-              <p className="text-gray-500 text-sm">Supported formats: JPG, PNG, GIF (Max 5MB each)</p>
+              <p className="text-gray-500 text-sm">
+                Supported formats: JPG, PNG, GIF (Max 5MB each)
+              </p>
               <Input type="file" multiple accept="image/*" className="mt-4" />
             </div>
           </div>
@@ -347,9 +318,7 @@ function EditProductPage() {
               <Input
                 placeholder="Red, Blue, Black, White"
                 value={formData.colors}
-                onChange={(e) =>
-                  setFormData({ ...formData, colors: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, colors: e.target.value })}
               />
             </div>
             <div>
@@ -359,9 +328,7 @@ function EditProductPage() {
               <Input
                 placeholder="S, M, L, XL, XXL"
                 value={formData.sizes}
-                onChange={(e) =>
-                  setFormData({ ...formData, sizes: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, sizes: e.target.value })}
               />
             </div>
           </div>
@@ -370,13 +337,11 @@ function EditProductPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Status</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Product Status
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Product Status</label>
               <select
                 value={formData.status}
                 onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as any })
+                  setFormData({ ...formData, status: e.target.value as ProductStatus })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
@@ -389,10 +354,7 @@ function EditProductPage() {
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
               Save Changes
             </Button>
             <Button

@@ -23,16 +23,12 @@ function AdminUsersPage() {
     {
       key: "name",
       label: "Name",
-      render: (value: string) => (
-        <div className="font-medium text-gray-900">{value}</div>
-      ),
+      render: (value: string) => <div className="font-medium text-gray-900">{value}</div>,
     },
     {
       key: "email",
       label: "Email",
-      render: (value: string) => (
-        <span className="text-gray-600">{value}</span>
-      ),
+      render: (value: string) => <span className="text-gray-600">{value}</span>,
     },
     {
       key: "role",
@@ -48,9 +44,7 @@ function AdminUsersPage() {
       key: "lastActive",
       label: "Last Active",
       render: (value: string) => (
-        <span className="text-gray-600">
-          {new Date(value).toLocaleDateString()}
-        </span>
+        <span className="text-gray-600">{new Date(value).toLocaleDateString()}</span>
       ),
     },
     {
@@ -59,9 +53,7 @@ function AdminUsersPage() {
       render: (value: string) => (
         <span
           className={`px-2 py-1 rounded text-xs font-medium ${
-            value === "active"
-              ? "bg-green-100 text-green-800"
-              : "bg-red-100 text-red-800"
+            value === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
           }`}
         >
           {value}

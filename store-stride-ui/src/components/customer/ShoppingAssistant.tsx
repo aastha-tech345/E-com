@@ -158,13 +158,7 @@ export function ShoppingAssistant() {
   );
 }
 
-function ChatBubble({
-  message,
-  onAdd,
-}: {
-  message: ChatMessage;
-  onAdd: (id: string) => void;
-}) {
+function ChatBubble({ message, onAdd }: { message: ChatMessage; onAdd: (id: string) => void }) {
   const mockItems = message.products ? productService.byIds(message.products) : [];
   const backendItems = message.productResults ?? [];
   if (message.role === "user") {
@@ -189,7 +183,9 @@ function ChatBubble({
               {message.orchestrator === "langgraph" ? "LangGraph" : message.orchestrator}
             </span>
           )}
-          {message.intent && <span className="rounded-full border px-2 py-0.5">{formatIntent(message.intent)}</span>}
+          {message.intent && (
+            <span className="rounded-full border px-2 py-0.5">{formatIntent(message.intent)}</span>
+          )}
           {message.usedTools && message.usedTools.length > 0 && (
             <span className="rounded-full border px-2 py-0.5">
               {message.usedTools.length} tools used

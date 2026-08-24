@@ -5,7 +5,7 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
-import { catalogService } from "@/services";
+import { type CatalogBrandOption, catalogService } from "@/services";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/brands")({
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/admin/brands")({
 
 function AdminBrands() {
   const { admin } = useShop();
-  const [brands, setBrands] = useState<any[]>([]);
+  const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: "", slug: "" });
@@ -139,11 +139,7 @@ function AdminBrands() {
                         <Button variant="outline" size="sm">
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(brand.id)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => handleDelete(brand.id)}>
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
                       </td>

@@ -28,14 +28,17 @@ function CheckoutSuccessPage() {
           <CheckCircle className="mx-auto mb-4 h-14 w-14 text-green-600" />
           <h1 className="text-2xl font-bold text-gray-900">Payment successful</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Stripe confirmed your checkout. Your order flow can now be connected to backend order creation.
+            Stripe confirmed your checkout. Your order flow can now be connected to backend order
+            creation.
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <Button asChild>
               <Link to="/orders">View Orders</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/products" search={{ page: 1 }}>Continue Shopping</Link>
+              <Link to="/products" search={{ page: 1 }}>
+                Continue Shopping
+              </Link>
             </Button>
           </div>
         </div>

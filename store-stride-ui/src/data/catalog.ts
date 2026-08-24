@@ -20,8 +20,7 @@ function rng(seed: number) {
   };
 }
 
-const img = (seed: string, w = 800, h = 800) =>
-  `https://picsum.photos/seed/${seed}/${w}/${h}`;
+const img = (seed: string, w = 800, h = 800) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
 
 export const categories: Category[] = [
   {
@@ -256,13 +255,7 @@ export const customers: Customer[] = [
   };
 });
 
-const statuses: OrderStatus[] = [
-  "pending",
-  "processing",
-  "shipped",
-  "delivered",
-  "cancelled",
-];
+const statuses: OrderStatus[] = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
 export const orders: Order[] = Array.from({ length: 28 }, (_, i) => {
   const rand = rng(500 + i);
@@ -336,31 +329,143 @@ export const reviews: Review[] = Array.from({ length: 24 }, (_, i) => {
 });
 
 export const coupons: Coupon[] = [
-  { id: "CP1", code: "WELCOME10", type: "percent", value: 10, minOrder: 999, usage: 421, limit: 1000, expiry: "2026-12-31", status: "active" },
-  { id: "CP2", code: "FLAT500", type: "flat", value: 500, minOrder: 2999, usage: 189, limit: 500, expiry: "2026-10-31", status: "active" },
-  { id: "CP3", code: "BIGSALE25", type: "percent", value: 25, minOrder: 4999, usage: 78, limit: 300, expiry: "2026-09-15", status: "active" },
-  { id: "CP4", code: "SUMMER15", type: "percent", value: 15, minOrder: 1499, usage: 500, limit: 500, expiry: "2026-06-30", status: "expired" },
+  {
+    id: "CP1",
+    code: "WELCOME10",
+    type: "percent",
+    value: 10,
+    minOrder: 999,
+    usage: 421,
+    limit: 1000,
+    expiry: "2026-12-31",
+    status: "active",
+  },
+  {
+    id: "CP2",
+    code: "FLAT500",
+    type: "flat",
+    value: 500,
+    minOrder: 2999,
+    usage: 189,
+    limit: 500,
+    expiry: "2026-10-31",
+    status: "active",
+  },
+  {
+    id: "CP3",
+    code: "BIGSALE25",
+    type: "percent",
+    value: 25,
+    minOrder: 4999,
+    usage: 78,
+    limit: 300,
+    expiry: "2026-09-15",
+    status: "active",
+  },
+  {
+    id: "CP4",
+    code: "SUMMER15",
+    type: "percent",
+    value: 15,
+    minOrder: 1499,
+    usage: 500,
+    limit: 500,
+    expiry: "2026-06-30",
+    status: "expired",
+  },
 ];
 
 export const banners: Banner[] = [
-  { id: "BN1", title: "Monsoon Edit", subtitle: "Up to 60% off on premium audio", image: img("banner-1", 1400, 700), cta: "Shop Electronics", placement: "hero", status: "active" },
-  { id: "BN2", title: "Wardrobe Refresh", subtitle: "New season fashion drops", image: img("banner-2", 1000, 600), cta: "Explore Fashion", placement: "grid", status: "active" },
-  { id: "BN3", title: "Home Essentials", subtitle: "Everyday value, curated", image: img("banner-3", 1000, 600), cta: "Shop Home", placement: "grid", status: "active" },
-  { id: "BN4", title: "Free delivery over ₹999", subtitle: "On all prepaid orders", image: img("banner-4", 1400, 300), cta: "Know more", placement: "strip", status: "inactive" },
+  {
+    id: "BN1",
+    title: "Monsoon Edit",
+    subtitle: "Up to 60% off on premium audio",
+    image: img("banner-1", 1400, 700),
+    cta: "Shop Electronics",
+    placement: "hero",
+    status: "active",
+  },
+  {
+    id: "BN2",
+    title: "Wardrobe Refresh",
+    subtitle: "New season fashion drops",
+    image: img("banner-2", 1000, 600),
+    cta: "Explore Fashion",
+    placement: "grid",
+    status: "active",
+  },
+  {
+    id: "BN3",
+    title: "Home Essentials",
+    subtitle: "Everyday value, curated",
+    image: img("banner-3", 1000, 600),
+    cta: "Shop Home",
+    placement: "grid",
+    status: "active",
+  },
+  {
+    id: "BN4",
+    title: "Free delivery over ₹999",
+    subtitle: "On all prepaid orders",
+    image: img("banner-4", 1400, 300),
+    cta: "Know more",
+    placement: "strip",
+    status: "inactive",
+  },
 ];
 
 export const adminUsers: AdminUser[] = [
-  { id: "AU1", name: "Priya Menon", email: "priya@shop.admin", role: "Super Admin", lastActive: "2026-08-21", status: "active" },
-  { id: "AU2", name: "Rahul Das", email: "rahul@shop.admin", role: "Manager", lastActive: "2026-08-20", status: "active" },
-  { id: "AU3", name: "Fatima Sheikh", email: "fatima@shop.admin", role: "Catalog", lastActive: "2026-08-18", status: "active" },
-  { id: "AU4", name: "Dev Patel", email: "dev@shop.admin", role: "Support", lastActive: "2026-07-30", status: "inactive" },
+  {
+    id: "AU1",
+    name: "Priya Menon",
+    email: "priya@shop.admin",
+    role: "Super Admin",
+    lastActive: "2026-08-21",
+    status: "active",
+  },
+  {
+    id: "AU2",
+    name: "Rahul Das",
+    email: "rahul@shop.admin",
+    role: "Manager",
+    lastActive: "2026-08-20",
+    status: "active",
+  },
+  {
+    id: "AU3",
+    name: "Fatima Sheikh",
+    email: "fatima@shop.admin",
+    role: "Catalog",
+    lastActive: "2026-08-18",
+    status: "active",
+  },
+  {
+    id: "AU4",
+    name: "Dev Patel",
+    email: "dev@shop.admin",
+    role: "Support",
+    lastActive: "2026-07-30",
+    status: "inactive",
+  },
 ];
 
 export const productAttributes = [
   { id: "AT1", name: "Color", type: "Swatch", values: colorPool, usedIn: 42 },
   { id: "AT2", name: "Size", type: "Dropdown", values: sizePool, usedIn: 18 },
-  { id: "AT3", name: "Material", type: "Text", values: ["Cotton", "Leather", "Steel", "Plastic"], usedIn: 26 },
-  { id: "AT4", name: "Warranty", type: "Dropdown", values: ["6 Months", "1 Year", "2 Years"], usedIn: 33 },
+  {
+    id: "AT3",
+    name: "Material",
+    type: "Text",
+    values: ["Cotton", "Leather", "Steel", "Plastic"],
+    usedIn: 26,
+  },
+  {
+    id: "AT4",
+    name: "Warranty",
+    type: "Dropdown",
+    values: ["6 Months", "1 Year", "2 Years"],
+    usedIn: 33,
+  },
 ];
 
 export const popularSearches = [

@@ -1,6 +1,6 @@
 /**
  * Frontend service layer - Real API Integration (with Mock Fallback)
- * 
+ *
  * Calls REST APIs from FastAPI backend.
  * Falls back to mock data while backend is initializing.
  * API base: http://localhost:8000/api/v1
@@ -27,7 +27,7 @@ const SHOP_STATE_KEY = "shopnest-state-v1";
 
 export interface ProductQuery {
   search?: string;
-  category?: string;
+  category?: string[];
   subcategories?: string[];
   brands?: string[];
   minPrice?: number;
@@ -48,6 +48,81 @@ export interface Paged<T> {
   page: number;
   perPage: number;
   pages: number;
+}
+
+export interface CatalogCategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface CatalogBrandOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface BackendProduct {
+  id: string;
+  name: string;
+  slug: string;
+  short_description: string;
+  description: string;
+  is_published: boolean;
+  category_name?: string | null;
+  category_slug?: string | null;
+  brand_name?: string | null;
+  average_rating?: number;
+  review_count?: number;
+  variants: Array<{
+    sku: string;
+    price: string | number;
+    quantity_available: number;
+    inventory_reserved?: number;
+    is_default: boolean;
+  }>;
+  media: Array<{ media_url: string; sort_order: number }>;
+}
+
+const productCache = new Map<string, Product>();
+
+function mapApiProduct(product: BackendProduct): Product {
+  const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
+  const price = Number(variant?.price ?? 0);
+
+  return {
+    id: product.id,
+    sku: variant?.sku ?? product.slug,
+    name: product.name,
+    slug: product.slug,
+    brand: product.brand_name ?? "Unbranded",
+    category: product.category_name ?? "Uncategorized",
+    categorySlug: product.category_slug ?? "uncategorized",
+    subcategory: "",
+    description: product.description,
+    shortDescription: product.short_description,
+    images: [...product.media]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((media) => media.media_url),
+    mrp: price,
+    price,
+    costPrice: 0,
+    rating: Number(product.average_rating ?? 0),
+    reviewCount: Number(product.review_count ?? 0),
+    stock: variant?.quantity_available ?? 0,
+    reserved: variant?.inventory_reserved ?? 0,
+    minStock: 0,
+    colors: [],
+    sizes: [],
+    specifications: [],
+    tags: [],
+    status: product.is_published ? "active" : "draft",
+    createdAt: "",
+    featured: false,
+    trending: false,
+    bestSeller: false,
+    deal: false,
+  };
 }
 
 export interface StripeCheckoutItem {
@@ -99,30 +174,47 @@ function authHeaders(): HeadersInit {
 
 export const productService = {
   async list(query?: ProductQuery): Promise<Paged<Product>> {
-    // Use mock data - API not fully implemented yet
+    const params = new URLSearchParams();
+    if (query?.search) params.set("q", query.search);
+    query?.category?.forEach((value) => params.append("category", value));
+    query?.brands?.forEach((value) => params.append("brand", value));
+    if (query?.minPrice !== undefined) params.set("min_price", String(query.minPrice));
+    if (query?.maxPrice !== undefined) params.set("max_price", String(query.maxPrice));
+    if (query?.minRating !== undefined) params.set("min_rating", String(query.minRating));
+    if (query?.sort) params.set("sort", query.sort);
+    params.set("page", String(query?.page || 1));
+    params.set("per_page", String(query?.perPage || 12));
+
+    const response = await fetch(`${API_BASE}/products?${params.toString()}`);
+    if (!response.ok) throw new Error("Unable to load products from the server.");
+    const data = (await response.json()) as {
+      items: BackendProduct[];
+      total: number;
+      page: number;
+      per_page: number;
+      pages: number;
+    };
+    const items = data.items.map(mapApiProduct);
+    items.forEach((product) => productCache.set(product.id, product));
     return {
-      items: products.slice(0, 20),
-      total: products.length,
-      page: 1,
-      perPage: 20,
-      pages: Math.ceil(products.length / 20),
+      items,
+      total: data.total,
+      page: data.page,
+      perPage: data.per_page,
+      pages: data.pages,
     };
   },
 
   byId(id: string): Product | undefined {
-    // Use mock data only - API not implemented yet
-    return products.find((p) => p.id === id);
+    return productCache.get(id) ?? products.find((product) => product.id === id);
   },
 
   byIds(ids: string[]): Product[] {
-    return ids
-      .map((id) => this.byId(id))
-      .filter((product): product is Product => Boolean(product));
+    return ids.map((id) => this.byId(id)).filter((product): product is Product => Boolean(product));
   },
 
   all(): Product[] {
-    // Return all products from mock data
-    return products;
+    return Array.from(productCache.values());
   },
 
   async featured(): Promise<Product[]> {
@@ -131,7 +223,7 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Featured products failed:", err);
-      return products.filter((p) => p.featured).slice(0, 8);
+      return [];
     }
   },
 
@@ -141,7 +233,7 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Trending products failed:", err);
-      return products.filter((p) => p.trending).slice(0, 8);
+      return [];
     }
   },
 
@@ -151,7 +243,7 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Best sellers failed:", err);
-      return products.filter((p) => p.bestSeller).slice(0, 8);
+      return [];
     }
   },
 
@@ -161,19 +253,23 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Deals failed:", err);
-      return products.filter((p) => p.deal).slice(0, 8);
+      return [];
     }
   },
 
-  suggestions(term: string) {
-    const lowerTerm = term.toLowerCase();
+  suggestions(_term: string): {
+    categories: CatalogCategoryOption[];
+    brands: CatalogBrandOption[];
+    products: Product[];
+  } {
     return {
-      categories: categories.filter(c => c.name.toLowerCase().includes(lowerTerm)).slice(0, 3),
-      brands: brands.filter(b => b.name.toLowerCase().includes(lowerTerm)).slice(0, 3),
-      products: products.filter(p => p.name.toLowerCase().includes(lowerTerm)).slice(0, 5),
+      // Search results are loaded from the backend after submission.
+      categories: [],
+      brands: [],
+      products: [],
     };
   },
-  
+
   get popularSearches() {
     return popularSearches;
   },
@@ -185,25 +281,15 @@ export const productService = {
 
 export const catalogService = {
   async categories() {
-    try {
-      const response = await fetch(`${API_BASE}/categories`);
-      if (!response.ok) throw new Error("Failed to fetch categories");
-      return await response.json();
-    } catch (err) {
-      console.warn("Categories API failed, using mock data:", err);
-      return categories;
-    }
+    const response = await fetch(`${API_BASE}/categories`);
+    if (!response.ok) throw new Error("Failed to fetch categories");
+    return (await response.json()) as CatalogCategoryOption[];
   },
 
   async brands() {
-    try {
-      const response = await fetch(`${API_BASE}/brands`);
-      if (!response.ok) throw new Error("Failed to fetch brands");
-      return await response.json();
-    } catch (err) {
-      console.warn("Brands API failed, using mock data:", err);
-      return brands;
-    }
+    const response = await fetch(`${API_BASE}/brands`);
+    if (!response.ok) throw new Error("Failed to fetch brands");
+    return (await response.json()) as CatalogBrandOption[];
   },
 
   attributes() {
@@ -389,7 +475,9 @@ export const authService = {
 
   getUserRoles(): string[] {
     const user = this.getUser() as { roles?: unknown } | null;
-    return Array.isArray(user?.roles) ? user.roles.filter((role): role is string => typeof role === "string") : [];
+    return Array.isArray(user?.roles)
+      ? user.roles.filter((role): role is string => typeof role === "string")
+      : [];
   },
 
   isAdmin() {
@@ -428,7 +516,11 @@ export const chatbotService = {
         products: BackendAssistantProduct[];
         intent?: string;
         used_tools?: string[];
-        metadata?: { suggestions?: string[]; popular_search_terms?: string[]; orchestrator?: string };
+        metadata?: {
+          suggestions?: string[];
+          popular_search_terms?: string[];
+          orchestrator?: string;
+        };
       };
 
       assistantConversationId = payload.conversation_id;
