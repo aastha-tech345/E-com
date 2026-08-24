@@ -24,6 +24,7 @@ import {
 const API_BASE = import.meta.env["VITE_API_URL"] || "http://localhost:8000/api/v1";
 let assistantConversationId: string | undefined;
 const SHOP_STATE_KEY = "shopnest-state-v1";
+const PRODUCT_CACHE_KEY = "shopnest-product-cache-v1";
 
 export interface ProductQuery {
   search?: string;
@@ -50,6 +51,29 @@ export interface Paged<T> {
   pages: number;
 }
 
+export interface ProductCreatePayload {
+  category_id: string;
+  brand_id?: string | null;
+  name: string;
+  slug: string;
+  short_description?: string;
+  description?: string;
+  is_published?: boolean;
+  variants: Array<{
+    name: string;
+    sku: string;
+    price: number;
+    currency?: string;
+    quantity_available: number;
+    is_default?: boolean;
+  }>;
+  media?: Array<{
+    media_url: string;
+    alt_text?: string;
+    sort_order?: number;
+  }>;
+}
+
 export interface CatalogCategoryOption {
   id: string;
   name: string;
@@ -60,6 +84,16 @@ export interface CatalogBrandOption {
   id: string;
   name: string;
   slug: string;
+}
+
+export interface AnalyticsSummary {
+  total_orders: number;
+  total_revenue: string | number;
+  total_customers: number;
+  total_products: number;
+  total_reviews: number;
+  total_searches: number;
+  cached?: boolean;
 }
 
 interface BackendProduct {
@@ -75,6 +109,7 @@ interface BackendProduct {
   average_rating?: number;
   review_count?: number;
   variants: Array<{
+    id: string;
     sku: string;
     price: string | number;
     quantity_available: number;
@@ -85,6 +120,45 @@ interface BackendProduct {
 }
 
 const productCache = new Map<string, Product>();
+let productCacheHydrated = false;
+
+function hydrateProductCache() {
+  if (productCacheHydrated || typeof window === "undefined") return;
+  productCacheHydrated = true;
+
+  try {
+    const raw = localStorage.getItem(PRODUCT_CACHE_KEY);
+    if (!raw) return;
+
+    const items = JSON.parse(raw) as unknown;
+    if (!Array.isArray(items)) return;
+
+    items.forEach((item) => {
+      if (
+        item &&
+        typeof item === "object" &&
+        typeof (item as Product).id === "string" &&
+        typeof (item as Product).name === "string"
+      ) {
+        productCache.set((item as Product).id, item as Product);
+      }
+    });
+  } catch {
+    /* ignore corrupt product cache */
+  }
+}
+
+function rememberProducts(items: Product[]) {
+  hydrateProductCache();
+  items.forEach((product) => productCache.set(product.id, product));
+
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(Array.from(productCache.values())));
+  } catch {
+    /* localStorage can fail if storage is full or blocked */
+  }
+}
 
 function mapApiProduct(product: BackendProduct): Product {
   const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
@@ -92,6 +166,7 @@ function mapApiProduct(product: BackendProduct): Product {
 
   return {
     id: product.id,
+    defaultVariantId: variant?.id,
     sku: variant?.sku ?? product.slug,
     name: product.name,
     slug: product.slug,
@@ -136,6 +211,11 @@ export interface StripeCheckoutItem {
 export interface StripeCheckoutRequest {
   items: StripeCheckoutItem[];
   customer_email?: string;
+  shipping_name?: string;
+  address_line1?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
   success_path?: string;
   cancel_path?: string;
 }
@@ -203,6 +283,39 @@ export const policyService = {
 // ============================================================================
 
 export const productService = {
+  async adminList(): Promise<Product[]> {
+    const response = await fetch(`${API_BASE}/admin/products`, {
+      headers: authHeaders(),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load admin products");
+    }
+    const items = ((await response.json()) as BackendProduct[]).map(mapApiProduct);
+    rememberProducts(items);
+    return items;
+  },
+
+  async create(payload: ProductCreatePayload, endpoint: "admin" | "seller" = "admin"): Promise<Product> {
+    const response = await fetch(`${API_BASE}/${endpoint}/products`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to create product");
+    }
+
+    const product = mapApiProduct((await response.json()) as BackendProduct);
+    rememberProducts([product]);
+    return product;
+  },
+
   async list(query?: ProductQuery): Promise<Paged<Product>> {
     const params = new URLSearchParams();
     if (query?.search) params.set("q", query.search);
@@ -225,7 +338,7 @@ export const productService = {
       pages: number;
     };
     const items = data.items.map(mapApiProduct);
-    items.forEach((product) => productCache.set(product.id, product));
+    rememberProducts(items);
     return {
       items,
       total: data.total,
@@ -236,7 +349,13 @@ export const productService = {
   },
 
   byId(id: string): Product | undefined {
+    hydrateProductCache();
     return productCache.get(id) ?? products.find((product) => product.id === id);
+  },
+
+  remember(product: Product): Product {
+    rememberProducts([product]);
+    return product;
   },
 
   byIds(ids: string[]): Product[] {
@@ -244,6 +363,7 @@ export const productService = {
   },
 
   all(): Product[] {
+    hydrateProductCache();
     return Array.from(productCache.values());
   },
 
@@ -365,6 +485,23 @@ async function adminCatalogRequest<T>(path: string, init: RequestInit): Promise<
 }
 
 // ============================================================================
+// ANALYTICS SERVICE
+// ============================================================================
+
+export const analyticsService = {
+  async summary(): Promise<AnalyticsSummary> {
+    const response = await fetch(`${API_BASE}/admin/analytics/summary`, {
+      headers: authHeaders(),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Failed to load analytics");
+    }
+    return (await response.json()) as AnalyticsSummary;
+  },
+};
+
+// ============================================================================
 // ORDER SERVICE
 // ============================================================================
 
@@ -422,7 +559,7 @@ export const paymentService = {
   async createStripeCheckoutSession(payload: StripeCheckoutRequest) {
     const response = await fetch(`${API_BASE}/payments/stripe/checkout-session`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
 
@@ -432,6 +569,118 @@ export const paymentService = {
     }
 
     return (await response.json()) as { session_id: string; checkout_url: string };
+  },
+};
+
+// ============================================================================
+// CART SERVICE
+// ============================================================================
+
+export interface BackendCartLine {
+  id: string;
+  variant_id: string;
+  product_name: string;
+  variant_name: string;
+  sku: string;
+  quantity: number;
+  unit_price: string | number;
+  currency: string;
+  line_total: string | number;
+  available_quantity: number;
+}
+
+export interface BackendCartResponse {
+  id: string;
+  currency: string;
+  total_items: number;
+  subtotal: string | number;
+  items: BackendCartLine[];
+}
+
+function getDefaultVariantId(productId: string): string | undefined {
+  return productService.byId(productId)?.defaultVariantId;
+}
+
+export const cartService = {
+  isAuthenticated(): boolean {
+    return Boolean(getStoredAccessToken());
+  },
+
+  async current(): Promise<BackendCartResponse | null> {
+    if (!this.isAuthenticated()) return null;
+
+    const response = await fetch(`${API_BASE}/cart`, {
+      headers: authHeaders(),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load backend cart");
+    }
+
+    return (await response.json()) as BackendCartResponse;
+  },
+
+  async addProduct(productId: string, quantity = 1): Promise<BackendCartResponse | null> {
+    if (!this.isAuthenticated()) return null;
+    const variantId = getDefaultVariantId(productId);
+    if (!variantId) return null;
+
+    const response = await fetch(`${API_BASE}/cart/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ variant_id: variantId, quantity }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to save cart item");
+    }
+
+    return (await response.json()) as BackendCartResponse;
+  },
+
+  async updateProduct(productId: string, quantity: number): Promise<BackendCartResponse | null> {
+    if (!this.isAuthenticated()) return null;
+    const variantId = getDefaultVariantId(productId);
+    if (!variantId) return null;
+
+    const response = await fetch(`${API_BASE}/cart/items/${variantId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ quantity }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      if (response.status === 400 && detail?.detail === "Cart item not found.") return null;
+      throw new Error(detail?.detail || "Unable to update cart item");
+    }
+
+    return (await response.json()) as BackendCartResponse;
+  },
+
+  async saveProductQuantity(productId: string, quantity: number): Promise<BackendCartResponse | null> {
+    const updated = await this.updateProduct(productId, quantity);
+    if (updated || quantity <= 0) return updated;
+    return this.addProduct(productId, quantity);
+  },
+
+  async removeProduct(productId: string): Promise<BackendCartResponse | null> {
+    return this.updateProduct(productId, 0);
+  },
+
+  async clear(): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    const response = await fetch(`${API_BASE}/cart`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to clear backend cart");
+    }
   },
 };
 

@@ -28,6 +28,11 @@ class StripeCheckoutItem(BaseModel):
 class StripeCheckoutRequest(BaseModel):
     items: list[StripeCheckoutItem] = Field(min_length=1)
     customer_email: str | None = None
+    shipping_name: str | None = Field(default=None, max_length=120)
+    address_line1: str | None = Field(default=None, max_length=255)
+    city: str | None = Field(default=None, max_length=120)
+    state: str | None = Field(default=None, max_length=120)
+    postal_code: str | None = Field(default=None, max_length=20)
     success_path: str = "/checkout/success"
     cancel_path: str = "/checkout/cancel"
 

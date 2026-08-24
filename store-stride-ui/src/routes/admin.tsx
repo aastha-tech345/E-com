@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Navigate, Outlet, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin")({
@@ -7,6 +7,12 @@ export const Route = createFileRoute("/admin")({
 
 function AdminLayout() {
   const { hasAdminAccess, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const isLoginRoute = location.pathname === "/admin/login";
+
+  if (isLoginRoute) {
+    return <Outlet />;
+  }
 
   // Redirect to login if not authenticated
   if (!isAuthenticated()) {

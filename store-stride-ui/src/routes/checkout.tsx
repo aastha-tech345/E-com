@@ -10,7 +10,7 @@ import { Footer } from "@/components/customer/Footer";
 import { useShop } from "@/store/shop";
 import { EmptyState } from "@/components/common/EmptyState";
 import { toast } from "sonner";
-import { paymentService } from "@/services";
+import { cartService, paymentService } from "@/services";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -88,8 +88,22 @@ function CheckoutPage() {
     }
     setSubmittingPayment(true);
     try {
+      const address = addresses.find((item) => item.id === selectedAddress);
+      if (cartService.isAuthenticated()) {
+        await Promise.all(
+          cartProducts.map(({ product, line }) =>
+            cartService.saveProductQuantity(product.id, line.quantity),
+          ),
+        );
+      }
+
       const session = await paymentService.createStripeCheckoutSession({
         customer_email: user?.email,
+        shipping_name: address?.name,
+        address_line1: address?.line1,
+        city: address?.city,
+        state: address?.state,
+        postal_code: address?.pincode,
         success_path: "/checkout/success",
         cancel_path: "/checkout/cancel",
         items: cartProducts.map(({ product, line }) => ({

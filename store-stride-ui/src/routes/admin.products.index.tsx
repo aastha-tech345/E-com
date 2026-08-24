@@ -1,11 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Edit, Trash2, Eye } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { DataTable } from "@/components/admin/DataTable";
 import { useShop } from "@/store/shop";
-import { products } from "@/data/catalog";
+import { productService } from "@/services";
 import type { Product } from "@/types";
 
 export const Route = createFileRoute("/admin/products/")({
@@ -15,6 +16,23 @@ export const Route = createFileRoute("/admin/products/")({
 function AdminProductsPage() {
   const navigate = useNavigate();
   const { admin } = useShop();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      setLoading(true);
+      try {
+        setProducts(await productService.adminList());
+      } catch (err) {
+        console.error("Error loading products:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadProducts();
+  }, []);
 
   if (!admin) {
     return null;
@@ -105,6 +123,8 @@ function AdminProductsPage() {
           <DataTable
             columns={columns}
             data={products}
+            isLoading={loading}
+            emptyMessage="No products found"
             searchFields={["name", "sku", "brand"]}
             actions={[
               {

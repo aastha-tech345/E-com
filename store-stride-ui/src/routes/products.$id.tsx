@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart, Share2, Truck, RotateCcw, ShieldCheck, ChevronRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +31,10 @@ function ProductDetailsPage() {
 
   const product = productService.byId(id);
 
+  useEffect(() => {
+    if (product) markViewed(product.id);
+  }, [product?.id]);
+
   if (!product) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -44,8 +48,6 @@ function ProductDetailsPage() {
       </div>
     );
   }
-
-  markViewed(product.id);
 
   const relatedProducts = productService
     .all()
@@ -64,6 +66,7 @@ function ProductDetailsPage() {
     addToCart(product.id, quantity, {
       color: selectedColor || undefined,
       size: selectedSize || undefined,
+      product,
     });
     setQuantity(1);
   };

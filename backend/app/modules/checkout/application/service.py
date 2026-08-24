@@ -107,3 +107,72 @@ def place_order_from_cart(
     )
     clear_cart(db, user_id=user_id, release_inventory_items=False)
     return order
+
+
+def create_pending_order_from_cart(
+    db: Session,
+    *,
+    user_id: str,
+    shipping_name: str,
+    address_line1: str,
+    city: str,
+    state: str,
+    postal_code: str,
+    idempotency_key: str,
+) -> Order:
+    existing = db.scalar(select(Order).where(Order.user_id == user_id, Order.idempotency_key == idempotency_key))
+    if existing is not None:
+        return existing
+
+    cart = get_cart(db, user_id=user_id)
+    active_items = [item for item in cart.items if getattr(item, "status", "active") == "active"]
+    if not active_items:
+        raise ValueError("Cart is empty.")
+
+    order = Order(
+        user_id=user_id,
+        order_number=f"ORD-{idempotency_key[-8:].upper()}",
+        status="payment_pending",
+        currency=cart.currency,
+        subtotal=Decimal("0.00"),
+        shipping_name=shipping_name,
+        address_line1=address_line1,
+        city=city,
+        state=state,
+        postal_code=postal_code,
+        idempotency_key=idempotency_key,
+    )
+    db.add(order)
+    db.flush()
+
+    subtotal = Decimal("0.00")
+    commission_rate = Decimal("0.1000")
+    for cart_item in active_items:
+        variant = cart_item.variant
+        price = get_active_price(db, variant_id=variant.id)
+        unit_price = price.amount if price is not None else variant.price
+        line_total = (unit_price * cart_item.quantity).quantize(Decimal("0.01"))
+        commission_amount = (line_total * commission_rate).quantize(Decimal("0.01"))
+        subtotal += line_total
+        db.add(
+            OrderItem(
+                order_id=order.id,
+                product_id=variant.product_id,
+                variant_id=variant.id,
+                seller_id=variant.product.seller_id,
+                product_name=variant.product.name,
+                variant_name=variant.name,
+                sku=variant.sku,
+                quantity=cart_item.quantity,
+                unit_price=unit_price,
+                line_total=line_total,
+                commission_rate=commission_rate,
+                commission_amount=commission_amount,
+                seller_payout_amount=(line_total - commission_amount).quantize(Decimal("0.01")),
+            )
+        )
+
+    order.subtotal = subtotal
+    db.add(OrderStatusHistory(order_id=order.id, status="payment_pending", note="Stripe checkout started"))
+    db.flush()
+    return order

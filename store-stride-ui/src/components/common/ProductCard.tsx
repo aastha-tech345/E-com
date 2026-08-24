@@ -3,6 +3,7 @@ import { Eye, Heart, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Price } from "@/components/common/Price";
 import { Rating } from "@/components/common/Rating";
+import { productService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
@@ -101,7 +102,10 @@ export function ProductCard({
           size="sm"
           variant={out ? "secondary" : "default"}
           disabled={out}
-          onClick={() => addToCart(product.id)}
+          onClick={() => {
+            productService.remember(product);
+            addToCart(product.id, 1, { product });
+          }}
         >
           <ShoppingCart size={15} />
           {out ? "Notify me" : "Add to Cart"}
