@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,11 +30,43 @@ from app.modules.catalog.application.service import (
     update_product,
 )
 from app.modules.catalog.domain.models import Brand, Category, Product
+from app.modules.ai_assistant.application.policies import MAX_POLICY_BYTES, ingest_policy, list_policies
 from app.modules.identity.application.schemas import UserProfileResponse
 from app.modules.identity.presentation.dependencies import require_roles
 from app.shared.enums.roles import SystemRole
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/policies")
+def admin_policies(
+    _: UserProfileResponse = Depends(require_roles(SystemRole.SUPER_ADMIN.value, SystemRole.ADMIN_SUPPORT.value)),
+    db: Session = Depends(get_db_session),
+) -> list[dict[str, object]]:
+    return [{"id": row.id, "title": row.title, "created_at": row.created_at.isoformat()} for row in list_policies(db)]
+
+
+@router.post("/policies", status_code=status.HTTP_201_CREATED)
+async def admin_upload_policy(
+    file: UploadFile = File(...),
+    name: str | None = Form(default=None),
+    _: UserProfileResponse = Depends(require_roles(SystemRole.SUPER_ADMIN.value, SystemRole.ADMIN_SUPPORT.value)),
+    db: Session = Depends(get_db_session),
+) -> dict[str, object]:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Choose a policy file to upload.")
+    raw = await file.read(MAX_POLICY_BYTES + 1)
+    if len(raw) > MAX_POLICY_BYTES:
+        raise HTTPException(status_code=400, detail="Policy file must be 2 MB or smaller.")
+    try:
+        filename = f"{name.strip()}.txt" if name and name.strip() else file.filename
+        document, chunk_count = ingest_policy(db, filename=filename, content=raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Policy files must be UTF-8 text or Markdown. PDF and Word files are not supported yet.") from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"id": document.id, "title": document.title, "chunks": chunk_count}
 
 
 @router.get("/products", response_model=list[ProductResponse])

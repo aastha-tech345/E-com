@@ -30,6 +30,7 @@ import { Route as AdminDashboardRouteImport } from './routes/admin.dashboard'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminPolicyRouteImport } from './routes/admin.policy'
 import { Route as AdminProductAttributesRouteImport } from './routes/admin.product-attributes'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
@@ -152,6 +153,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPolicyRoute = AdminPolicyRouteImport.update({
+  id: '/policy',
+  path: '/policy',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminProductAttributesRoute = AdminProductAttributesRouteImport.update({
   id: '/product-attributes',
   path: '/product-attributes',
@@ -254,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/policy': typeof AdminPolicyRoute
   '/admin/product-attributes': typeof AdminProductAttributesRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/promotions': typeof AdminPromotionsRoute
@@ -292,6 +299,7 @@ export interface FileRoutesByTo {
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/policy': typeof AdminPolicyRoute
   '/admin/product-attributes': typeof AdminProductAttributesRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/reviews': typeof AdminReviewsRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/policy': typeof AdminPolicyRoute
   '/admin/product-attributes': typeof AdminProductAttributesRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/promotions': typeof AdminPromotionsRoute
@@ -372,6 +381,7 @@ export interface FileRouteTypes {
     | '/admin/inventory'
     | '/admin/login'
     | '/admin/orders'
+    | '/admin/policy'
     | '/admin/product-attributes'
     | '/admin/products'
     | '/admin/promotions'
@@ -410,6 +420,7 @@ export interface FileRouteTypes {
     | '/admin/inventory'
     | '/admin/login'
     | '/admin/orders'
+    | '/admin/policy'
     | '/admin/product-attributes'
     | '/admin/promotions'
     | '/admin/reviews'
@@ -448,6 +459,7 @@ export interface FileRouteTypes {
     | '/admin/inventory'
     | '/admin/login'
     | '/admin/orders'
+    | '/admin/policy'
     | '/admin/product-attributes'
     | '/admin/products'
     | '/admin/promotions'
@@ -633,6 +645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/policy': {
+      id: '/admin/policy'
+      path: '/policy'
+      fullPath: '/admin/policy'
+      preLoaderRoute: typeof AdminPolicyRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/product-attributes': {
       id: '/admin/product-attributes'
       path: '/product-attributes'
@@ -776,6 +795,7 @@ interface AdminRouteChildren {
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminPolicyRoute: typeof AdminPolicyRoute
   AdminProductAttributesRoute: typeof AdminProductAttributesRoute
   AdminProductsRoute: typeof AdminProductsRouteWithChildren
   AdminPromotionsRoute: typeof AdminPromotionsRoute
@@ -797,6 +817,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminOrdersRoute: AdminOrdersRoute,
+  AdminPolicyRoute: AdminPolicyRoute,
   AdminProductAttributesRoute: AdminProductAttributesRoute,
   AdminProductsRoute: AdminProductsRouteWithChildren,
   AdminPromotionsRoute: AdminPromotionsRoute,

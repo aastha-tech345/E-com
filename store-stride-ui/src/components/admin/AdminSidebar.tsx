@@ -168,6 +168,12 @@ export function AdminSidebar() {
         roles: ["super_admin"],
       },
       {
+        label: "Policy",
+        icon: FileText,
+        href: "/admin/policy",
+        roles: ["super_admin", "admin_support"],
+      },
+      {
         label: "Settings",
         icon: Settings,
         roles: ["super_admin"],

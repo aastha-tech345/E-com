@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     ai_tool_timeout_seconds: int = 8
     ai_cache_ttl_seconds: int = 120
     ai_allow_write_actions: bool = False
+    huggingface_api_token: str = ""
+    huggingface_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    huggingface_embedding_endpoint: str = "https://router.huggingface.co/hf-inference/models"
     frontend_url: str = "http://localhost:8081"
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

@@ -4,6 +4,14 @@ import { Edit, Trash2, Plus } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useShop } from "@/store/shop";
 import { type CatalogBrandOption, catalogService } from "@/services";
 import { toast } from "sonner";
@@ -43,12 +51,8 @@ function AdminBrands() {
       return;
     }
     try {
-      // TODO: Call API to create brand
-      const newBrand = {
-        id: Date.now().toString(),
-        ...formData,
-      };
-      setBrands([...brands, newBrand]);
+      await catalogService.createBrand(formData);
+      await loadBrands();
       setFormData({ name: "", slug: "" });
       setShowForm(false);
       toast.success("Brand created successfully");
@@ -78,7 +82,7 @@ function AdminBrands() {
                 <h1 className="text-2xl font-bold">Brands</h1>
                 <p className="text-gray-600 text-sm mt-1">Manage product brands</p>
               </div>
-              <Button onClick={() => setShowForm(!showForm)}>
+              <Button onClick={() => setShowForm(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Brand
               </Button>
@@ -88,30 +92,32 @@ function AdminBrands() {
 
         {/* Content */}
         <div className="p-8">
-          {/* Form */}
-          {showForm && (
-            <div className="bg-white p-6 rounded-lg shadow mb-6">
-              <h2 className="text-lg font-bold mb-4">New Brand</h2>
-              <div className="grid grid-cols-2 gap-4">
+          <Dialog open={showForm} onOpenChange={setShowForm}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New Brand</DialogTitle>
+                <DialogDescription>Add a reusable product brand.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
                 <Input
                   placeholder="Brand Name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
                 <Input
-                  placeholder="Slug"
+                  placeholder="url-friendly-slug"
                   value={formData.slug}
                   onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                 />
               </div>
-              <div className="flex gap-2 mt-4">
-                <Button onClick={handleCreate}>Create</Button>
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
-              </div>
-            </div>
-          )}
+                <Button onClick={handleCreate}>Create Brand</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Table */}
           {loading ? (
