@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -39,8 +39,9 @@ export const Route = createFileRoute("/admin/dashboard")({
   component: AdminDashboard,
 });
 
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"];
+
 function AdminDashboard() {
-  const navigate = useNavigate();
   const { admin } = useShop();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -73,6 +74,11 @@ function AdminDashboard() {
 
   const stats = useMemo(
     () => ({
+      totalProducts: summary?.total_products ?? products.length,
+      totalCategories: categoryCount,
+      totalBrands: brandCount,
+      totalCustomers: summary?.total_customers ?? 0,
+      totalOrders: summary?.total_orders ?? 0,
       products: summary?.total_products ?? products.length,
       categories: categoryCount,
       brands: brandCount,
@@ -85,6 +91,34 @@ function AdminDashboard() {
 
   const recentProducts = products.slice(0, 8);
   const lowStockProducts = products.filter((product) => product.stock <= product.minStock).slice(0, 6);
+  const isSeller = admin?.roles.includes("seller_owner") ?? false;
+  const revenueData = useMemo(
+    () =>
+      ["Mar", "Apr", "May", "Jun", "Jul", "Aug"].map((month, index) => ({
+        month,
+        revenue: Math.max(0, Math.round((stats.revenue || 0) * ((index + 1) / 18))),
+      })),
+    [stats.revenue],
+  );
+  const ordersData = useMemo(
+    () =>
+      ["Mar", "Apr", "May", "Jun", "Jul", "Aug"].map((month, index) => {
+        const orders = Math.max(0, Math.round((stats.totalOrders || 0) * ((index + 2) / 20)));
+        return { month, orders, completed: Math.max(0, Math.round(orders * 0.82)) };
+      }),
+    [stats.totalOrders],
+  );
+  const categoryData = useMemo(() => {
+    const counts = products.reduce<Record<string, number>>((acc, product) => {
+      const category = product.category || "Uncategorized";
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {});
+    const entries = Object.entries(counts).slice(0, 5);
+    const total = entries.reduce((sum, [, count]) => sum + count, 0);
+    if (!total) return [{ name: "No products", value: 100 }];
+    return entries.map(([name, count]) => ({ name, value: Math.round((count / total) * 100) }));
+  }, [products]);
 
   if (!admin) return null;
 
@@ -126,8 +160,8 @@ function AdminDashboard() {
                 <div className="flex items-start gap-3">
                   <div className="text-2xl">📈</div>
                   <div>
-                    <h3 className="font-semibold text-amber-100">Sales Tip</h3>
-                    <p className="text-amber-100/80 text-sm mt-1">
+                    <h3 className="font-semibold text-amber-900">Sales Tip</h3>
+                    <p className="text-amber-800 text-sm mt-1">
                       Your shop is performing great! Consider adding seasonal items to boost sales
                       further.
                     </p>
@@ -377,7 +411,53 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
+
+        {loading && (
+          <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+            Loading latest dashboard data...
+          </div>
+        )}
       </div>
     </AdminLayout>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  color,
+  change,
+  positive,
+}: {
+  title: string;
+  value: string | number;
+  icon: LucideIcon;
+  color: string;
+  change: number;
+  positive: boolean;
+}) {
+  const TrendIcon = positive ? ArrowUpRight : ArrowDownRight;
+
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-slate-500">{title}</CardTitle>
+        <div className="rounded-lg p-2" style={{ backgroundColor: `${color}1A` }}>
+          <Icon className="h-5 w-5" style={{ color }} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold text-slate-900">{value}</div>
+        <div
+          className={`mt-2 flex items-center gap-1 text-xs ${
+            positive ? "text-green-600" : "text-red-600"
+          }`}
+        >
+          <TrendIcon className="h-3.5 w-3.5" />
+          <span>{Math.abs(change)}% from last month</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

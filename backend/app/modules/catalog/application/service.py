@@ -115,9 +115,27 @@ def seed_catalog(db: Session) -> CatalogSeedResponse:
         brand_map[brand.slug] = brand
         brands_created += 1
 
-    existing_product_slugs = {product.slug for product in list_admin_products(db)}
+    existing_products = {product.slug: product for product in list_admin_products(db)}
     for product_payload in SEED_PRODUCTS:
-        if product_payload.slug in existing_product_slugs:
+        if product_payload.slug in existing_products:
+            product = existing_products[product_payload.slug]
+            if product_payload.media:
+                cover = min(product_payload.media, key=lambda media: media.sort_order)
+                existing_cover = min(product.media, key=lambda media: media.sort_order) if product.media else None
+                if existing_cover:
+                    existing_cover.media_url = cover.media_url
+                    existing_cover.alt_text = cover.alt_text
+                    existing_cover.sort_order = cover.sort_order
+                else:
+                    db.add(
+                        ProductMedia(
+                            product_id=product.id,
+                            media_url=cover.media_url,
+                            alt_text=cover.alt_text,
+                            sort_order=cover.sort_order,
+                        )
+                    )
+                db.commit()
             products_skipped += 1
             continue
 
@@ -126,7 +144,7 @@ def seed_catalog(db: Session) -> CatalogSeedResponse:
         if product_payload.brand_id is not None and product_payload.brand_id not in brand_map:
             raise ValueError(f"Seed brand '{product_payload.brand_id}' is not available.")
 
-        create_product(
+        created_product = create_product(
             db,
             product_payload.model_copy(
                 update={
@@ -137,7 +155,7 @@ def seed_catalog(db: Session) -> CatalogSeedResponse:
                 }
             ),
         )
-        existing_product_slugs.add(product_payload.slug)
+        existing_products[product_payload.slug] = created_product
         products_created += 1
 
     return CatalogSeedResponse(

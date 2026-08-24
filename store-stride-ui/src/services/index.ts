@@ -1065,6 +1065,7 @@ export const authService = {
       JSON.stringify({
         access_token: payload.access_token,
         refresh_token: payload.refresh_token,
+        user: payload.user,
       }),
     );
     return payload;
@@ -1092,6 +1093,7 @@ export const authService = {
       JSON.stringify({
         access_token: payload.access_token,
         refresh_token: payload.refresh_token,
+        user: payload.user,
       }),
     );
     return payload;
@@ -1107,6 +1109,16 @@ export const authService = {
 
   getUser() {
     if (typeof window === "undefined") return null;
+    const authTokens = localStorage.getItem("authTokens");
+    if (authTokens) {
+      try {
+        const parsed = JSON.parse(authTokens) as { user?: unknown };
+        if (parsed.user) return parsed.user;
+      } catch {
+        /* ignore corrupt token storage */
+      }
+    }
+
     const shopState = localStorage.getItem(SHOP_STATE_KEY);
     if (!shopState) return null;
     try {
@@ -1125,7 +1137,18 @@ export const authService = {
   },
 
   isAdmin() {
-    return this.getUserRoles().some((role) => ["super_admin", "admin_catalog"].includes(role));
+    return this.getUserRoles().some((role) =>
+      [
+        "super_admin",
+        "admin",
+        "admin_catalog",
+        "admin_orders",
+        "admin_payments",
+        "admin_customers",
+        "admin_marketing",
+        "admin_support",
+      ].includes(role),
+    );
   },
 
   isSeller() {
@@ -1163,6 +1186,7 @@ export const chatbotService = {
         metadata?: {
           suggestions?: string[];
           popular_search_terms?: string[];
+          quick_replies?: string[];
           orchestrator?: string;
         };
       };
@@ -1178,13 +1202,52 @@ export const chatbotService = {
         orchestrator: payload.metadata?.orchestrator,
         source: "backend",
         productResults: payload.products.map(toAssistantProductResult),
-        suggestions: payload.metadata?.suggestions ?? payload.metadata?.popular_search_terms ?? [],
+        suggestions:
+          payload.metadata?.quick_replies ??
+          payload.metadata?.suggestions ??
+          payload.metadata?.popular_search_terms ??
+          [],
       };
     } catch (err) {
       console.warn("Backend assistant failed, using local fallback:", err);
     }
 
     const lower = message.toLowerCase();
+    const fallbackIntent = classifyLocalAssistantIntent(lower);
+    if (fallbackIntent === "policy_help") {
+      return {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text:
+          "You can usually request a return or refund for eligible delivered items within the return window. For damaged products, keep the packaging and share your order ID so support can verify the item and offer refund, replacement, or similar-product options.",
+        suggestions: ["My product arrived damaged", "How do I request refund?", "Track my latest order"],
+        intent: "policy_help",
+        source: "fallback",
+      };
+    }
+    if (fallbackIntent === "return_support") {
+      return {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text:
+          "I can help with a damaged product. Please share your order ID, then I can guide you through refund, replacement, or similar-product options based on policy.",
+        suggestions: ["Where can I find my order ID?", "Request replacement", "Request refund"],
+        intent: "return_support",
+        source: "fallback",
+      };
+    }
+    if (fallbackIntent === "order_support") {
+      return {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text:
+          "I can check order status when the backend is connected. Please make sure you are logged in and share the order ID.",
+        suggestions: ["Track my latest order", "Show my recent orders", "Contact support"],
+        intent: "order_support",
+        source: "fallback",
+      };
+    }
+
     const matchedProducts = products
       .filter((product) => {
         const haystack = [
@@ -1217,6 +1280,13 @@ export const chatbotService = {
     };
   },
 };
+
+function classifyLocalAssistantIntent(message: string) {
+  if (/(return|refund|policy|exchange|replace|replacement)/i.test(message)) return "policy_help";
+  if (/(damage|damaged|broken|defective)/i.test(message)) return "return_support";
+  if (/(order|track|delivery|shipment|courier)/i.test(message)) return "order_support";
+  return "product_search";
+}
 
 interface BackendAssistantProduct {
   id: string;

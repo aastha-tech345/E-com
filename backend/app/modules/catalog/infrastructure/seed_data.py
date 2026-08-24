@@ -11,6 +11,11 @@ from app.modules.catalog.application.schemas import (
 )
 
 SEED_CATEGORIES: list[CategoryCreateRequest] = [
+    CategoryCreateRequest(name="Books", slug="books"),
+    CategoryCreateRequest(name="Cameras & Photography", slug="cameras-photography"),
+    CategoryCreateRequest(name="Electronics", slug="electronics"),
+    CategoryCreateRequest(name="Laptops & Computers", slug="laptops-computers"),
+    CategoryCreateRequest(name="Mobiles & Accessories", slug="mobiles-accessories"),
     CategoryCreateRequest(name="Women Ethnic", slug="women-ethnic"),
     CategoryCreateRequest(name="Women Western", slug="women-western"),
     CategoryCreateRequest(name="Men Fashion", slug="men-fashion"),
@@ -22,6 +27,12 @@ SEED_CATEGORIES: list[CategoryCreateRequest] = [
 ]
 
 SEED_BRANDS: list[BrandCreateRequest] = [
+    BrandCreateRequest(name="Auralis", slug="auralis"),
+    BrandCreateRequest(name="Kaya", slug="kaya"),
+    BrandCreateRequest(name="LumaCam", slug="lumacam"),
+    BrandCreateRequest(name="NexaBook", slug="nexabook"),
+    BrandCreateRequest(name="PixelCore", slug="pixelcore"),
+    BrandCreateRequest(name="ReadWell", slug="readwell"),
     BrandCreateRequest(name="Aarika", slug="aarika"),
     BrandCreateRequest(name="GlowNest", slug="glownest"),
     BrandCreateRequest(name="UrbanStitch", slug="urbanstitch"),
@@ -43,7 +54,7 @@ def seed_product(
     sku: str,
     price: str,
     quantity_available: int,
-    image_seed: str,
+    image_query: str,
 ) -> ProductCreateRequest:
     return ProductCreateRequest(
         category_id=category_id,
@@ -64,7 +75,7 @@ def seed_product(
         ],
         media=[
             ProductMediaPayload(
-                media_url=f"https://picsum.photos/seed/{image_seed}/640/840",
+                media_url=f"https://source.unsplash.com/640x840/?{image_query}",
                 alt_text=name,
                 sort_order=1,
             )
@@ -73,6 +84,136 @@ def seed_product(
 
 
 SEED_PRODUCTS: list[ProductCreateRequest] = [
+    seed_product(
+        category_id="electronics",
+        brand_id="auralis",
+        name="Auralis Studio Over-Ear Headphones",
+        slug="auralis-studio-over-ear-headphones",
+        short_description="Wireless headphones with deep bass and long battery life",
+        description="Comfortable over-ear headphones with Bluetooth connectivity, padded ear cups, and balanced sound for daily listening.",
+        variant_name="Black",
+        sku="AURALIS-STUDIO-BLK",
+        price="2930.00",
+        quantity_available=64,
+        image_query="wireless-headphones,product",
+    ),
+    seed_product(
+        category_id="electronics",
+        brand_id="kaya",
+        name="Kaya Noise Cancelling Headset",
+        slug="kaya-noise-cancelling-headset",
+        short_description="Premium headset with active noise cancellation",
+        description="A focused work and travel headset with active noise cancellation, soft cushions, and crisp microphone pickup.",
+        variant_name="Graphite",
+        sku="KAYA-ANC-GRAPHITE",
+        price="1770.00",
+        quantity_available=38,
+        image_query="noise-cancelling-headphones,product",
+    ),
+    seed_product(
+        category_id="cameras-photography",
+        brand_id="lumacam",
+        name="LumaCam X200 Mirrorless Camera",
+        slug="lumacam-x200-mirrorless-camera",
+        short_description="Compact mirrorless camera for creators",
+        description="A lightweight creator camera with fast autofocus, sharp stills, and clean video output for everyday content.",
+        variant_name="Body Only / Black",
+        sku="LUMACAM-X200-BODY",
+        price="42199.00",
+        quantity_available=12,
+        image_query="mirrorless-camera,product",
+    ),
+    seed_product(
+        category_id="cameras-photography",
+        brand_id="lumacam",
+        name="LumaCam Travel Tripod",
+        slug="lumacam-travel-tripod",
+        short_description="Foldable aluminium tripod for camera and phone",
+        description="Stable travel tripod with quick-release plate, adjustable legs, and a compact carry size.",
+        variant_name="Aluminium / Black",
+        sku="LUMACAM-TRIPOD-BLK",
+        price="1499.00",
+        quantity_available=45,
+        image_query="camera-tripod,product",
+    ),
+    seed_product(
+        category_id="laptops-computers",
+        brand_id="nexabook",
+        name="NexaBook Air 14 Laptop",
+        slug="nexabook-air-14-laptop",
+        short_description="Slim 14-inch laptop for work and study",
+        description="A portable laptop with a bright display, fast SSD storage, and all-day performance for students and professionals.",
+        variant_name="14 inch / 16GB / 512GB",
+        sku="NEXABOOK-AIR14-16-512",
+        price="58999.00",
+        quantity_available=17,
+        image_query="laptop,product",
+    ),
+    seed_product(
+        category_id="laptops-computers",
+        brand_id="pixelcore",
+        name="PixelCore Mechanical Keyboard",
+        slug="pixelcore-mechanical-keyboard",
+        short_description="Compact mechanical keyboard with backlit keys",
+        description="A tactile compact keyboard with hotkeys, durable switches, and clean desk-friendly styling.",
+        variant_name="Blue Switch / White",
+        sku="PIXELCORE-MECH-WHT",
+        price="3299.00",
+        quantity_available=58,
+        image_query="mechanical-keyboard,product",
+    ),
+    seed_product(
+        category_id="mobiles-accessories",
+        brand_id="pixelcore",
+        name="PixelCore Fast Charging Power Bank",
+        slug="pixelcore-fast-charging-power-bank",
+        short_description="20000mAh power bank with dual output",
+        description="High-capacity portable charger with fast charging support for phones, earbuds, and travel essentials.",
+        variant_name="20000mAh / Black",
+        sku="PIXELCORE-PB20K-BLK",
+        price="1999.00",
+        quantity_available=73,
+        image_query="power-bank,product",
+    ),
+    seed_product(
+        category_id="mobiles-accessories",
+        brand_id="kaya",
+        name="Kaya Clear Case for Smartphones",
+        slug="kaya-clear-case-smartphones",
+        short_description="Transparent shockproof phone case",
+        description="Slim clear case with reinforced corners and an anti-yellowing finish for everyday phone protection.",
+        variant_name="Universal / Clear",
+        sku="KAYA-CASE-CLEAR-UNI",
+        price="299.00",
+        quantity_available=140,
+        image_query="phone-case,product",
+    ),
+    seed_product(
+        category_id="books",
+        brand_id="readwell",
+        name="Modern Commerce Playbook",
+        slug="modern-commerce-playbook",
+        short_description="Practical guide for running online stores",
+        description="A concise business book covering catalog planning, checkout optimization, support flows, and growth basics.",
+        variant_name="Paperback",
+        sku="READWELL-COMMERCE-PB",
+        price="499.00",
+        quantity_available=84,
+        image_query="business-book,product",
+    ),
+    seed_product(
+        category_id="books",
+        brand_id="readwell",
+        name="Designing Better Dashboards",
+        slug="designing-better-dashboards",
+        short_description="Dashboard design handbook for operators",
+        description="A practical handbook on readable metrics, admin workflows, and decision-focused dashboard design.",
+        variant_name="Paperback",
+        sku="READWELL-DASHBOARD-PB",
+        price="599.00",
+        quantity_available=61,
+        image_query="design-book,product",
+    ),
     seed_product(
         category_id="women-ethnic",
         brand_id="aarika",
@@ -84,7 +225,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="KURTA-FLORAL-PNK-M",
         price="899.00",
         quantity_available=48,
-        image_seed="floral-kurta",
+        image_query="kurta,women-fashion",
     ),
     seed_product(
         category_id="women-ethnic",
@@ -97,7 +238,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="ANARKALI-WINE-L",
         price="1299.00",
         quantity_available=31,
-        image_seed="anarkali-gown",
+        image_query="anarkali-dress,women-fashion",
     ),
     seed_product(
         category_id="women-ethnic",
@@ -110,7 +251,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SAREE-PASTEL-MINT-FS",
         price="999.00",
         quantity_available=44,
-        image_seed="pastel-saree",
+        image_query="saree,women-fashion",
     ),
     seed_product(
         category_id="women-ethnic",
@@ -123,7 +264,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="LEHENGA-MIRROR-CORAL-M",
         price="1799.00",
         quantity_available=18,
-        image_seed="mirror-lehenga",
+        image_query="lehenga,women-fashion",
     ),
     seed_product(
         category_id="women-western",
@@ -136,7 +277,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="CROP-COMBO-MULTI-FS",
         price="499.00",
         quantity_available=76,
-        image_seed="crop-top-combo",
+        image_query="crop-top,women-fashion",
     ),
     seed_product(
         category_id="women-western",
@@ -149,7 +290,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SATIN-DRESS-BEIGE-S",
         price="1049.00",
         quantity_available=22,
-        image_seed="satin-shirt-dress",
+        image_query="shirt-dress,women-fashion",
     ),
     seed_product(
         category_id="women-western",
@@ -162,7 +303,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="COORD-PLEATED-STONE-L",
         price="1199.00",
         quantity_available=27,
-        image_seed="pleated-coord",
+        image_query="co-ord-set,women-fashion",
     ),
     seed_product(
         category_id="women-western",
@@ -175,7 +316,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="TEE-GRAPHIC-WHT-XL",
         price="579.00",
         quantity_available=63,
-        image_seed="graphic-tee",
+        image_query="graphic-tshirt,women-fashion",
     ),
     seed_product(
         category_id="men-fashion",
@@ -188,7 +329,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="POLO-TEE-NAVY-XL",
         price="699.00",
         quantity_available=40,
-        image_seed="polo-tee",
+        image_query="polo-shirt,men-fashion",
     ),
     seed_product(
         category_id="men-fashion",
@@ -201,7 +342,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="TEXTURE-SHIRT-OLIVE-L",
         price="849.00",
         quantity_available=29,
-        image_seed="textured-shirt",
+        image_query="casual-shirt,men-fashion",
     ),
     seed_product(
         category_id="men-fashion",
@@ -214,7 +355,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="CARGO-TRS-CHR-34",
         price="1099.00",
         quantity_available=25,
-        image_seed="cargo-trouser",
+        image_query="cargo-pants,men-fashion",
     ),
     seed_product(
         category_id="men-fashion",
@@ -227,7 +368,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="LINEN-SHIRT-SKY-M",
         price="949.00",
         quantity_available=33,
-        image_seed="linen-shirt",
+        image_query="linen-shirt,men-fashion",
     ),
     seed_product(
         category_id="beauty-personal-care",
@@ -240,7 +381,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SERUM-HYDRA-30ML",
         price="349.00",
         quantity_available=95,
-        image_seed="hydra-serum",
+        image_query="face-serum,skincare-product",
     ),
     seed_product(
         category_id="beauty-personal-care",
@@ -253,7 +394,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="LOTION-COCOA-250ML",
         price="299.00",
         quantity_available=88,
-        image_seed="body-lotion",
+        image_query="body-lotion,skincare-product",
     ),
     seed_product(
         category_id="beauty-personal-care",
@@ -266,7 +407,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="LIP-MATTE-SET4",
         price="399.00",
         quantity_available=56,
-        image_seed="lipstick-set",
+        image_query="lipstick,beauty-product",
     ),
     seed_product(
         category_id="beauty-personal-care",
@@ -279,7 +420,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="CLNSR-RICE-100ML",
         price="259.00",
         quantity_available=74,
-        image_seed="face-cleanser",
+        image_query="face-cleanser,skincare-product",
     ),
     seed_product(
         category_id="beauty-personal-care",
@@ -292,7 +433,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="HAIR-OIL-SPA-200ML",
         price="329.00",
         quantity_available=67,
-        image_seed="spa-hair-oil",
+        image_query="hair-oil,beauty-product",
     ),
     seed_product(
         category_id="jewellery-accessories",
@@ -305,7 +446,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="NECK-LAYER-GOLD-OS",
         price="279.00",
         quantity_available=61,
-        image_seed="layered-necklace",
+        image_query="gold-necklace,jewellery",
     ),
     seed_product(
         category_id="jewellery-accessories",
@@ -318,7 +459,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="JHUMKA-STATEMENT-OS",
         price="199.00",
         quantity_available=83,
-        image_seed="jhumka-pair",
+        image_query="jhumka-earrings,jewellery",
     ),
     seed_product(
         category_id="jewellery-accessories",
@@ -331,7 +472,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="ERNG-PEARL-DROP-OS",
         price="249.00",
         quantity_available=57,
-        image_seed="pearl-earrings",
+        image_query="pearl-earrings,jewellery",
     ),
     seed_product(
         category_id="jewellery-accessories",
@@ -344,7 +485,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="BRC-STACK-GOLD-OS",
         price="229.00",
         quantity_available=69,
-        image_seed="bracelet-stack",
+        image_query="gold-bracelet,jewellery",
     ),
     seed_product(
         category_id="home-decor",
@@ -357,7 +498,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="VASE-DUO-SAND-2",
         price="649.00",
         quantity_available=24,
-        image_seed="ceramic-vase",
+        image_query="ceramic-vase,home-decor",
     ),
     seed_product(
         category_id="home-decor",
@@ -370,7 +511,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="DIYA-LED-WARM-4",
         price="399.00",
         quantity_available=46,
-        image_seed="diya-lamp",
+        image_query="diya-lamp,home-decor",
     ),
     seed_product(
         category_id="home-decor",
@@ -383,7 +524,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="BASKET-WOVEN-NAT-L",
         price="549.00",
         quantity_available=34,
-        image_seed="storage-basket",
+        image_query="woven-storage-basket,home-decor",
     ),
     seed_product(
         category_id="home-decor",
@@ -396,7 +537,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="CUSHION-BOTANICAL-5",
         price="499.00",
         quantity_available=41,
-        image_seed="cushion-cover",
+        image_query="cushion-cover,home-decor",
     ),
     seed_product(
         category_id="footwear",
@@ -409,7 +550,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SANDAL-FLAT-TAN-39",
         price="599.00",
         quantity_available=52,
-        image_seed="flat-sandals",
+        image_query="flat-sandals,footwear",
     ),
     seed_product(
         category_id="footwear",
@@ -422,7 +563,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SNKR-CHUNKY-WHT-42",
         price="1399.00",
         quantity_available=19,
-        image_seed="street-sneakers",
+        image_query="white-sneakers,footwear",
     ),
     seed_product(
         category_id="footwear",
@@ -435,7 +576,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SLIDE-MIN-BLK-41",
         price="349.00",
         quantity_available=79,
-        image_seed="slide-slippers",
+        image_query="slide-slippers,footwear",
     ),
     seed_product(
         category_id="footwear",
@@ -448,7 +589,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="HEEL-BRAID-BGE-38",
         price="999.00",
         quantity_available=21,
-        image_seed="heel-sandals",
+        image_query="heeled-sandals,footwear",
     ),
     seed_product(
         category_id="bags",
@@ -461,7 +602,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="TOTE-STRUCT-BEIGE-L",
         price="899.00",
         quantity_available=37,
-        image_seed="structured-tote",
+        image_query="tote-bag,product",
     ),
     seed_product(
         category_id="bags",
@@ -474,7 +615,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="SLING-QUILT-BLK-OS",
         price="749.00",
         quantity_available=42,
-        image_seed="quilted-sling",
+        image_query="quilted-sling-bag,product",
     ),
     seed_product(
         category_id="bags",
@@ -487,7 +628,7 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="TOTE-CANVAS-OLV-OS",
         price="529.00",
         quantity_available=58,
-        image_seed="canvas-shopper",
+        image_query="canvas-tote-bag,product",
     ),
     seed_product(
         category_id="bags",
@@ -500,6 +641,6 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         sku="BAG-VANITY-TAN-OS",
         price="679.00",
         quantity_available=35,
-        image_seed="mini-vanity-bag",
+        image_query="crossbody-bag,product",
     ),
 ]

@@ -129,7 +129,14 @@ class AssistantGraph:
             shipment = state.metadata.get("shipment")
             cart = state.metadata.get("cart")
             notifications = state.metadata.get("notifications")
+            return_workflow = state.metadata.get("return_workflow")
             fragments: list[str] = [completion.content]
+            if isinstance(return_workflow, dict):
+                state.answer = self._format_return_workflow_answer(return_workflow)
+                state.metadata["llm_provider"] = completion.provider
+                state.metadata["llm_model"] = completion.model
+                state.metadata["orchestrator"] = "langgraph"
+                return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
             if isinstance(cart, dict):
                 cart_summary = (
                     f"Your cart currently has {cart.get('total_items', 0)} items worth "
@@ -187,3 +194,56 @@ class AssistantGraph:
         state.metadata["llm_model"] = completion.model
         state.metadata["orchestrator"] = "langgraph"
         return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
+
+    def _format_return_workflow_answer(self, workflow: dict) -> str:
+        if workflow.get("status") == "needs_order_id":
+            recent_orders = workflow.get("recent_orders", [])
+            if isinstance(recent_orders, list) and recent_orders:
+                order_lines = ", ".join(
+                    str(order.get("order_number") or order.get("id"))
+                    for order in recent_orders[:3]
+                    if isinstance(order, dict)
+                )
+                return (
+                    "I can help with refund, replacement, or similar product options. "
+                    "Please share the order ID for the damaged item. "
+                    f"Your recent orders are: {order_lines}."
+                )
+            return (
+                "I can help with refund, replacement, or similar product options. "
+                "Please share the order ID for the damaged item so I can verify it."
+            )
+
+        order = workflow.get("order") if isinstance(workflow.get("order"), dict) else {}
+        order_number = order.get("order_number") or order.get("id") or "this order"
+        eligible = bool(workflow.get("eligible"))
+        items = workflow.get("items", [])
+        item_names = [
+            str(item.get("product_name"))
+            for item in items
+            if isinstance(item, dict) and item.get("product_name")
+        ]
+        item_summary = ", ".join(item_names[:3]) if item_names else "the ordered item"
+        existing_returns = workflow.get("existing_returns", [])
+
+        if not eligible:
+            return (
+                f"I found order {order_number} for {item_summary}. "
+                "A refund or replacement can usually start after the order is delivered. "
+                "For now, I can help track delivery, explain the policy, or connect you with support."
+            )
+
+        if isinstance(existing_returns, list) and existing_returns:
+            latest = existing_returns[0]
+            status = latest.get("status", "requested") if isinstance(latest, dict) else "requested"
+            return (
+                f"I found order {order_number} for {item_summary}. "
+                f"There is already a return request on this order with status: {status}. "
+                "I can still show similar products or explain the refund and replacement policy."
+            )
+
+        return (
+            f"I found order {order_number} for {item_summary}. "
+            "This order is eligible for help. You can choose a replacement, request a refund, "
+            "view similar products, or contact support if the damage needs manual review."
+        )
