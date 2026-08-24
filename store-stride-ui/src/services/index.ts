@@ -25,7 +25,7 @@ const API_BASE = import.meta.env["VITE_API_URL"] || "http://localhost:8000/api/v
 
 export interface ProductQuery {
   search?: string;
-  category?: string;
+  category?: string[];
   subcategories?: string[];
   brands?: string[];
   minPrice?: number;
@@ -46,6 +46,43 @@ export interface Paged<T> {
   page: number;
   perPage: number;
   pages: number;
+}
+
+const productCache = new Map<string, Product>();
+
+function mapApiProduct(product: any): Product {
+  const variant = product.variants?.find((item: any) => item.is_default) || product.variants?.[0] || {};
+  return {
+    id: product.id,
+    sku: variant.sku || product.slug,
+    name: product.name,
+    slug: product.slug,
+    brand: product.brand_name || "Unbranded",
+    category: product.category_name || "Uncategorized",
+    categorySlug: product.category_slug || "uncategorized",
+    subcategory: "",
+    description: product.description || "",
+    shortDescription: product.short_description || "",
+    images: [...(product.media || [])].sort((a: any, b: any) => a.sort_order - b.sort_order).map((media: any) => media.media_url),
+    mrp: Number(variant.price || 0),
+    price: Number(variant.price || 0),
+    costPrice: 0,
+    rating: Number(product.average_rating || 0),
+    reviewCount: Number(product.review_count || 0),
+    stock: Number(variant.quantity_available || 0),
+    reserved: Number(variant.inventory_reserved || 0),
+    minStock: 0,
+    colors: [],
+    sizes: [],
+    specifications: [],
+    tags: [],
+    status: product.is_published ? "active" : "draft",
+    createdAt: "",
+    featured: false,
+    trending: false,
+    bestSeller: false,
+    deal: false,
+  };
 }
 
 // ============================================================================
@@ -192,19 +229,33 @@ export const authService = {
 
 export const productService = {
   async list(query?: ProductQuery): Promise<Paged<Product>> {
-    // Use mock data - API not fully implemented yet
+    const params = new URLSearchParams();
+    if (query?.search) params.set("q", query.search);
+    query?.category?.forEach((value) => params.append("category", value));
+    query?.brands?.forEach((value) => params.append("brand", value));
+    if (query?.minPrice !== undefined) params.set("min_price", String(query.minPrice));
+    if (query?.maxPrice !== undefined) params.set("max_price", String(query.maxPrice));
+    if (query?.minRating !== undefined) params.set("min_rating", String(query.minRating));
+    if (query?.sort) params.set("sort", query.sort);
+    params.set("page", String(query?.page || 1));
+    params.set("per_page", String(query?.perPage || 12));
+
+    const response = await fetch(`${API_BASE}/products?${params.toString()}`);
+    if (!response.ok) throw new Error("Unable to load products from the server.");
+    const data = await response.json();
+    const items = data.items.map(mapApiProduct);
+    items.forEach((product: Product) => productCache.set(product.id, product));
     return {
-      items: products.slice(0, 20),
-      total: products.length,
-      page: 1,
-      perPage: 20,
-      pages: Math.ceil(products.length / 20),
+      items,
+      total: data.total,
+      page: data.page,
+      perPage: data.per_page,
+      pages: data.pages,
     };
   },
 
   byId(id: string): Product | undefined {
-    // Use mock data only - API not implemented yet
-    return products.find((p) => p.id === id);
+    return productCache.get(id) || products.find((p) => p.id === id);
   },
 
   byIds(ids: string[]): Product[] {
@@ -215,8 +266,7 @@ export const productService = {
   },
 
   all(): Product[] {
-    // Return all products from mock data
-    return products;
+    return Array.from(productCache.values());
   },
 
   async featured(): Promise<Product[]> {
@@ -225,7 +275,7 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Featured products failed:", err);
-      return products.filter((p) => p.featured).slice(0, 8);
+      return [];
     }
   },
 
@@ -235,7 +285,7 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Trending products failed:", err);
-      return products.filter((p) => p.trending).slice(0, 8);
+      return [];
     }
   },
 
@@ -245,7 +295,7 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Best sellers failed:", err);
-      return products.filter((p) => p.bestSeller).slice(0, 8);
+      return [];
     }
   },
 
@@ -255,16 +305,16 @@ export const productService = {
       return all.items.slice(0, 8);
     } catch (err) {
       console.warn("Deals failed:", err);
-      return products.filter((p) => p.deal).slice(0, 8);
+      return [];
     }
   },
 
-  suggestions(term: string) {
-    const lowerTerm = term.toLowerCase();
+  suggestions(_term: string) {
     return {
-      categories: categories.filter(c => c.name.toLowerCase().includes(lowerTerm)).slice(0, 3),
-      brands: brands.filter(b => b.name.toLowerCase().includes(lowerTerm)).slice(0, 3),
-      products: products.filter(p => p.name.toLowerCase().includes(lowerTerm)).slice(0, 5),
+      // Search results are loaded from the backend after submission.
+      categories: [],
+      brands: [],
+      products: [],
     };
   },
   
@@ -279,25 +329,15 @@ export const productService = {
 
 export const catalogService = {
   async categories() {
-    try {
-      const response = await fetch(`${API_BASE}/categories`);
-      if (!response.ok) throw new Error("Failed to fetch categories");
-      return await response.json();
-    } catch (err) {
-      console.warn("Categories API failed, using mock data:", err);
-      return categories;
-    }
+    const response = await fetch(`${API_BASE}/categories`);
+    if (!response.ok) throw new Error("Failed to fetch categories");
+    return response.json();
   },
 
   async brands() {
-    try {
-      const response = await fetch(`${API_BASE}/brands`);
-      if (!response.ok) throw new Error("Failed to fetch brands");
-      return await response.json();
-    } catch (err) {
-      console.warn("Brands API failed, using mock data:", err);
-      return brands;
-    }
+    const response = await fetch(`${API_BASE}/brands`);
+    if (!response.ok) throw new Error("Failed to fetch brands");
+    return response.json();
   },
 
   attributes() {

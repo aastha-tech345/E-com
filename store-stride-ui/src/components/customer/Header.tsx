@@ -50,7 +50,8 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
     addRecentSearch(q);
     setOpen(false);
     onNavigate?.();
-    void navigate({ to: "/search", search: { q, page: 1 } });
+    setTerm(q);
+    void navigate({ to: "/products", search: { search: q, page: 1 } });
   };
 
   return (

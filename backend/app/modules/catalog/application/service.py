@@ -1,6 +1,7 @@
+from decimal import Decimal
 from typing import Any, cast
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.modules.catalog.application.schemas import (
@@ -13,6 +14,7 @@ from app.modules.catalog.application.schemas import (
     ProductUpdateRequest,
 )
 from app.modules.catalog.domain.models import Brand, Category, Product, ProductMedia, ProductVariant
+from app.modules.reviews.domain.models import Review
 from app.modules.catalog.infrastructure.seed_data import SEED_BRANDS, SEED_CATEGORIES, SEED_PRODUCTS
 from app.modules.inventory.application.service import ensure_inventory_item, get_inventory_item
 from app.modules.pricing.application.service import create_default_price, get_active_price
@@ -153,11 +155,22 @@ def list_brands(db: Session) -> list[Brand]:
     return list(db.scalars(select(Brand).order_by(Brand.name)).all())
 
 
-def list_products(db: Session, query: str | None = None, published_only: bool = True) -> list[Product]:
+def list_products(
+    db: Session,
+    query: str | None = None,
+    published_only: bool = True,
+    category_slugs: list[str] | None = None,
+    brand_slugs: list[str] | None = None,
+    min_price: Decimal | None = None,
+    max_price: Decimal | None = None,
+    min_rating: float | None = None,
+    sort: str = "relevance",
+    page: int | None = None,
+    per_page: int | None = None,
+) -> tuple[list[Product], int] | list[Product]:
     statement = (
         select(Product)
-        .options(selectinload(Product.variants), selectinload(Product.media))
-        .order_by(Product.created_at.desc())
+        .options(selectinload(Product.variants), selectinload(Product.media), selectinload(Product.category), selectinload(Product.brand))
     )
     if published_only:
         statement = statement.where(Product.is_published.is_(True))
@@ -168,9 +181,46 @@ def list_products(db: Session, query: str | None = None, published_only: bool = 
                 Product.name.ilike(term),
                 Product.short_description.ilike(term),
                 Product.description.ilike(term),
+                Product.category.has(Category.name.ilike(term)),
+                Product.brand.has(Brand.name.ilike(term)),
+                Product.variants.any(ProductVariant.sku.ilike(term)),
             )
         )
-    return list(db.scalars(statement).unique().all())
+    if category_slugs:
+        statement = statement.join(Product.category).where(Category.slug.in_(category_slugs))
+    if brand_slugs:
+        statement = statement.join(Product.brand).where(Brand.slug.in_(brand_slugs))
+
+    variant_price = select(ProductVariant.price).where(ProductVariant.product_id == Product.id).correlate(Product).scalar_subquery()
+    if min_price is not None:
+        statement = statement.where(variant_price >= min_price)
+    if max_price is not None:
+        statement = statement.where(variant_price <= max_price)
+
+    rating_value = (
+        select(func.coalesce(func.avg(Review.rating), 0))
+        .where(Review.product_id == Product.id)
+        .correlate(Product)
+        .scalar_subquery()
+    )
+    if min_rating is not None:
+        statement = statement.where(rating_value >= min_rating)
+
+    if sort == "price-low":
+        statement = statement.order_by(variant_price.asc(), Product.created_at.desc())
+    elif sort == "price-high":
+        statement = statement.order_by(variant_price.desc(), Product.created_at.desc())
+    elif sort == "rating":
+        statement = statement.order_by(rating_value.desc(), Product.created_at.desc())
+    else:
+        statement = statement.order_by(Product.created_at.desc())
+
+    if page is None or per_page is None:
+        return list(db.scalars(statement).unique().all())
+
+    total = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+    rows = list(db.scalars(statement.offset((page - 1) * per_page).limit(per_page)).unique().all())
+    return rows, total
 
 
 def list_admin_products(db: Session) -> list[Product]:

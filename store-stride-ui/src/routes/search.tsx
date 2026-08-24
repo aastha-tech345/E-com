@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
@@ -21,23 +22,16 @@ function SearchPage() {
   const { q } = useSearch({ from: "/search" });
   const { markViewed, addRecentSearch } = useShop();
 
-  const results = useMemo(() => {
-    if (!q.trim()) return [];
-    addRecentSearch(q);
+  useEffect(() => {
+    if (q.trim()) addRecentSearch(q);
+  }, [addRecentSearch, q]);
 
-    const query = q.toLowerCase();
-    return productService
-      .all()
-      .filter(
-        (p) =>
-          p.status === "active" &&
-          (p.name.toLowerCase().includes(query) ||
-            p.description.toLowerCase().includes(query) ||
-            p.brand.toLowerCase().includes(query) ||
-            p.category.toLowerCase().includes(query)),
-      )
-      .slice(0, 50);
-  }, [q, addRecentSearch]);
+  const { data, isPending } = useQuery({
+    queryKey: ["search", q],
+    enabled: Boolean(q.trim()),
+    queryFn: () => productService.list({ search: q, page: 1, perPage: 50 }),
+  });
+  const results = data?.items || [];
 
   const handleProductClick = (productId: string) => {
     markViewed(productId);
@@ -54,7 +48,9 @@ function SearchPage() {
           {results.length} results found for "{q}"
         </p>
 
-        {results.length > 0 ? (
+        {isPending ? (
+          <div className="py-12 text-center text-sm text-gray-500">Searching the catalogue...</div>
+        ) : results.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {results.map((product) => (
               <ProductCard

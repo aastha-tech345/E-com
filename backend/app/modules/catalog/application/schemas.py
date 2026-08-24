@@ -116,6 +116,20 @@ class ProductResponse(BaseModel):
     is_published: bool
     variants: list[ProductVariantResponse]
     media: list[ProductMediaResponse]
+    category_name: str | None = None
+    category_slug: str | None = None
+    brand_name: str | None = None
+    brand_slug: str | None = None
+    average_rating: float = 0
+    review_count: int = 0
+
+
+class ProductPageResponse(BaseModel):
+    items: list[ProductResponse]
+    total: int
+    page: int
+    per_page: int
+    pages: int
 
 
 class CatalogSeedResponse(BaseModel):

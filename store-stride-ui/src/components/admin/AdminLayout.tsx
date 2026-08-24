@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
+import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
-import { cn } from "@/lib/utils";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -14,8 +14,16 @@ export function AdminLayout({
   title,
   description,
 }: AdminLayoutProps) {
+  const theme = createTheme({
+    palette: { primary: { main: "#2167c9" }, background: { default: "#f6f8fb", paper: "#ffffff" } },
+    shape: { borderRadius: 8 },
+    typography: { fontFamily: '"DM Sans", "Segoe UI", sans-serif' },
+  });
+
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <div className="flex h-screen bg-[#f6f8fb] overflow-hidden">
       {/* Sidebar */}
       <AdminSidebar />
 
@@ -31,6 +39,7 @@ export function AdminLayout({
           </div>
         </main>
       </div>
-    </div>
+      </div>
+    </ThemeProvider>
   );
 }

@@ -25,7 +25,7 @@ export function ProductCard({
   return (
     <article
       className={cn(
-        "group relative flex overflow-hidden rounded-lg border bg-card transition-colors hover:border-foreground/20",
+        "group relative flex overflow-hidden rounded-2xl border border-stone-200 bg-card shadow-[0_10px_25px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-1 hover:border-stone-300 hover:shadow-[0_18px_35px_rgba(15,23,42,0.09)]",
         layout === "grid" ? "flex-col" : "flex-col sm:flex-row",
         className,
       )}
@@ -34,8 +34,8 @@ export function ProductCard({
         to="/products/$id"
         params={{ id: product.id }}
         className={cn(
-          "relative block shrink-0 overflow-hidden bg-muted",
-          layout === "grid" ? "aspect-square w-full" : "aspect-square w-full sm:w-48",
+          "relative block shrink-0 overflow-hidden bg-stone-100",
+          layout === "grid" ? "aspect-[4/5] w-full" : "aspect-square w-full sm:w-52",
         )}
       >
         {product.images?.[0] && (
@@ -43,7 +43,7 @@ export function ProductCard({
             src={product.images[0]}
             alt={product.name}
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
           />
         )}
         {out && (
@@ -77,7 +77,7 @@ export function ProductCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {product.brand}
         </p>

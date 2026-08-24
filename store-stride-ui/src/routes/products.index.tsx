@@ -1,9 +1,9 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Filter, Grid3x3, List, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -13,14 +13,17 @@ import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
-import { productService } from "@/services";
-import { categories, brands } from "@/data/catalog";
+import { catalogService, productService } from "@/services";
 import { EmptyState } from "@/components/common/EmptyState";
 
 export const Route = createFileRoute("/products/")({
   validateSearch: (search: Record<string, unknown>) => ({
     search: (search.search as string) || "",
-    category: (search.category as string) || "",
+    category: Array.isArray(search.category)
+      ? search.category
+      : typeof search.category === "string"
+        ? search.category.split(",").filter(Boolean)
+        : [],
     brand: Array.isArray(search.brand)
       ? search.brand
       : typeof search.brand === "string"
@@ -28,7 +31,16 @@ export const Route = createFileRoute("/products/")({
         : [],
     priceMin: (search.priceMin as number) || 0,
     priceMax: (search.priceMax as number) || 15000,
-    rating: (search.rating as number) || 0,
+    rating: Array.isArray(search.rating)
+      ? search.rating.map((value) => Number(value)).filter((value) => !Number.isNaN(value))
+      : typeof search.rating === "string"
+        ? search.rating
+            .split(",")
+            .map((value) => Number(value))
+            .filter((value) => !Number.isNaN(value))
+        : typeof search.rating === "number"
+          ? [search.rating]
+          : [],
     sort: (search.sort as string) || "relevance",
     layout: (search.layout as string) || "grid",
     page: (search.page as number) || 1,
@@ -44,72 +56,27 @@ function ProductListingPage() {
   const [localPriceMin, setLocalPriceMin] = useState(search.priceMin);
   const [localPriceMax, setLocalPriceMax] = useState(search.priceMax);
 
-  const allProducts = productService.all().filter((p) => p.status === "active");
-
-  const filtered = useMemo(() => {
-    let result = allProducts;
-
-    if (search.search) {
-      const q = search.search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q),
-      );
-    }
-
-    if (search.category) {
-      result = result.filter((p) => p.categorySlug === search.category);
-    }
-
-    if (search.brand.length > 0) {
-      result = result.filter((p) => search.brand.includes(p.brand));
-    }
-
-    result = result.filter((p) => p.price >= search.priceMin && p.price <= search.priceMax);
-
-    if (search.rating > 0) {
-      result = result.filter((p) => p.rating >= search.rating);
-    }
-
-    // Sort
-    const sorted = [...result];
-    switch (search.sort) {
-      case "price-low":
-        sorted.sort((a, b) => a.price - b.price);
-        break;
-      case "price-high":
-        sorted.sort((a, b) => b.price - a.price);
-        break;
-      case "rating":
-        sorted.sort((a, b) => b.rating - a.rating);
-        break;
-      case "newest":
-        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-      case "best-seller":
-        sorted.sort((a, b) => b.reviewCount - a.reviewCount);
-        break;
-      case "deals":
-        sorted.sort((a, b) => (b.mrp - b.price) / b.mrp - (a.mrp - a.price) / a.mrp);
-        break;
-      case "trending":
-      case "relevance":
-      default:
-        break;
-    }
-
-    return sorted;
-  }, [allProducts, search]);
-
   const itemsPerPage = 12;
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const currentPage = Math.min(search.page, totalPages) || 1;
-  const paginatedProducts = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  const { data: productPage, isPending, isError } = useQuery({
+    queryKey: ["products", search],
+    queryFn: () => productService.list({
+      search: search.search || undefined,
+      category: search.category,
+      brands: search.brand,
+      minPrice: search.priceMin,
+      maxPrice: search.priceMax,
+      minRating: search.rating.length ? Math.min(...search.rating) : undefined,
+      sort: search.sort,
+      page: search.page,
+      perPage: itemsPerPage,
+    }),
+  });
+  const { data: categoryOptions = [] } = useQuery({ queryKey: ["categories"], queryFn: () => catalogService.categories() });
+  const { data: brandOptions = [] } = useQuery({ queryKey: ["brands"], queryFn: () => catalogService.brands() });
+  const paginatedProducts = productPage?.items || [];
+  const totalProducts = productPage?.total || 0;
+  const totalPages = productPage?.pages || 0;
+  const currentPage = productPage?.page || search.page;
 
   const handleProductClick = (productId: string) => {
     markViewed(productId);
@@ -128,11 +95,11 @@ function ProductListingPage() {
       to: "/products/",
       search: {
         search: "",
-        category: "",
+        category: [],
         brand: [],
         priceMin: 0,
         priceMax: 15000,
-        rating: 0,
+        rating: [],
         sort: "relevance",
         layout: "grid",
         page: 1,
@@ -141,19 +108,25 @@ function ProductListingPage() {
   };
 
   const hasActiveFilters =
-    search.search || search.category || search.brand.length > 0 || search.rating > 0;
+    search.search || search.category.length > 0 || search.brand.length > 0 || search.rating.length > 0;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-stone-50">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 md:py-10">
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Products</h1>
-          <p className="text-gray-600">
-            Showing {filtered.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to{" "}
-            {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} products
+        <div className="mb-8 border-b border-stone-200 pb-7">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-amber-700">
+            Curated collection
+          </p>
+          <h1 className="mb-2 text-3xl font-bold text-slate-900 md:text-4xl">Products</h1>
+          <p className="max-w-2xl text-sm text-slate-600 md:text-base">
+            Discover premium everyday essentials with refined filters for category, brand, and rating.
+          </p>
+          <p className="mt-4 text-sm font-medium text-slate-500">
+            Showing {totalProducts > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to{" "}
+            {Math.min(currentPage * itemsPerPage, totalProducts)} of {totalProducts} products
           </p>
         </div>
 
@@ -172,6 +145,8 @@ function ProductListingPage() {
               }}
               onClearFilters={clearFilters}
               hasActiveFilters={hasActiveFilters}
+              categories={categoryOptions}
+              brands={brandOptions}
             />
           </div>
 
@@ -205,12 +180,12 @@ function ProductListingPage() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             {/* Toolbar */}
-            <div className="hidden lg:flex justify-between items-center mb-6 pb-4 border-b">
+            <div className="mb-6 flex flex-col gap-4 border-y border-stone-200 py-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <select
                   value={search.sort}
                   onChange={(e) => updateSearch({ sort: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                  className="rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500"
                 >
                   <option value="relevance">Relevance</option>
                   <option value="price-low">Price: Low to High</option>
@@ -221,11 +196,12 @@ function ProductListingPage() {
                   <option value="deals">Deals</option>
                 </select>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 self-end lg:self-auto">
                 <Button
                   variant={search.layout === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => updateSearch({ layout: "grid" })}
+                  className={search.layout === "grid" ? "rounded-full bg-slate-900 hover:bg-slate-800" : "rounded-full"}
                 >
                   <Grid3x3 className="w-4 h-4" />
                 </Button>
@@ -233,6 +209,7 @@ function ProductListingPage() {
                   variant={search.layout === "list" ? "default" : "outline"}
                   size="icon"
                   onClick={() => updateSearch({ layout: "list" })}
+                  className={search.layout === "list" ? "rounded-full bg-slate-900 hover:bg-slate-800" : "rounded-full"}
                 >
                   <List className="w-4 h-4" />
                 </Button>
@@ -240,7 +217,11 @@ function ProductListingPage() {
             </div>
 
             {/* Products */}
-            {paginatedProducts.length > 0 ? (
+            {isPending ? (
+              <div className="py-16 text-center text-sm text-slate-500">Loading products from the server...</div>
+            ) : isError ? (
+              <EmptyState title="Products are unavailable" description="Please make sure the backend is running and try again." />
+            ) : paginatedProducts.length > 0 ? (
               <div
                 className={
                   search.layout === "grid"
@@ -320,6 +301,8 @@ function ProductListingPage() {
               }}
               onClearFilters={clearFilters}
               hasActiveFilters={hasActiveFilters}
+              categories={categoryOptions}
+              brands={brandOptions}
             />
           </div>
         </DrawerContent>
@@ -341,14 +324,22 @@ function FilterPanel({
   onPriceApply,
   onClearFilters,
   hasActiveFilters,
+  categories,
+  brands,
 }: any) {
+  const toggleMultiSelect = (values: string[], value: string, checked: boolean) =>
+    checked ? [...values, value] : values.filter((item) => item !== value);
+
+  const toggleRating = (values: number[], value: number, checked: boolean) =>
+    checked ? [...values, value] : values.filter((item) => item !== value);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 border-r border-stone-200 pr-6">
       {/* Clear Filters */}
       {hasActiveFilters && (
         <Button
           variant="outline"
-          className="w-full"
+          className="w-full rounded-full border-stone-300"
           onClick={onClearFilters}
         >
           <X className="w-4 h-4 mr-2" />
@@ -356,32 +347,21 @@ function FilterPanel({
         </Button>
       )}
 
-      {/* Search */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-3">Search</label>
-        <Input
-          placeholder="Search products..."
-          value={search.search}
-          onChange={(e) => onSearchChange({ search: e.target.value })}
-          className="w-full"
-        />
-      </div>
-
-      <Separator />
-
       {/* Category */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-3">Category</label>
+        <label className="mb-3 block text-sm font-semibold text-slate-900">Category</label>
         <div className="space-y-2">
           {categories.map((cat) => (
-            <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+            <label key={cat.id} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer">
               <Checkbox
-                checked={search.category === cat.slug}
+                checked={search.category.includes(cat.slug)}
                 onCheckedChange={(checked) =>
-                  onSearchChange({ category: checked ? cat.slug : "" })
+                  onSearchChange({
+                    category: toggleMultiSelect(search.category, cat.slug, Boolean(checked)).join(","),
+                  })
                 }
               />
-              <span className="text-sm text-gray-700">{cat.name}</span>
+              <span className="text-sm text-slate-700">{cat.name}</span>
             </label>
           ))}
         </div>
@@ -391,20 +371,18 @@ function FilterPanel({
 
       {/* Brand */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-3">Brand</label>
+        <label className="mb-3 block text-sm font-semibold text-slate-900">Brand</label>
         <div className="space-y-2 max-h-40 overflow-y-auto">
           {brands.map((brand) => (
-            <label key={brand.id} className="flex items-center gap-2 cursor-pointer">
+            <label key={brand.id} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer">
               <Checkbox
                 checked={search.brand.includes(brand.name)}
                 onCheckedChange={(checked) => {
-                  const updated = checked
-                    ? [...search.brand, brand.name]
-                    : search.brand.filter((b: string) => b !== brand.name);
+                  const updated = toggleMultiSelect(search.brand, brand.name, Boolean(checked));
                   onSearchChange({ brand: updated.join(",") });
                 }}
               />
-              <span className="text-sm text-gray-700">{brand.name}</span>
+              <span className="text-sm text-slate-700">{brand.name}</span>
             </label>
           ))}
         </div>
@@ -414,7 +392,7 @@ function FilterPanel({
 
       {/* Price */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-3">Price Range</label>
+        <label className="mb-3 block text-sm font-semibold text-slate-900">Price Range</label>
         <div className="space-y-4">
           <Slider
             value={[localPriceMin, localPriceMax]}
@@ -432,18 +410,18 @@ function FilterPanel({
               type="number"
               value={localPriceMin}
               onChange={(e) => onPriceMinChange(Number(e.target.value))}
-              className="w-full px-2 py-1 border border-gray-300 rounded"
+              className="w-full rounded-xl border border-stone-300 px-3 py-2"
               placeholder="Min"
             />
             <input
               type="number"
               value={localPriceMax}
               onChange={(e) => onPriceMaxChange(Number(e.target.value))}
-              className="w-full px-2 py-1 border border-gray-300 rounded"
+              className="w-full rounded-xl border border-stone-300 px-3 py-2"
               placeholder="Max"
             />
           </div>
-          <Button onClick={onPriceApply} className="w-full" size="sm">
+          <Button onClick={onPriceApply} className="w-full rounded-full bg-slate-900 hover:bg-slate-800" size="sm">
             Apply Price
           </Button>
         </div>
@@ -453,17 +431,19 @@ function FilterPanel({
 
       {/* Rating */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-3">Rating</label>
+        <label className="mb-3 block text-sm font-semibold text-slate-900">Rating</label>
         <div className="space-y-2">
           {[4.5, 4, 3.5, 3].map((rating) => (
-            <label key={rating} className="flex items-center gap-2 cursor-pointer">
+            <label key={rating} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer">
               <Checkbox
-                checked={search.rating === rating}
+                checked={search.rating.includes(rating)}
                 onCheckedChange={(checked) =>
-                  onSearchChange({ rating: checked ? rating : 0 })
+                  onSearchChange({
+                    rating: toggleRating(search.rating, rating, Boolean(checked)).join(","),
+                  })
                 }
               />
-              <span className="text-sm text-gray-700">
+              <span className="text-sm text-slate-700">
                 {rating} ★ and above
               </span>
             </label>

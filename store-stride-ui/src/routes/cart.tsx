@@ -101,6 +101,14 @@ function CartPage() {
                     <p className="text-sm text-gray-600">{product.brand}</p>
                     {line.color && <p className="text-sm text-gray-600">Color: {line.color}</p>}
                     {line.size && <p className="text-sm text-gray-600">Size: {line.size}</p>}
+                    <div className="mt-3">
+                      <QuantitySelector
+                        value={line.quantity}
+                        min={1}
+                        max={Math.max(1, product.stock)}
+                        onChange={(quantity) => updateQuantity(product.id, quantity)}
+                      />
+                    </div>
                   </div>
 
                   {/* Price & Actions */}
