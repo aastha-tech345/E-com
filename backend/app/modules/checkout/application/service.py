@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.cart.application.service import clear_cart, get_cart
 from app.modules.inventory.application.service import commit_inventory
+from app.modules.identity.domain.models import CustomerAddress
 from app.modules.notifications.application.service import create_notification
 from app.modules.orders.domain.models import Order, OrderItem, OrderStatusHistory
 from app.modules.payments.application.service import create_captured_payment
@@ -35,6 +36,25 @@ def place_order_from_cart(
     cart = get_cart(db, user_id=user_id)
     if not cart.items:
         raise ValueError("Cart is empty.")
+
+    saved_address = db.scalar(
+        select(CustomerAddress).where(
+            CustomerAddress.user_id == user_id,
+            CustomerAddress.line1 == address_line1,
+            CustomerAddress.city == city,
+            CustomerAddress.state == state,
+            CustomerAddress.postal_code == postal_code,
+        )
+    )
+    if saved_address is None:
+        db.add(CustomerAddress(
+            user_id=user_id,
+            recipient_name=shipping_name,
+            line1=address_line1,
+            city=city,
+            state=state,
+            postal_code=postal_code,
+        ))
 
     subtotal = Decimal("0.00")
     order = Order(

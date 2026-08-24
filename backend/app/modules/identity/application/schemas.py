@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserRegisterRequest(BaseModel):
@@ -28,3 +30,24 @@ class AuthTokenResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class UserProfileUpdateRequest(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    email: EmailStr
+
+
+class CustomerAddressRequest(BaseModel):
+    recipient_name: str = Field(min_length=2, max_length=120)
+    line1: str = Field(min_length=5, max_length=255)
+    city: str = Field(min_length=2, max_length=120)
+    state: str = Field(min_length=2, max_length=120)
+    postal_code: str = Field(min_length=4, max_length=20)
+
+
+class CustomerAddressResponse(CustomerAddressRequest):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    created_at: datetime
+    updated_at: datetime

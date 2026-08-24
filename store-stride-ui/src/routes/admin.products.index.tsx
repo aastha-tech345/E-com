@@ -1,11 +1,20 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Edit, Trash2, Eye } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { DataTable } from "@/components/admin/DataTable";
 import { useShop } from "@/store/shop";
-import { products } from "@/data/catalog";
+import { catalogService } from "@/services";
+import { toast } from "sonner";
 import type { Product } from "@/types";
 
 export const Route = createFileRoute("/admin/products/")({
@@ -15,10 +24,57 @@ export const Route = createFileRoute("/admin/products/")({
 function AdminProductsPage() {
   const navigate = useNavigate();
   const { admin } = useShop();
+  const [page, setPage] = useState(1);
+  const [filterField, setFilterField] = useState<"name" | "sku" | "category" | "brand">("name");
+  const [filterValue, setFilterValue] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [productRows, setProductRows] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const pageSize = 10;
+  const fields = [
+    { key: "name", label: "Product Name" },
+    { key: "sku", label: "SKU" },
+    { key: "category", label: "Category" },
+    { key: "brand", label: "Brand" },
+  ] as const;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const result = await catalogService.adminProducts({
+        q: globalSearch || filterValue,
+        field: globalSearch ? "all" : filterField,
+        page,
+        pageSize,
+      });
+      setProductRows(result.items);
+      setTotal(result.total);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to load products.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [page, filterField, filterValue, globalSearch]);
 
   if (!admin) {
     return null;
   }
+
+  const removeProduct = async (product: Product) => {
+    try {
+      await catalogService.deleteProduct(product.id);
+      toast.success("Product deleted.");
+      if (productRows.length === 1 && page > 1) setPage(page - 1);
+      else await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to delete product.");
+    }
+  };
 
   const columns = [
     {
@@ -86,39 +142,108 @@ function AdminProductsPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-            <p className="text-gray-600">Manage your product catalog</p>
+      <div className="space-y-5">
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Products</h1>
+          <p className="mt-1 text-sm text-slate-600">Manage your product catalog</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="mr-2 h-4 w-4" />
+                {fields.find((field) => field.key === filterField)?.label}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {fields.map((field) => (
+                <DropdownMenuItem
+                  key={field.key}
+                  onClick={() => {
+                    setFilterField(field.key);
+                    setFilterValue("");
+                    setPage(1);
+                  }}
+                >
+                  {field.key === filterField && <Check className="h-4 w-4" />}
+                  {field.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="relative w-52">
+            <Input
+              className="h-9 w-full pr-8"
+              value={filterValue}
+              onChange={(event) => {
+                setFilterValue(event.target.value);
+                setPage(1);
+              }}
+              placeholder={`Filter by ${fields.find((field) => field.key === filterField)?.label.toLowerCase()}...`}
+            />
+            {filterValue && <button type="button" aria-label="Clear field filter" onClick={() => { setFilterValue(""); setPage(1); }} className="absolute right-2 top-2 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>}
           </div>
-          <Button
-            onClick={() => navigate({ to: "/admin/products/create" })}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                className="h-9 pl-9 pr-8"
+                value={globalSearch}
+                onChange={(event) => {
+                  setGlobalSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search all columns..."
+              />
+              {globalSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGlobalSearch("");
+                    setPage(1);
+                  }}
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Button size="sm" onClick={() => navigate({ to: "/admin/products/create" })}>
+              + Add Product
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => {
+                setFilterValue("");
+                setGlobalSearch("");
+                setPage(1);
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <DataTable
-            columns={columns}
-            data={products}
-            searchFields={["name", "sku", "brand"]}
-            actions={[
-              {
-                label: "Edit",
-                onClick: (row) =>
-                  navigate({ to: "/admin/products/$id/edit", params: { id: row.id } }),
-              },
-              {
-                label: "Delete",
-                onClick: (row) => alert(`Delete product: ${row.name}`),
-              },
-            ]}
-          />
-        </div>
+        <DataTable
+          columns={columns}
+          data={productRows}
+          isLoading={loading}
+          hideToolbar
+          pagination={{ page, pageSize, total, onPageChange: setPage }}
+          getRowLabel={(product) => product.name}
+          actions={[
+            {
+              label: "Edit",
+              onClick: (row) =>
+                navigate({ to: "/admin/products/$id/edit", params: { id: row.id } }),
+            },
+            {
+              label: "Delete",
+              onClick: (row) => void removeProduct(row),
+            },
+          ]}
+        />
       </div>
     </AdminLayout>
   );

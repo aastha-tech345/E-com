@@ -24,13 +24,13 @@ export function AdminLayout({ children, title, description }: AdminLayoutProps) 
         <AdminSidebar />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Header */}
-          <AdminHeader title={title} description={description} />
+          <AdminHeader />
 
           {/* Page Content */}
           <main className="flex-1 overflow-auto">
-            <div className="p-6 md:p-8 h-full">{children}</div>
+            <div className="p-4 md:p-5 h-full">{children}</div>
           </main>
         </div>
       </div>

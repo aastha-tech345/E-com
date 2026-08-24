@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -12,10 +13,14 @@ from app.modules.identity.application.schemas import (
     RefreshTokenRequest,
     UserLoginRequest,
     UserProfileResponse,
+    UserProfileUpdateRequest,
+    CustomerAddressRequest,
+    CustomerAddressResponse,
     UserRegisterRequest,
 )
 from app.modules.identity.application.service import authenticate_user, ensure_default_admin, register_user, build_auth_response
 from app.modules.identity.presentation.dependencies import get_current_user
+from app.modules.identity.domain.models import CustomerAddress, User
 from app.shared.enums.roles import SystemRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -82,6 +87,56 @@ def register_seller(
 @router.get("/me", response_model=UserProfileResponse)
 def me(current_user: UserProfileResponse = Depends(get_current_user)) -> UserProfileResponse:
     return current_user
+
+
+@router.put("/me", response_model=UserProfileResponse)
+def update_me(payload: UserProfileUpdateRequest, current_user: UserProfileResponse = Depends(get_current_user), db: Session = Depends(get_db_session)) -> UserProfileResponse:
+    user = db.get(User, current_user.id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.full_name = payload.full_name.strip()
+    user.email = str(payload.email).lower()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="This email address is already in use.") from exc
+    return UserProfileResponse(id=user.id, full_name=user.full_name, email=user.email, roles=current_user.roles)
+
+
+@router.get("/me/addresses", response_model=list[CustomerAddressResponse])
+def my_addresses(current_user: UserProfileResponse = Depends(get_current_user), db: Session = Depends(get_db_session)) -> list[CustomerAddress]:
+    return list(db.scalars(select(CustomerAddress).where(CustomerAddress.user_id == current_user.id).order_by(CustomerAddress.updated_at.desc())).all())
+
+
+@router.post("/me/addresses", response_model=CustomerAddressResponse, status_code=status.HTTP_201_CREATED)
+def create_my_address(payload: CustomerAddressRequest, current_user: UserProfileResponse = Depends(get_current_user), db: Session = Depends(get_db_session)) -> CustomerAddress:
+    address = CustomerAddress(user_id=current_user.id, **payload.model_dump())
+    db.add(address)
+    db.commit()
+    db.refresh(address)
+    return address
+
+
+@router.put("/me/addresses/{address_id}", response_model=CustomerAddressResponse)
+def update_my_address(address_id: str, payload: CustomerAddressRequest, current_user: UserProfileResponse = Depends(get_current_user), db: Session = Depends(get_db_session)) -> CustomerAddress:
+    address = db.scalar(select(CustomerAddress).where(CustomerAddress.id == address_id, CustomerAddress.user_id == current_user.id))
+    if address is None:
+        raise HTTPException(status_code=404, detail="Address not found.")
+    for key, value in payload.model_dump().items():
+        setattr(address, key, value)
+    db.commit()
+    db.refresh(address)
+    return address
+
+
+@router.delete("/me/addresses/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_address(address_id: str, current_user: UserProfileResponse = Depends(get_current_user), db: Session = Depends(get_db_session)) -> None:
+    address = db.scalar(select(CustomerAddress).where(CustomerAddress.id == address_id, CustomerAddress.user_id == current_user.id))
+    if address is None:
+        raise HTTPException(status_code=404, detail="Address not found.")
+    db.delete(address)
+    db.commit()
 
 
 @router.post("/refresh", response_model=AuthTokenResponse)

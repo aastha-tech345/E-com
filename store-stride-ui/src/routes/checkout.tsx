@@ -10,7 +10,7 @@ import { Footer } from "@/components/customer/Footer";
 import { useShop } from "@/store/shop";
 import { EmptyState } from "@/components/common/EmptyState";
 import { toast } from "sonner";
-import { paymentService } from "@/services";
+import { checkoutService, paymentService } from "@/services";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -18,12 +18,13 @@ export const Route = createFileRoute("/checkout")({
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const { cartProducts, totals, clearCart, user, addresses, addAddress } = useShop();
+  const { cartProducts, totals, clearCart, user, addresses, addAddress, coupon } = useShop();
   const [step, setStep] = React.useState<"address" | "delivery" | "payment" | "review">("address");
   const [selectedAddress, setSelectedAddress] = React.useState<string | null>(
     addresses[0]?.id || null,
   );
   const [selectedDelivery, setSelectedDelivery] = React.useState("standard");
+  const [paymentMethod, setPaymentMethod] = React.useState<"upi" | "cod">("upi");
   const [submittingPayment, setSubmittingPayment] = React.useState(false);
   const [newAddress, setNewAddress] = React.useState({
     name: "",
@@ -82,27 +83,55 @@ function CheckoutPage() {
   };
 
   const handleCompleteOrder = async () => {
+    if (!user) {
+      toast.error("Please sign in before placing an order.");
+      navigate({ to: "/login" });
+      return;
+    }
     if (!selectedAddress || !selectedDelivery) {
       toast.error("Please select address and delivery method");
       return;
     }
+    const address = addresses.find((item) => item.id === selectedAddress);
+    if (!address) {
+      toast.error("Please select a delivery address.");
+      return;
+    }
     setSubmittingPayment(true);
     try {
-      const session = await paymentService.createStripeCheckoutSession({
-        customer_email: user?.email,
-        success_path: "/checkout/success",
-        cancel_path: "/checkout/cancel",
+      const order = await checkoutService.placeOrder({
+        shipping_name: address.name,
+        address_line1: address.line1,
+        city: address.city,
+        state: address.state,
+        postal_code: address.pincode,
+        payment_method: paymentMethod === "upi" ? "upi" : "cash_on_delivery",
+        payment_reference: `${paymentMethod}-${crypto.randomUUID()}`,
+        idempotency_key: crypto.randomUUID(),
+        coupon_code: coupon,
+      });
+      clearCart();
+      const orderId = String((order as { id: string }).id);
+      if (paymentMethod === "cod") {
+        toast.success("Cash on Delivery order placed successfully.");
+        navigate({ to: "/orders/$id", params: { id: orderId } });
+        return;
+      }
+      const stripeSession = await paymentService.createStripeCheckoutSession({
         items: cartProducts.map(({ product, line }) => ({
           product_id: product.id,
           name: product.name,
           quantity: line.quantity,
           unit_amount: product.price,
-          image: product.images?.[0],
+          image: product.images[0],
         })),
+        customer_email: user.email,
+        success_path: `/orders/${orderId}`,
+        cancel_path: "/checkout/cancel",
       });
-      window.location.assign(session.checkout_url);
+      window.location.assign(stripeSession.checkout_url);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to start Stripe checkout");
+      toast.error(error instanceof Error ? error.message : "Unable to place order");
       setSubmittingPayment(false);
     }
   };
@@ -364,37 +393,20 @@ function CheckoutPage() {
 
                   <div className="space-y-4">
                     {[
-                      { id: "upi", label: "UPI", desc: "Fast & secure using UPI apps", icon: "📱" },
-                      {
-                        id: "card",
-                        label: "Credit/Debit Card",
-                        desc: "Visa, Mastercard, RuPay",
-                        icon: "💳",
-                      },
-                      {
-                        id: "wallet",
-                        label: "Digital Wallet",
-                        desc: "PhonePe, Google Pay, Amazon Pay",
-                        icon: "👛",
-                      },
-                      {
-                        id: "cod",
-                        label: "Cash on Delivery",
-                        desc: "Pay when you receive your order",
-                        icon: "💰",
-                      },
-                    ].map((option, idx) => (
+                      { id: "upi" as const, label: "UPI Payment", desc: "Secure payment through Stripe", icon: "📱" },
+                      { id: "cod" as const, label: "Cash on Delivery", desc: "Pay when you receive your order", icon: "💰" },
+                    ].map((option) => (
                       <label
                         key={option.id}
-                        className="border-2 rounded-xl p-5 cursor-pointer transition-all duration-200 border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                        className={`border-2 rounded-xl p-5 cursor-pointer transition-all duration-200 ${paymentMethod === option.id ? "border-blue-600 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:shadow-sm"}`}
                       >
                         <div className="flex items-start gap-4">
                           <div
                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                              idx === 0 ? "border-blue-600 bg-blue-600" : "border-gray-300"
+                              paymentMethod === option.id ? "border-blue-600 bg-blue-600" : "border-gray-300"
                             }`}
                           >
-                            {idx === 0 && <div className="w-2 h-2 bg-white rounded-full" />}
+                            {paymentMethod === option.id && <div className="w-2 h-2 bg-white rounded-full" />}
                           </div>
                           <div className="flex-1">
                             <p className="font-semibold text-gray-900 text-base">
@@ -404,9 +416,10 @@ function CheckoutPage() {
                           </div>
                           <input
                             type="radio"
-                            name="payment"
+                            name="paymentMethod"
                             value={option.id}
-                            defaultChecked={idx === 0}
+                            checked={paymentMethod === option.id}
+                            onChange={() => setPaymentMethod(option.id)}
                             className="hidden"
                           />
                         </div>

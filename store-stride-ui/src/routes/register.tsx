@@ -96,29 +96,38 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
+    <div className="flex h-[100dvh] overflow-hidden bg-[#f4f7fb] p-3 sm:p-5">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 md:grid-cols-[.9fr_1.1fr]">
+        <aside className="relative hidden overflow-hidden bg-[#10233e] p-10 text-white md:flex md:flex-col md:justify-between">
+          <div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f28b20] text-lg font-black text-slate-950">S</div>
+            <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Join Store Stride</p>
+            <h2 className="mt-4 max-w-sm text-4xl font-bold leading-tight">A better storefront for every kind of ambition.</h2>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">Shop for what matters or open your own storefront with one secure account.</p>
+          </div>
+          <p className="text-xs text-slate-400">Your account keeps orders, favorites, and seller tools together.</p>
+        </aside>
+        <div className="flex items-center justify-center overflow-hidden p-4 sm:p-6">
+          <div className="w-full max-w-md">
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg mb-4">
-              <span className="text-white text-xl font-bold">S</span>
+          <div className="mb-4 text-center">
+            <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#f28b20] text-sm font-bold text-slate-950 md:hidden">
+              S
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Store Stride</h1>
-            <p className="text-gray-600 text-sm mt-1">Create your account</p>
+            <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
+            <p className="mt-1 text-sm text-slate-500">Choose how you want to use Store Stride.</p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-2.5">
             {/* User Type Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-3">
+              <label className="mb-2 block text-sm font-medium text-slate-800">
                 I want to register as:
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <label
-                  className={`cursor-pointer p-3 rounded-lg border-2 transition ${
+                  className={`cursor-pointer rounded-lg border-2 p-2 transition ${
                     userType === "customer"
                       ? "border-blue-600 bg-blue-50"
                       : "border-gray-200 bg-white hover:border-gray-300"
@@ -134,14 +143,14 @@ function RegisterPage() {
                     disabled={loading}
                   />
                   <div className="text-center">
-                    <div className="text-2xl mb-1">🛍️</div>
+                    <div className="mb-0.5 text-lg">Shop</div>
                     <div className="text-sm font-medium text-gray-900">Customer</div>
                     <div className="text-xs text-gray-600">Shop & buy</div>
                   </div>
                 </label>
 
                 <label
-                  className={`cursor-pointer p-3 rounded-lg border-2 transition ${
+                  className={`cursor-pointer rounded-lg border-2 p-2 transition ${
                     userType === "seller"
                       ? "border-blue-600 bg-blue-50"
                       : "border-gray-200 bg-white hover:border-gray-300"
@@ -157,7 +166,7 @@ function RegisterPage() {
                     disabled={loading}
                   />
                   <div className="text-center">
-                    <div className="text-2xl mb-1">🏪</div>
+                    <div className="mb-0.5 text-lg">Sell</div>
                     <div className="text-sm font-medium text-gray-900">Seller</div>
                     <div className="text-xs text-gray-600">Sell products</div>
                   </div>
@@ -166,53 +175,56 @@ function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Full Name</label>
+              <label className="mb-1 block text-sm font-medium text-slate-800">Full Name</label>
               <Input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="John Doe"
+                className="h-9"
                 disabled={loading}
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Email Address</label>
+              <label className="mb-1 block text-sm font-medium text-slate-800">Email Address</label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                className="h-9"
                 disabled={loading}
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Password</label>
+              <label className="mb-1 block text-sm font-medium text-slate-800">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  className="h-9 pr-14"
                   disabled={loading}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 text-sm"
+                  className="absolute right-3 top-2 text-xs font-medium text-slate-500 hover:text-slate-800"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">At least 8 characters</p>
+              <p className="mt-0.5 text-xs text-gray-500">At least 8 characters</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
+              <label className="mb-1 block text-sm font-medium text-slate-800">
                 Confirm Password
               </label>
               <Input
@@ -220,12 +232,13 @@ function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
+                className="h-9"
                 disabled={loading}
                 required
               />
             </div>
 
-            <label className="flex items-start space-x-2">
+            <label className="flex items-start space-x-2 pt-0.5">
               <input
                 type="checkbox"
                 checked={agreeTerms}
@@ -247,46 +260,21 @@ function RegisterPage() {
 
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              className="h-10 w-full bg-[#10233e] font-semibold text-white hover:bg-[#1a365d]"
               disabled={loading}
             >
               {loading ? "Creating account..." : "Create Account"}
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
-            </div>
-          </div>
-
-          {/* Social Registration (Optional) */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <button className="border border-gray-300 rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              <span>Google</span>
-            </button>
-            <button className="border border-gray-300 rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              <span>Apple</span>
-            </button>
-          </div>
-
-          {/* Sign In Link */}
-          <p className="text-center text-sm text-gray-600">
+          <p className="mt-4 text-center text-sm text-slate-600">
             Already have an account?{" "}
             <Link to="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
               Sign in
             </Link>
           </p>
+          </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-gray-600 mt-6">
-          By creating an account, you agree to our terms and accept our privacy policy.
-        </p>
       </div>
     </div>
   );

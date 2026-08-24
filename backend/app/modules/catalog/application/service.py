@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, cast
 
@@ -21,7 +22,7 @@ from app.modules.pricing.application.service import create_default_price, get_ac
 
 
 def create_category(db: Session, payload: CategoryCreateRequest) -> Category:
-    category = Category(name=payload.name, slug=payload.slug, parent_id=payload.parent_id)
+    category = Category(name=payload.name, slug=payload.slug, description=payload.description, parent_id=payload.parent_id)
     db.add(category)
     db.commit()
     db.refresh(category)
@@ -29,7 +30,7 @@ def create_category(db: Session, payload: CategoryCreateRequest) -> Category:
 
 
 def create_brand(db: Session, payload: BrandCreateRequest) -> Brand:
-    brand = Brand(name=payload.name, slug=payload.slug)
+    brand = Brand(name=payload.name, slug=payload.slug, description=payload.description)
     db.add(brand)
     db.commit()
     db.refresh(brand)
@@ -148,11 +149,11 @@ def seed_catalog(db: Session) -> CatalogSeedResponse:
 
 
 def list_categories(db: Session) -> list[Category]:
-    return list(db.scalars(select(Category).order_by(Category.name)).all())
+    return list(db.scalars(select(Category).where(Category.is_deleted.is_(False)).order_by(Category.created_at.desc())).all())
 
 
 def list_brands(db: Session) -> list[Brand]:
-    return list(db.scalars(select(Brand).order_by(Brand.name)).all())
+    return list(db.scalars(select(Brand).where(Brand.is_deleted.is_(False)).order_by(Brand.created_at.desc())).all())
 
 
 def list_products(
@@ -172,6 +173,7 @@ def list_products(
         select(Product)
         .options(selectinload(Product.variants), selectinload(Product.media), selectinload(Product.category), selectinload(Product.brand))
     )
+    statement = statement.where(Product.is_deleted.is_(False))
     if published_only:
         statement = statement.where(Product.is_published.is_(True))
     if query:
@@ -231,7 +233,7 @@ def get_product_by_slug(db: Session, slug: str) -> Product:
     product = db.scalar(
         select(Product)
         .options(selectinload(Product.variants), selectinload(Product.media))
-        .where(Product.slug == slug)
+        .where(Product.slug == slug, Product.is_deleted.is_(False))
     )
     if product is None:
         raise ValueError("Product not found.")
@@ -259,7 +261,7 @@ def hydrate_product_read_model(db: Session, product: Product) -> Product:
 
 def update_product(db: Session, product_id: str, payload: "ProductUpdateRequest") -> Product:
     """Update product fields."""
-    product = db.scalar(select(Product).where(Product.id == product_id))
+    product = db.scalar(select(Product).where(Product.id == product_id, Product.is_deleted.is_(False)))
     if not product:
         raise ValueError("Product not found.")
     
@@ -288,13 +290,14 @@ def delete_product(db: Session, product_id: str) -> None:
     product = db.scalar(select(Product).where(Product.id == product_id))
     if not product:
         raise ValueError("Product not found.")
-    db.delete(product)
+    product.is_deleted = True
+    product.deleted_at = datetime.now(timezone.utc)
     db.commit()
 
 
 def update_category(db: Session, category_id: str, payload: "CategoryUpdateRequest") -> Category:
     """Update category fields."""
-    category = db.scalar(select(Category).where(Category.id == category_id))
+    category = db.scalar(select(Category).where(Category.id == category_id, Category.is_deleted.is_(False)))
     if not category:
         raise ValueError("Category not found.")
     
@@ -302,6 +305,8 @@ def update_category(db: Session, category_id: str, payload: "CategoryUpdateReque
         category.name = payload.name
     if payload.slug is not None:
         category.slug = payload.slug
+    if payload.description is not None:
+        category.description = payload.description
     if payload.parent_id is not None:
         category.parent_id = payload.parent_id
     
@@ -312,16 +317,17 @@ def update_category(db: Session, category_id: str, payload: "CategoryUpdateReque
 
 def delete_category(db: Session, category_id: str) -> None:
     """Delete category."""
-    category = db.scalar(select(Category).where(Category.id == category_id))
+    category = db.scalar(select(Category).where(Category.id == category_id, Category.is_deleted.is_(False)))
     if not category:
         raise ValueError("Category not found.")
-    db.delete(category)
+    category.is_deleted = True
+    category.deleted_at = datetime.now(timezone.utc)
     db.commit()
 
 
 def update_brand(db: Session, brand_id: str, payload: "BrandUpdateRequest") -> Brand:
     """Update brand fields."""
-    brand = db.scalar(select(Brand).where(Brand.id == brand_id))
+    brand = db.scalar(select(Brand).where(Brand.id == brand_id, Brand.is_deleted.is_(False)))
     if not brand:
         raise ValueError("Brand not found.")
     
@@ -329,6 +335,8 @@ def update_brand(db: Session, brand_id: str, payload: "BrandUpdateRequest") -> B
         brand.name = payload.name
     if payload.slug is not None:
         brand.slug = payload.slug
+    if payload.description is not None:
+        brand.description = payload.description
     
     db.commit()
     db.refresh(brand)
@@ -337,8 +345,9 @@ def update_brand(db: Session, brand_id: str, payload: "BrandUpdateRequest") -> B
 
 def delete_brand(db: Session, brand_id: str) -> None:
     """Delete brand."""
-    brand = db.scalar(select(Brand).where(Brand.id == brand_id))
+    brand = db.scalar(select(Brand).where(Brand.id == brand_id, Brand.is_deleted.is_(False)))
     if not brand:
         raise ValueError("Brand not found.")
-    db.delete(brand)
+    brand.is_deleted = True
+    brand.deleted_at = datetime.now(timezone.utc)
     db.commit()

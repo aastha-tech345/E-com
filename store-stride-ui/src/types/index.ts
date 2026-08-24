@@ -63,9 +63,10 @@ export interface Review {
   status: "published" | "pending" | "rejected";
 }
 
-export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "replacement_requested";
 
 export interface OrderItem {
+  id?: string;
   productId: string;
   name: string;
   image: string;

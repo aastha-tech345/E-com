@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.modules.ai_assistant.domain.models import AIKnowledgeChunk, AIKnowledgeDocument
+from app.modules.ai_assistant.domain.models import AIKnowledgeChunk, AIKnowledgeDocument, AIKnowledgeEmbedding
 
 MAX_POLICY_BYTES = 2 * 1024 * 1024
 CHUNK_SIZE = 900
@@ -79,19 +79,28 @@ def _embed(chunks: list[str]) -> tuple[list[list[float]], str]:
     return vectors, settings.huggingface_embedding_model
 
 
-def ingest_policy(db: Session, *, filename: str, content: str) -> tuple[AIKnowledgeDocument, int]:
+def ingest_policy(db: Session, *, filename: str, content: str, description: str = "") -> tuple[AIKnowledgeDocument, int]:
     chunks = _chunks(content)
     embeddings, embedding_model = _embed(chunks)
     title = Path(filename).stem.replace("_", " ").replace("-", " ").title() or "Policy"
     document = AIKnowledgeDocument(
-        slug=f"policy-{uuid4().hex}", title=title[:160], category="policy", content=content, source="admin_upload"
+        slug=f"policy-{uuid4().hex}", title=title[:160], description=description.strip()[:2000], category="policy", content=content, source="admin_upload"
     )
     db.add(document)
     db.flush()
     for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
-        db.add(AIKnowledgeChunk(
+        chunk_row = AIKnowledgeChunk(
             document_id=document.id, chunk_index=index, heading=title[:160], content=chunk,
-            metadata_json=json.dumps({"embedding": embedding, "embedding_model": embedding_model, "source_file": filename}),
+            metadata_json=json.dumps({"source_file": filename}),
+        )
+        db.add(chunk_row)
+        db.flush()
+        db.add(AIKnowledgeEmbedding(
+            chunk_id=chunk_row.id,
+            provider="huggingface" if embedding_model != "local-hash-fallback" else "local-fallback",
+            model=embedding_model,
+            dimensions=len(embedding),
+            vector_json=json.dumps(embedding),
         ))
     db.commit()
     db.refresh(document)
@@ -100,3 +109,33 @@ def ingest_policy(db: Session, *, filename: str, content: str) -> tuple[AIKnowle
 
 def list_policies(db: Session) -> list[AIKnowledgeDocument]:
     return list(db.scalars(select(AIKnowledgeDocument).where(AIKnowledgeDocument.category == "policy").order_by(AIKnowledgeDocument.created_at.desc())).all())
+
+
+def rename_policy(db: Session, policy_id: str, title: str, description: str | None = None) -> AIKnowledgeDocument:
+    document = db.get(AIKnowledgeDocument, policy_id)
+    if document is None or document.category != "policy":
+        raise ValueError("Policy not found.")
+    document.title = title.strip()
+    if description is not None:
+        document.description = description.strip()[:2000]
+    db.commit()
+    db.refresh(document)
+    return document
+
+
+def replace_policy(db: Session, policy_id: str, *, filename: str, content: str, description: str = "") -> tuple[AIKnowledgeDocument, int]:
+    document = db.get(AIKnowledgeDocument, policy_id)
+    if document is None or document.category != "policy":
+        raise ValueError("Policy not found.")
+    # Replacing a source requires rebuilding both chunks and embeddings.
+    db.delete(document)
+    db.flush()
+    return ingest_policy(db, filename=filename, content=content, description=description)
+
+
+def delete_policy(db: Session, policy_id: str) -> None:
+    document = db.get(AIKnowledgeDocument, policy_id)
+    if document is None or document.category != "policy":
+        raise ValueError("Policy not found.")
+    db.delete(document)
+    db.commit()

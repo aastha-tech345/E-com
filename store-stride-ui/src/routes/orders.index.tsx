@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Eye } from "lucide-react";
+import { Eye, Search, ChevronRight, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Price } from "@/components/common/Price";
 import { Header } from "@/components/customer/Header";
@@ -18,7 +18,8 @@ export const Route = createFileRoute("/orders/")({
 function OrdersPage() {
   const navigate = useNavigate();
   const { user } = useShop();
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,17 +55,18 @@ function OrdersPage() {
     };
   }, [user]);
 
-  const filteredOrders = statusFilter
-    ? userOrders.filter((o) => o.status === statusFilter)
-    : userOrders;
+  const filteredOrders = userOrders.filter((order) =>
+    (statusFilter === "all" || order.status === statusFilter) &&
+    `${order.id} ${order.items.map((item) => item.name).join(" ")}`.toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-50">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
-        <p className="text-gray-600 mb-8">{filteredOrders.length} orders</p>
+      <div className="mx-auto max-w-7xl px-4 py-8 md:py-10">
+        <div className="mb-7 flex items-center gap-2 text-sm text-slate-500"><Home className="h-4 w-4" /> Home <ChevronRight className="h-4 w-4" /> <span className="font-medium text-slate-900">My Orders</span></div>
+        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><h1 className="text-3xl font-bold text-slate-900">My Orders</h1><p className="mt-2 text-slate-500">{userOrders.length} {userOrders.length === 1 ? "order" : "orders"}</p></div><div className="flex flex-col gap-3 sm:flex-row"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700"><option value="all">All Orders</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="replacement_requested">Replacement requested</option></select><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search orders..." className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-orange-400 sm:w-72" /></div></div></div>
 
         {loading ? (
           <div className="rounded-lg border p-8 text-center text-gray-600">Loading orders...</div>
@@ -78,15 +80,7 @@ function OrdersPage() {
             }}
           />
         ) : filteredOrders.length > 0 ? (
-          <div className="space-y-4">
-            {filteredOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onViewDetails={() => navigate({ to: "/orders/$id", params: { id: order.id } })}
-              />
-            ))}
-          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><table className="min-w-[900px] w-full text-left"><thead className="border-b border-slate-200 bg-slate-50 text-sm font-medium text-slate-500"><tr><th className="p-5">Order ID</th><th className="p-5">Date</th><th className="p-5">Items</th><th className="p-5">Status</th><th className="p-5">Total</th><th className="p-5">Actions</th></tr></thead><tbody>{filteredOrders.map((order) => <OrderRow key={order.id} order={order} onViewDetails={() => navigate({ to: "/orders/$id", params: { id: order.id } })} />)}</tbody></table></div>
         ) : (
           <EmptyState
             title="No orders found"
@@ -104,7 +98,7 @@ function OrdersPage() {
   );
 }
 
-function OrderCard({ order, onViewDetails }: { order: Order; onViewDetails: () => void }) {
+function OrderRow({ order, onViewDetails }: { order: Order; onViewDetails: () => void }) {
   const statusColors: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800",
     processing: "bg-blue-100 text-blue-800",
@@ -121,44 +115,5 @@ function OrderCard({ order, onViewDetails }: { order: Order; onViewDetails: () =
     cancelled: "Cancelled",
   };
 
-  return (
-    <div className="border rounded-lg p-4 hover:shadow-md transition">
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-        {/* Order ID */}
-        <div>
-          <p className="text-sm text-gray-600">Order ID</p>
-          <p className="font-semibold text-gray-900">{order.id}</p>
-        </div>
-
-        {/* Date */}
-        <div>
-          <p className="text-sm text-gray-600">Date</p>
-          <p className="font-semibold text-gray-900">{new Date(order.date).toLocaleDateString()}</p>
-        </div>
-
-        {/* Items */}
-        <div>
-          <p className="text-sm text-gray-600">Items</p>
-          <p className="font-semibold text-gray-900">{order.items.length} products</p>
-        </div>
-
-        {/* Status */}
-        <div>
-          <span
-            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${statusColors[order.status] || "bg-gray-100 text-gray-800"}`}
-          >
-            {statusLabels[order.status] || order.status}
-          </span>
-        </div>
-
-        {/* Amount & Action */}
-        <div className="flex items-center justify-between md:justify-end gap-4">
-          <Price value={order.total} className="font-bold text-lg" />
-          <Button variant="outline" size="icon" onClick={onViewDetails}>
-            <Eye className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+  return <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50"><td className="p-5"><p className="max-w-56 font-semibold text-slate-900 break-words">{order.id}</p><p className="mt-2 text-sm text-slate-500">Placed on {new Date(order.date).toLocaleString()}</p></td><td className="p-5 font-medium text-slate-800">{new Date(order.date).toLocaleDateString()}<span className="mt-1 block text-sm font-normal text-slate-500">{new Date(order.date).toLocaleTimeString()}</span></td><td className="p-5"><p className="font-medium text-slate-800">{order.items.length} {order.items.length === 1 ? "product" : "products"}</p><p className="mt-1 text-sm text-orange-600">View items</p></td><td className="p-5"><span className={`inline-block rounded-xl px-4 py-2 text-sm font-semibold capitalize ${statusColors[order.status] || "bg-slate-100 text-slate-700"}`}>{statusLabels[order.status] || order.status.replace(/_/g, " ")}</span></td><td className="p-5"><Price value={order.total} className="font-bold text-lg" /><p className="mt-1 text-sm text-slate-500">{order.items.length} item</p></td><td className="p-5"><Button variant="outline" onClick={onViewDetails}><Eye className="mr-2 h-4 w-4" />View Order</Button></td></tr>;
 }

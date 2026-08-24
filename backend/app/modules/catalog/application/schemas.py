@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,12 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class CategoryCreateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     slug: str = Field(min_length=2, max_length=140)
+    description: str = Field(default="", max_length=2000)
     parent_id: str | None = None
 
 
 class BrandCreateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     slug: str = Field(min_length=2, max_length=140)
+    description: str = Field(default="", max_length=2000)
 
 
 class ProductMediaPayload(BaseModel):
@@ -55,12 +58,28 @@ class ProductUpdateRequest(BaseModel):
 class CategoryUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     slug: str | None = Field(default=None, min_length=2, max_length=140)
+    description: str | None = Field(default=None, max_length=2000)
     parent_id: str | None = None
 
 
 class BrandUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     slug: str | None = Field(default=None, min_length=2, max_length=140)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class ProductAttributeCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    slug: str = Field(min_length=2, max_length=140)
+    attribute_type: str = Field(default="select", min_length=2, max_length=40)
+    values: list[str] = Field(default_factory=list)
+
+
+class ProductAttributeUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    slug: str | None = Field(default=None, min_length=2, max_length=140)
+    attribute_type: str | None = Field(default=None, min_length=2, max_length=40)
+    values: list[str] | None = None
 
 
 class CategoryResponse(BaseModel):
@@ -69,6 +88,7 @@ class CategoryResponse(BaseModel):
     id: str
     name: str
     slug: str
+    description: str
     parent_id: str | None
 
 
@@ -78,6 +98,18 @@ class BrandResponse(BaseModel):
     id: str
     name: str
     slug: str
+    description: str
+
+
+class ProductAttributeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    slug: str
+    attribute_type: str
+    values: list[str]
+    created_at: datetime
 
 
 class ProductVariantResponse(BaseModel):

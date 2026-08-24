@@ -28,7 +28,7 @@ import {
   Filter,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { useShop } from "@/store/shop";
 
@@ -144,25 +144,22 @@ function AdminDashboard() {
   );
 
   return (
-    <div className="flex h-screen bg-gray-900 overflow-hidden">
-      <AdminSidebar />
-
-      <main className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10">
-          <div className="px-8 py-6">
+    <AdminLayout>
+      <div className="space-y-6">
+        <div className="border-b border-slate-200 pb-5">
+          <div>
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold text-white">
+                <h1 className="text-2xl font-bold text-slate-900">
                   {isSeller ? "🏪 Seller Hub" : "📊 Dashboard"}
                 </h1>
-                <p className="text-gray-400 text-sm mt-2">
-                  Welcome back, <span className="text-blue-400">{admin.full_name}</span>
-                  {isSeller && <span className="text-amber-400 ml-2">(Seller)</span>}
+                <p className="text-slate-500 text-sm mt-1">
+                  Welcome back, <span className="text-blue-600">{admin.full_name}</span>
+                  {isSeller && <span className="text-amber-600 ml-2">(Seller)</span>}
                 </p>
               </div>
               <div className="flex gap-3">
-                <Button className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600 gap-2">
+                <Button variant="outline" className="gap-2">
                   <Filter className="w-4 h-4" />
                   Filter
                 </Button>
@@ -175,8 +172,7 @@ function AdminDashboard() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-8">
+        <div>
           {isSeller ? (
             // Seller-specific dashboard
             <>
@@ -293,11 +289,11 @@ function AdminDashboard() {
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Revenue Chart */}
-            <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-lg">
+            <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Revenue Trend</h2>
-                  <p className="text-gray-400 text-sm mt-1">Last 6 months performance</p>
+                  <h2 className="text-lg font-bold text-slate-900">Revenue Trend</h2>
+                  <p className="text-slate-500 text-sm mt-1">Last 6 months performance</p>
                 </div>
                 <div className="text-3xl">📈</div>
               </div>
@@ -309,16 +305,16 @@ function AdminDashboard() {
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="month" stroke="#9ca3af" />
-                  <YAxis stroke="#9ca3af" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="month" stroke="#64748b" />
+                  <YAxis stroke="#64748b" />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid #374151",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                     }}
-                    labelStyle={{ color: "#f3f4f6" }}
+                    labelStyle={{ color: "#0f172a" }}
                   />
                   <Area
                     type="monotone"
@@ -333,26 +329,26 @@ function AdminDashboard() {
             </div>
 
             {/* Orders Chart */}
-            <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-lg">
+            <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Order Stats</h2>
-                  <p className="text-gray-400 text-sm mt-1">Total vs Completed orders</p>
+                  <h2 className="text-lg font-bold text-slate-900">Order Stats</h2>
+                  <p className="text-slate-500 text-sm mt-1">Total vs Completed orders</p>
                 </div>
                 <div className="text-3xl">📊</div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={ordersData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="month" stroke="#9ca3af" />
-                  <YAxis stroke="#9ca3af" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="month" stroke="#64748b" />
+                  <YAxis stroke="#64748b" />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid #374151",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                     }}
-                    labelStyle={{ color: "#f3f4f6" }}
+                    labelStyle={{ color: "#0f172a" }}
                   />
                   <Legend />
                   <Bar dataKey="orders" fill="#3b82f6" name="Total Orders" radius={[8, 8, 0, 0]} />
@@ -365,11 +361,11 @@ function AdminDashboard() {
           {/* Bottom Section - Sales & Top Items */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sales by Category */}
-            <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-lg">
+            <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Sales by Category</h2>
-                  <p className="text-gray-400 text-sm mt-1">Category distribution</p>
+                  <h2 className="text-lg font-bold text-slate-900">Sales by Category</h2>
+                  <p className="text-slate-500 text-sm mt-1">Category distribution</p>
                 </div>
                 <div className="text-3xl">🎯</div>
               </div>
@@ -391,22 +387,22 @@ function AdminDashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid #374151",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                     }}
-                    labelStyle={{ color: "#f3f4f6" }}
+                    labelStyle={{ color: "#0f172a" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
 
             {/* Recent Orders */}
-            <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-lg">
+            <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Recent Orders</h2>
-                  <p className="text-gray-400 text-sm mt-1">Latest transactions</p>
+                  <h2 className="text-lg font-bold text-slate-900">Recent Orders</h2>
+                  <p className="text-slate-500 text-sm mt-1">Latest transactions</p>
                 </div>
                 <div className="text-3xl">🛒</div>
               </div>
@@ -414,16 +410,16 @@ function AdminDashboard() {
                 {[1, 2, 3].map((order) => (
                   <div
                     key={order}
-                    className="flex justify-between items-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition"
+                    className="flex justify-between items-center p-4 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition"
                   >
                     <div className="flex-1">
-                      <p className="font-medium text-white">Order #{1000 + order}</p>
-                      <p className="text-gray-400 text-sm">
+                      <p className="font-medium text-slate-900">Order #{1000 + order}</p>
+                      <p className="text-slate-500 text-sm">
                         Customer Name • {new Date().toLocaleDateString()}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-white">
+                      <p className="font-semibold text-slate-900">
                         ₹{(5999 + order * 1000).toLocaleString()}
                       </p>
                       <span className="inline-block px-3 py-1 mt-2 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
@@ -436,7 +432,7 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

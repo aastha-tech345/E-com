@@ -33,6 +33,23 @@ class User(Base):
     )
 
     roles: Mapped[list["UserRole"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    addresses: Mapped[list["CustomerAddress"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class CustomerAddress(Base):
+    __tablename__ = "customer_addresses"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    recipient_name: Mapped[str] = mapped_column(String(120))
+    line1: Mapped[str] = mapped_column(String(255))
+    city: Mapped[str] = mapped_column(String(120))
+    state: Mapped[str] = mapped_column(String(120))
+    postal_code: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="addresses")
 
 
 class UserRole(Base):

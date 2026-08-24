@@ -1,4 +1,12 @@
 from logging.config import fileConfig
+from pathlib import Path
+import sys
+
+# `alembic` may be launched from a global executable. Ensure imports resolve
+# relative to the backend project, not the executable's installation folder.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -7,7 +15,7 @@ from app.core.config import settings
 from app.modules.ai_assistant.domain import models as ai_models  # noqa: F401
 from app.modules.analytics.domain import models as analytics_models  # noqa: F401
 from app.modules.background_jobs.domain import models as background_job_models  # noqa: F401
-from app.core.database import Base
+from app.core.database import Base, database_url
 from app.modules.cart.domain import models as cart_models  # noqa: F401
 from app.modules.catalog.domain import models as catalog_models  # noqa: F401
 from app.modules.checkout.domain import models as checkout_models  # noqa: F401
@@ -27,7 +35,7 @@ from app.modules.shipping.domain import models as shipping_models  # noqa: F401
 from app.modules.wishlist.domain import models as wishlist_models  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -36,7 +44,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    context.configure(url=settings.database_url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(url=database_url, target_metadata=target_metadata, literal_binds=True)
     with context.begin_transaction():
         context.run_migrations()
 

@@ -37,11 +37,14 @@ def create_return_request(
         status="requested",
     )
     db.add(request)
+    if reason.strip().lower() == "replacement":
+        order.status = "replacement_requested"
+        db.add(OrderStatusHistory(order_id=order.id, status=order.status, note=f"Replacement requested for {item.product_name}."))
     create_notification(
         db,
         user_id=user_id,
-        title=f"Return requested for {order.order_number}",
-        message=f"Your return request for {item.product_name} was submitted.",
+        title=f"{'Replacement' if reason.strip().lower() == 'replacement' else 'Return'} requested for {order.order_number}",
+        message=f"Your {'replacement' if reason.strip().lower() == 'replacement' else 'return'} request for {item.product_name} was submitted.",
     )
     enqueue_job(db, job_type="analytics.refresh_summary")
     return request

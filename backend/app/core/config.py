@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     huggingface_api_token: str = ""
     huggingface_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     huggingface_embedding_endpoint: str = "https://router.huggingface.co/hf-inference/models"
-    frontend_url: str = "http://localhost:8081"
+    frontend_url: str = "http://localhost:8080"
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_currency: str = "inr"

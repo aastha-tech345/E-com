@@ -48,7 +48,10 @@ def payment_for_order(
 
 
 @router.post("/stripe/checkout-session", response_model=StripeCheckoutResponse, status_code=status.HTTP_201_CREATED)
-def create_stripe_checkout_session(payload: StripeCheckoutRequest) -> StripeCheckoutResponse:
+def create_stripe_checkout_session(
+    payload: StripeCheckoutRequest,
+    current_user: UserProfileResponse = Depends(get_current_user),
+) -> StripeCheckoutResponse:
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=500, detail="Stripe secret key is not configured.")
 
@@ -81,9 +84,10 @@ def create_stripe_checkout_session(payload: StripeCheckoutRequest) -> StripeChec
             line_items=line_items,
             success_url=f"{_frontend_url(payload.success_path)}?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=_frontend_url(payload.cancel_path),
-            customer_email=payload.customer_email,
+            customer_email=current_user.email,
             metadata={
                 "source": "store-stride-ui",
+                "user_id": current_user.id,
                 "item_count": str(sum(item.quantity for item in payload.items)),
                 "total_amount": str(total_amount),
             },

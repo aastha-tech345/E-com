@@ -5,10 +5,12 @@ import { ChevronLeft, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { ConfirmationDialog } from "@/components/admin/ConfirmationDialog";
 import { useShop } from "@/store/shop";
 import { categories, brands, products } from "@/data/catalog";
 import { toast } from "sonner";
 import type { ProductStatus } from "@/types";
+import { catalogService } from "@/services";
 
 export const Route = createFileRoute("/admin/products/$id/edit")({
   component: EditProductPage,
@@ -38,40 +40,52 @@ function EditProductPage() {
     colors: product?.colors?.join(", ") || "",
     sizes: product?.sizes?.join(", ") || "",
   });
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!admin || !product) {
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.sku || !formData.brand || !formData.category) {
       toast.error("Please fill all required fields");
       return;
     }
-    toast.success("Product updated successfully!");
-    navigate({ to: "/admin/products" });
+    try {
+      await catalogService.updateProduct(product.id, {
+        name: formData.name,
+        slug: product.slug,
+        category_id: formData.category,
+        brand_id: brands.find((brand) => brand.name === formData.brand)?.id || null,
+        short_description: formData.shortDescription,
+        description: formData.description,
+        is_published: formData.status === "active",
+      });
+      toast.success("Product updated successfully!");
+      navigate({ to: "/admin/products" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update product.");
+    }
   };
 
   const selectedCategory = categories.find((c) => c.id === formData.category);
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate({ to: "/admin/products" })}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
+      <div className="space-y-5">
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Edit Product</h1>
+          <p className="mt-1 text-sm text-slate-600">{product.name}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="ghost" size="icon" onClick={() => navigate({ to: "/admin/products" })}>
             <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
-            <p className="text-gray-600">{product.name}</p>
-          </div>
+          </Button>
+          <p className="text-sm text-slate-500">Back to products</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-w-4xl space-y-6">
+        <form onSubmit={handleSubmit} className="w-full space-y-5">
           {/* Basic Information */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
@@ -368,11 +382,31 @@ function EditProductPage() {
               type="button"
               variant="outline"
               className="text-red-600 hover:text-red-700 ml-auto"
+              onClick={() => setConfirmDelete(true)}
             >
               Delete Product
             </Button>
           </div>
         </form>
+        <ConfirmationDialog
+          open={confirmDelete}
+          title="Delete product?"
+          description={`This will soft-delete ${product.name}. It will no longer appear in the catalog.`}
+          confirmLabel="Delete Product"
+          destructive
+          onOpenChange={setConfirmDelete}
+          onConfirm={() => {
+            void (async () => {
+                try {
+                  await catalogService.deleteProduct(product.id);
+                  toast.success("Product deleted.");
+                  navigate({ to: "/admin/products" });
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Unable to delete product.");
+                }
+            })();
+          }}
+        />
       </div>
     </AdminLayout>
   );

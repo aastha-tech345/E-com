@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Edit, Trash2, Plus } from "lucide-react";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { toast } from "sonner";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { DataTable } from "@/components/admin/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,151 +13,147 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useShop } from "@/store/shop";
 import { type CatalogBrandOption, catalogService } from "@/services";
-import { toast } from "sonner";
+import { useShop } from "@/store/shop";
 
-export const Route = createFileRoute("/admin/brands")({
-  component: AdminBrands,
-});
+export const Route = createFileRoute("/admin/brands")({ component: AdminBrands });
+
+const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 function AdminBrands() {
   const { admin } = useShop();
   const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const [editing, setEditing] = useState<CatalogBrandOption | null>(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [filterField, setFilterField] = useState("all");
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: "", slug: "" });
-
-  useEffect(() => {
-    loadBrands();
-  }, []);
-
-  const loadBrands = async () => {
-    setLoading(true);
+  const pageSize = 10;
+  const load = async () => {
     try {
-      const data = await catalogService.brands();
-      setBrands(data);
-    } catch (err) {
-      console.error("Error loading brands:", err);
+      setLoading(true);
+      const result = await catalogService.adminBrands({ q: search, page, pageSize, field: filterField });
+      setBrands(result.items);
+      setTotal(result.total);
+    } catch {
+      toast.error("Unable to load brands.");
     } finally {
       setLoading(false);
     }
   };
-
+  useEffect(() => {
+    void load();
+  }, [page, search, filterField]);
   if (!admin) return null;
-
-  const handleCreate = async () => {
-    if (!formData.name || !formData.slug) {
-      toast.error("Please fill in all fields");
+  const save = async () => {
+    if (!form.name) {
+      toast.error("Brand name is required.");
       return;
     }
     try {
-      await catalogService.createBrand(formData);
-      await loadBrands();
-      setFormData({ name: "", slug: "" });
-      setShowForm(false);
-      toast.success("Brand created successfully");
-    } catch (err) {
-      toast.error("Failed to create brand");
+      const payload = { ...form, slug: slugify(form.name) };
+      if (editing) await catalogService.updateBrand(editing.id, payload);
+      else await catalogService.createBrand(payload);
+      setOpen(false);
+      setEditing(null);
+      setForm({ name: "", description: "" });
+      setPage(1);
+      await load();
+      toast.success(editing ? "Brand updated." : "Brand created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create brand.");
     }
   };
-
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure?")) {
-      // TODO: Call API to delete brand
-      setBrands(brands.filter((b) => b.id !== id));
-      toast.success("Brand deleted");
+  const edit = (brand: CatalogBrandOption) => {
+    setEditing(brand);
+    setForm({ name: brand.name, description: brand.description || "" });
+    setOpen(true);
+  };
+  const remove = async (brand: CatalogBrandOption) => {
+    try {
+      await catalogService.deleteBrand(brand.id);
+      toast.success("Brand deleted.");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to delete brand.");
     }
   };
-
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <AdminSidebar />
-
-      <main className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-8 py-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold">Brands</h1>
-                <p className="text-gray-600 text-sm mt-1">Manage product brands</p>
-              </div>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Brand
+    <AdminLayout>
+      <div className="space-y-5">
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Brands</h1>
+          <p className="mt-1 text-sm text-slate-600">Manage product brands</p>
+        </div>
+        <DataTable
+          columns={[
+            { key: "name", label: "Name" },
+            { key: "slug", label: "Slug" },
+            {
+              key: "description",
+              label: "Description",
+              render: (value: string) => <span className="line-clamp-1 text-slate-600">{value || "-"}</span>,
+            },
+          ]}
+          data={brands}
+          isLoading={loading}
+          searchFields={["name", "slug", "description"]}
+          fieldSearchPlaceholder={`Filter by ${filterField === "all" ? "brand" : filterField}...`}
+          onFieldSearch={(query) => {
+            setSearch(query);
+            setPage(1);
+          }}
+          onSearch={(query) => {
+            setFilterField("all");
+            setSearch(query);
+            setPage(1);
+          }}
+          filterLabel="All columns"
+          filterValue={filterField}
+          onFilterChange={(value) => { setFilterField(value); setPage(1); }}
+          filterOptions={[{ label: "All columns", value: "all" }, { label: "Name", value: "name" }, { label: "Slug", value: "slug" }, { label: "Description", value: "description" }]}
+          searchPlaceholder="Search all brands..."
+          addAction={{ label: "Add Brand", onClick: () => { setEditing(null); setForm({ name: "", description: "" }); setOpen(true); } }}
+          onRefresh={() => void load()}
+          pagination={{ page, pageSize, total, onPageChange: setPage }}
+          getRowLabel={(brand) => brand.name}
+          actions={[
+            { label: "Edit", onClick: edit },
+            { label: "Delete", onClick: (brand) => void remove(brand) },
+          ]}
+        />
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Brand" : "Add Brand"}</DialogTitle>
+              <DialogDescription>{editing ? "Update this product brand." : "Create a product brand."}</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3">
+              <Input
+                placeholder="Brand name"
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+              />
+              <Input
+                value={slugify(form.name)}
+                readOnly
+                className="bg-slate-50 text-slate-500"
+                placeholder="Slug is generated automatically"
+              />
+              <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Brand description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
               </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-8">
-          <Dialog open={showForm} onOpenChange={setShowForm}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>New Brand</DialogTitle>
-                <DialogDescription>Add a reusable product brand.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-3">
-                <Input
-                  placeholder="Brand Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-                <Input
-                  placeholder="url-friendly-slug"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowForm(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreate}>Create Brand</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* Table */}
-          {loading ? (
-            <div className="text-center py-12">Loading...</div>
-          ) : brands.length === 0 ? (
-            <div className="bg-white rounded-lg p-12 text-center">
-              <p className="text-gray-500">No brands found</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">Name</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">Slug</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {brands.map((brand) => (
-                    <tr key={brand.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium">{brand.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{brand.slug}</td>
-                      <td className="px-6 py-4 text-sm flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleDelete(brand.id)}>
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+              <Button onClick={() => void save()}>{editing ? "Save Changes" : "Create"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AdminLayout>
   );
 }

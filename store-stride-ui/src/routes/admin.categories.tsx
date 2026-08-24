@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Edit, Trash2, Plus } from "lucide-react";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { toast } from "sonner";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { DataTable } from "@/components/admin/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,155 +13,152 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useShop } from "@/store/shop";
 import { type CatalogCategoryOption, catalogService } from "@/services";
-import { toast } from "sonner";
+import { useShop } from "@/store/shop";
 
-export const Route = createFileRoute("/admin/categories")({
-  component: AdminCategories,
-});
+export const Route = createFileRoute("/admin/categories")({ component: AdminCategories });
+
+const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 function AdminCategories() {
   const { admin } = useShop();
   const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: "", slug: "" });
+  const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [filterField, setFilterField] = useState("all");
+  const [total, setTotal] = useState(0);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const [editing, setEditing] = useState<CatalogCategoryOption | null>(null);
+  const pageSize = 10;
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
+  const load = async () => {
     setLoading(true);
     try {
-      const data = await catalogService.categories();
-      setCategories(data);
-    } catch (err) {
-      console.error("Error loading categories:", err);
+      const result = await catalogService.adminCategories({ q: search, page, pageSize, field: filterField });
+      setCategories(result.items);
+      setTotal(result.total);
+    } catch {
+      toast.error("Unable to load categories.");
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    void load();
+  }, [page, search, filterField]);
+
   if (!admin) return null;
 
-  const handleCreate = async () => {
-    if (!formData.name || !formData.slug) {
-      toast.error("Please fill in all fields");
+  const save = async () => {
+    if (!form.name) {
+      toast.error("Category name is required.");
       return;
     }
     try {
-      await catalogService.createCategory(formData);
-      await loadCategories();
-      setFormData({ name: "", slug: "" });
-      setShowForm(false);
-      toast.success("Category created successfully");
-    } catch (err) {
-      toast.error("Failed to create category");
+      const payload = { ...form, slug: slugify(form.name) };
+      if (editing) await catalogService.updateCategory(editing.id, payload);
+      else await catalogService.createCategory(payload);
+      setOpen(false);
+      setEditing(null);
+      setForm({ name: "", description: "" });
+      setPage(1);
+      await load();
+      toast.success(editing ? "Category updated." : "Category created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create category.");
     }
   };
-
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure?")) {
-      // TODO: Call API to delete category
-      setCategories(categories.filter((c) => c.id !== id));
-      toast.success("Category deleted");
+  const edit = (category: CatalogCategoryOption) => {
+    setEditing(category);
+    setForm({ name: category.name, description: category.description || "" });
+    setOpen(true);
+  };
+  const remove = async (category: CatalogCategoryOption) => {
+    try {
+      await catalogService.deleteCategory(category.id);
+      toast.success("Category deleted.");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to delete category.");
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <AdminSidebar />
-
-      <main className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-8 py-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold">Categories</h1>
-                <p className="text-gray-600 text-sm mt-1">Manage product categories</p>
-              </div>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Category
+    <AdminLayout>
+      <div className="space-y-5">
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Categories</h1>
+          <p className="mt-1 text-sm text-slate-600">Manage product categories</p>
+        </div>
+        <DataTable
+          columns={[
+            { key: "name", label: "Name" },
+            { key: "slug", label: "Slug" },
+            {
+              key: "description",
+              label: "Description",
+              render: (value: string) => <span className="line-clamp-1 text-slate-600">{value || "-"}</span>,
+            },
+          ]}
+          data={categories}
+          isLoading={loading}
+          searchFields={["name", "slug", "description"]}
+          fieldSearchPlaceholder={`Filter by ${filterField === "all" ? "category" : filterField}...`}
+          onFieldSearch={(query) => {
+            setSearch(query);
+            setPage(1);
+          }}
+          onSearch={(query) => {
+            setFilterField("all");
+            setSearch(query);
+            setPage(1);
+          }}
+          filterLabel="All columns"
+          filterValue={filterField}
+          onFilterChange={(value) => { setFilterField(value); setPage(1); }}
+          filterOptions={[{ label: "All columns", value: "all" }, { label: "Name", value: "name" }, { label: "Slug", value: "slug" }, { label: "Description", value: "description" }]}
+          searchPlaceholder="Search all categories..."
+          addAction={{ label: "Add Category", onClick: () => { setEditing(null); setForm({ name: "", description: "" }); setOpen(true); } }}
+          onRefresh={() => void load()}
+          pagination={{ page, pageSize, total, onPageChange: setPage }}
+          getRowLabel={(category) => category.name}
+          actions={[
+            { label: "Edit", onClick: edit },
+            { label: "Delete", onClick: (category) => void remove(category) },
+          ]}
+        />
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Category" : "Add Category"}</DialogTitle>
+              <DialogDescription>{editing ? "Update this product category." : "Create a reusable product category."}</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3">
+              <Input
+                placeholder="Category name"
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+              />
+              <Input
+                value={slugify(form.name)}
+                readOnly
+                className="bg-slate-50 text-slate-500"
+                placeholder="Slug is generated automatically"
+              />
+              <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Category description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
               </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-8">
-          <Dialog open={showForm} onOpenChange={setShowForm}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>New Category</DialogTitle>
-                <DialogDescription>Add a reusable product category.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-3">
-                <Input
-                  placeholder="Category Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-                <Input
-                  placeholder="url-friendly-slug"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowForm(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreate}>Create Category</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* Table */}
-          {loading ? (
-            <div className="text-center py-12">Loading...</div>
-          ) : categories.length === 0 ? (
-            <div className="bg-white rounded-lg p-12 text-center">
-              <p className="text-gray-500">No categories found</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">Name</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">Slug</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {categories.map((category) => (
-                    <tr key={category.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium">{category.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{category.slug}</td>
-                      <td className="px-6 py-4 text-sm flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(category.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+              <Button onClick={() => void save()}>{editing ? "Save Changes" : "Create"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AdminLayout>
   );
 }

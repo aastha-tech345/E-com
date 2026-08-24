@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { ImagePlus, Trash2 } from "lucide-react";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
@@ -48,6 +49,7 @@ function CreateProduct() {
   const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
   const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
   useEffect(() => {
     loadOptions();
@@ -111,27 +113,25 @@ function CreateProduct() {
 
   if (!admin) return null;
 
+  const addImagePreviews = (files: FileList | null) => {
+    if (!files) return;
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    setImagePreviews((current) => [...current, ...imageFiles.map((file) => URL.createObjectURL(file))]);
+  };
+
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <AdminSidebar />
-
-      <main className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-8 py-4">
-            <h1 className="text-2xl font-bold">Create Product</h1>
-            <p className="text-gray-600 text-sm mt-1">Add a new product to your catalog</p>
-          </div>
+    <AdminLayout>
+      <div className="space-y-5">
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Create Product</h1>
+          <p className="mt-1 text-sm text-slate-600">Add a new product to your catalog</p>
         </div>
-
-        {/* Content */}
-        <div className="p-6 md:p-8 w-full">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-5">
             {/* Basic Information */}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
               <h2 className="text-lg font-bold mb-4">Basic Information</h2>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Product Name *
@@ -150,7 +150,7 @@ function CreateProduct() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Category *
@@ -211,24 +211,20 @@ function CreateProduct() {
             </div>
 
             {/* Variants */}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
               <h2 className="text-lg font-bold mb-4">Variants</h2>
               <div className="space-y-4">
                 {variantFields.map((field, idx) => (
                   <div key={field.id} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input {...register(`variants.${idx}.name`)} placeholder="Variant Name" />
-                      <Input {...register(`variants.${idx}.sku`)} placeholder="SKU" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                      <Input {...register(`variants.${idx}.price`)} placeholder="Price" />
-                      <Input
-                        {...register(`variants.${idx}.quantity_available`)}
-                        placeholder="Quantity"
-                      />
-                      <label className="flex items-center">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:items-center">
+                      <Input className="md:col-span-3" {...register(`variants.${idx}.name`)} placeholder="Variant Name" />
+                      <Input className="md:col-span-3" {...register(`variants.${idx}.sku`)} placeholder="SKU" />
+                      <Input className="md:col-span-2" type="number" {...register(`variants.${idx}.price`)} placeholder="Price" />
+                      <Input className="md:col-span-3" type="number"
+                        {...register(`variants.${idx}.quantity_available`)} placeholder="Quantity" />
+                      <label className="flex items-center gap-2 whitespace-nowrap md:col-span-1">
                         <input type="checkbox" {...register(`variants.${idx}.is_default`)} />
-                        <span className="ml-2 text-sm">Default</span>
+                        <span className="text-sm">Default</span>
                       </label>
                     </div>
                     {variantFields.length > 1 && (
@@ -263,13 +259,49 @@ function CreateProduct() {
             </div>
 
             {/* Media */}
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-lg font-bold mb-4">Images</h2>
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <div className="mb-4">
+                <h2 className="text-lg font-bold">Images</h2>
+                <p className="mt-1 text-sm text-slate-500">Upload one or more product photos. The first image is used as the cover.</p>
+              </div>
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center transition hover:border-blue-500 hover:bg-blue-50">
+                <ImagePlus className="mb-2 h-8 w-8 text-slate-400" />
+                <span className="text-sm font-medium text-slate-700">Choose product images</span>
+                <span className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP up to 5 MB each</span>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    addImagePreviews(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              {imagePreviews.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                  {imagePreviews.map((src, index) => (
+                    <div key={src} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                      <img src={src} alt={`Product upload ${index + 1}`} className="h-full w-full object-cover" />
+                      {index === 0 && <span className="absolute left-2 top-2 rounded bg-slate-900 px-2 py-1 text-[10px] font-medium text-white">Cover</span>}
+                      <button
+                        type="button"
+                        aria-label={`Remove image ${index + 1}`}
+                        onClick={() => setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                        className="absolute right-2 top-2 rounded-md bg-white p-1.5 text-red-600 opacity-0 shadow-sm transition group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="space-y-4">
                 {mediaFields.map((field, idx) => (
                   <div
                     key={field.id}
-                    className="p-4 border border-gray-200 rounded-lg grid grid-cols-2 gap-4"
+                    className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 p-4 md:grid-cols-2"
                   >
                     <Input {...register(`media.${idx}.media_url`)} placeholder="Image URL" />
                     <div>
@@ -299,7 +331,7 @@ function CreateProduct() {
             </div>
 
             {/* Publish */}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
               <label className="flex items-center">
                 <input type="checkbox" {...register("is_published")} />
                 <span className="ml-2 font-medium">Publish immediately</span>
@@ -320,8 +352,7 @@ function CreateProduct() {
               </Button>
             </div>
           </form>
-        </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

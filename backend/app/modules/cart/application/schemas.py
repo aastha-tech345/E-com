@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class AddCartItemRequest(BaseModel):
-    variant_id: str
+    variant_id: str | None = None
+    product_id: str | None = None
     quantity: int = Field(ge=1, le=20)
 
 

@@ -71,6 +71,7 @@ class AIKnowledgeDocument(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     slug: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(String(60), index=True)
     content: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(120), default="seeded")
@@ -94,6 +95,23 @@ class AIKnowledgeChunk(Base):
     heading: Mapped[str] = mapped_column(String(160), default="")
     content: Mapped[str] = mapped_column(Text)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    embedding: Mapped["AIKnowledgeEmbedding | None"] = relationship(cascade="all, delete-orphan", uselist=False)
+
+
+class AIKnowledgeEmbedding(Base):
+    """Dedicated database row for a chunk embedding (portable across SQLite/PostgreSQL)."""
+
+    __tablename__ = "ai_knowledge_embeddings"
+    __table_args__ = (UniqueConstraint("chunk_id", name="uq_ai_knowledge_embeddings_chunk"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    chunk_id: Mapped[str] = mapped_column(ForeignKey("ai_knowledge_chunks.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(80), default="huggingface")
+    model: Mapped[str] = mapped_column(String(200))
+    dimensions: Mapped[int] = mapped_column(Integer)
+    vector_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

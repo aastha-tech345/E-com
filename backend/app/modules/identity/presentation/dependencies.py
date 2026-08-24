@@ -22,7 +22,11 @@ def get_current_user(
         payload = decode_access_token(credentials.credentials)
     except Exception as exc:  # pragma: no cover - library-specific exceptions
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.") from exc
-    return get_user_profile(db, payload["sub"])
+    try:
+        return get_user_profile(db, payload["sub"])
+    except ValueError as exc:
+        # Tokens can outlive a database reset or a switch from SQLite to PostgreSQL.
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.") from exc
 
 
 def get_optional_current_user(
@@ -35,7 +39,10 @@ def get_optional_current_user(
         payload = decode_access_token(credentials.credentials)
     except Exception:
         return None
-    return get_user_profile(db, payload["sub"])
+    try:
+        return get_user_profile(db, payload["sub"])
+    except ValueError:
+        return None
 
 
 def require_roles(*allowed_roles: str) -> Callable[[UserProfileResponse], UserProfileResponse]:

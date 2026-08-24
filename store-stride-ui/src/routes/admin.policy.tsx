@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { MoreVertical, Pencil, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -14,12 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { policyService, type PolicyDocument } from "@/services";
 import { useShop } from "@/store/shop";
 
@@ -32,6 +25,12 @@ function PolicyPage() {
   const [uploading, setUploading] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [editing, setEditing] = useState<PolicyDocument | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterField, setFilterField] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const load = async () => {
     try {
@@ -54,10 +53,11 @@ function PolicyPage() {
     }
     setUploading(true);
     try {
-      const result = await policyService.upload(file, name);
+      const result = await policyService.upload(file, name, description);
       toast.success(`${result.title} indexed into ${result.chunks} vector chunks.`);
       setFile(null);
       setName("");
+      setDescription("");
       setOpen(false);
       await load();
     } catch (error) {
@@ -67,51 +67,106 @@ function PolicyPage() {
     }
   };
 
+  const updatePolicy = async () => {
+    if (!editing || !name.trim()) return;
+    try {
+      if (file) {
+        const result = await policyService.replaceFile(editing.id, file, name, description);
+        toast.success(`${result.title} re-indexed into ${result.chunks} vector chunks.`);
+      } else {
+        await policyService.rename(editing.id, name, description);
+        toast.success("Policy updated.");
+      }
+      setEditing(null);
+      setName("");
+      setDescription("");
+      setFile(null);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Update failed.");
+    }
+  };
+
+  const remove = async (policy: PolicyDocument) => {
+    try {
+      await policyService.delete(policy.id);
+      await load();
+      toast.success("Policy deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed.");
+    }
+  };
+
+  const filteredPolicies = policies.filter((policy) =>
+    (filterField === "all" ? `${policy.title} ${policy.description}` : String(policy[filterField as keyof PolicyDocument] ?? ""))
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  const pagedPolicies = filteredPolicies.slice((page - 1) * pageSize, page * pageSize);
+
   return (
-    <AdminLayout
-      title="Policy knowledge base"
-      description="Upload policies for Hugging Face vector search."
-    >
+    <AdminLayout>
       <div className="w-full space-y-5">
-        <div className="flex items-center justify-between border-b pb-5">
-          <div>
-            <h1 className="text-xl font-bold">Policies</h1>
-            <p className="text-sm text-slate-500">Manage searchable policy documents.</p>
-          </div>
-          <Button onClick={() => setOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Upload policy
-          </Button>
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Policies</h1>
+          <p className="mt-1 text-sm text-slate-600">Manage searchable policy documents.</p>
         </div>
         <DataTable
           columns={[
             { key: "title", label: "Policy name" },
+            {
+              key: "description",
+              label: "Description",
+              render: (value: string) => <span className="line-clamp-1 text-slate-600">{value || "-"}</span>,
+            },
             {
               key: "created_at",
               label: "Created",
               render: (value: string) => new Date(value).toLocaleDateString(),
             },
           ]}
-          data={policies}
-          searchFields={["title"]}
+          data={pagedPolicies}
+          searchFields={["title", "description"]}
+          fieldSearchPlaceholder={`Filter by ${filterField === "all" ? "policy" : filterField}...`}
+          onFieldSearch={(query) => {
+            setSearch(query);
+            setPage(1);
+          }}
+          onSearch={(query) => {
+            setFilterField("all");
+            setSearch(query);
+            setPage(1);
+          }}
+          filterLabel="All columns"
+          filterValue={filterField}
+          onFilterChange={(value) => { setFilterField(value); setPage(1); }}
+          filterOptions={[{ label: "All columns", value: "all" }, { label: "Document name", value: "title" }, { label: "Description", value: "description" }, { label: "Created", value: "created_at" }]}
+          searchPlaceholder="Search all policies..."
+          addAction={{
+            label: "Upload policy",
+            onClick: () => {
+              setName("");
+              setDescription("");
+              setFile(null);
+              setOpen(true);
+            },
+          }}
+          onRefresh={() => void load()}
+          pagination={{ page, pageSize, total: filteredPolicies.length, onPageChange: setPage }}
+          getRowLabel={(policy) => policy.title}
           emptyMessage="No policies have been indexed yet."
-          rowActions={(policy) => (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Pencil /> Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">
-                  <Trash2 /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          actions={[
+            {
+              label: "Edit",
+              onClick: (policy) => {
+                setEditing(policy);
+                setName(policy.title);
+                setDescription(policy.description || "");
+                setFile(null);
+              },
+            },
+            { label: "Delete", onClick: (policy) => void remove(policy) },
+          ]}
         />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
@@ -127,6 +182,7 @@ function PolicyPage() {
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Policy name"
               />
+              <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Document description" />
               <Input
                 type="file"
                 accept=".txt,.md,text/plain,text/markdown"
@@ -140,6 +196,41 @@ function PolicyPage() {
               <Button onClick={upload} disabled={!name || !file || uploading}>
                 {uploading ? "Embedding..." : "Upload & index"}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={Boolean(editing)}
+          onOpenChange={(value) => {
+            if (!value) {
+              setEditing(null);
+              setName("");
+              setDescription("");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit policy</DialogTitle>
+              <DialogDescription>Update the policy name shown in the table.</DialogDescription>
+            </DialogHeader>
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Policy name"
+            />
+            <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Document description" />
+            <Input
+              type="file"
+              accept=".txt,.md,text/plain,text/markdown"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+            <p className="text-xs text-slate-500">Choose a file to replace and re-index this policy, or leave it empty to rename only.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void updatePolicy()}>{file ? "Replace & index" : "Save changes"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

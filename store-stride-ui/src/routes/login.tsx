@@ -48,55 +48,66 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
+    <div className="flex h-[100dvh] overflow-hidden bg-[#f4f7fb] p-3 sm:p-5">
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 md:grid-cols-[1.05fr_.95fr]">
+        <aside className="relative hidden overflow-hidden bg-[#10233e] p-10 text-white md:flex md:flex-col md:justify-between">
+          <div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f28b20] text-lg font-black text-slate-950">S</div>
+            <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Store Stride</p>
+            <h2 className="mt-4 max-w-sm text-4xl font-bold leading-tight">Everything you love, in one thoughtful place.</h2>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">Discover trusted products, simple ordering, and a better way to shop every day.</p>
+          </div>
+          <p className="text-xs text-slate-400">Secure account access for Store Stride customers.</p>
+        </aside>
+        <div className="flex items-center justify-center p-5 sm:p-8">
+          <div className="w-full max-w-sm">
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg mb-4">
+          <div className="mb-6 text-center">
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#f28b20] text-base font-bold text-slate-950 md:hidden">
               <span className="text-white text-xl font-bold">S</span>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Store Stride</h1>
-            <p className="text-gray-600 text-sm mt-1">Sign in to your account</p>
+            <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
+            <p className="mt-1 text-sm text-slate-500">Sign in to continue shopping.</p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Email Address</label>
+              <label className="mb-1 block text-sm font-medium text-slate-800">Email Address</label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                className="h-10"
                 disabled={loading}
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Password</label>
+              <label className="mb-1 block text-sm font-medium text-slate-800">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  className="h-10 pr-14"
                   disabled={loading}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-500 hover:text-gray-700"
+                  className="absolute right-3 top-2.5 text-xs font-medium text-slate-500 hover:text-slate-800"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-1">
               <label className="flex items-center">
                 <input
                   type="checkbox"
@@ -109,53 +120,21 @@ function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              className="h-10 w-full bg-[#10233e] font-semibold text-white hover:bg-[#1a365d]"
               disabled={loading}
             >
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
-            </div>
-          </div>
-
-          {/* Social Login (Optional) */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <button className="border border-gray-300 rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              <span>Google</span>
-            </button>
-            <button className="border border-gray-300 rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              <span>Apple</span>
-            </button>
-          </div>
-
-          {/* Sign Up Link */}
-          <p className="text-center text-sm text-gray-600">
+          <p className="mt-5 text-center text-sm text-slate-600">
             Don't have an account?{" "}
             <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold">
               Create one
             </Link>
           </p>
+          </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-gray-600 mt-6">
-          By signing in, you agree to our{" "}
-          <a href="#" className="text-blue-600 hover:underline">
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a href="#" className="text-blue-600 hover:underline">
-            Privacy Policy
-          </a>
-        </p>
       </div>
     </div>
   );

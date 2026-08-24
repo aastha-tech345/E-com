@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { productService } from "@/services";
+import { customerDataService, productService } from "@/services";
 import type { Address, CartLine, ChatMessage, Product } from "@/types";
 
 interface User {
@@ -61,6 +61,7 @@ const EMPTY: ShopState = {
 };
 
 const KEY = "shopnest-state-v1";
+const customerStateKey = (userId: string) => `shopnest-customer-state:${userId}`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -164,13 +165,25 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated) localStorage.setItem(KEY, JSON.stringify(state));
+    if (!hydrated) return;
+    // Keep customer-specific data out of the shared browser session state.
+    localStorage.setItem(KEY, JSON.stringify({ ...state, cart: [], wishlist: [], addresses: EMPTY.addresses }));
+    if (state.user) {
+      localStorage.setItem(
+        customerStateKey(state.user.id),
+        JSON.stringify({ cart: state.cart, wishlist: state.wishlist, addresses: state.addresses }),
+      );
+    }
   }, [state, hydrated]);
 
   const patch = useCallback((fn: (s: ShopState) => ShopState) => setState(fn), []);
 
   const addToCart: ShopContextValue["addToCart"] = useCallback(
     (productId, quantity = 1, opts) => {
+      if (!state.user) {
+        toast.error("Please sign in to add products to your cart.");
+        return;
+      }
       patch((s) => {
         const existing = s.cart.find((l) => l.productId === productId);
         const cart = existing
@@ -188,9 +201,12 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             ];
         return { ...s, cart };
       });
+      void customerDataService.addCartProduct(productId, quantity).catch((error) =>
+        toast.error(error instanceof Error ? error.message : "Unable to save cart."),
+      );
       toast.success("Added to cart");
     },
-    [patch],
+    [patch, state.user],
   );
 
   const value = useMemo<ShopContextValue>(() => {
@@ -241,6 +257,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       },
       clearCart: () => patch((s) => ({ ...s, cart: [], coupon: null })),
       toggleWishlist: (productId) => {
+        if (!state.user) {
+          toast.error("Please sign in to save products to your wishlist.");
+          return false;
+        }
         patch((s) => {
           const has = s.wishlist.includes(productId);
           toast.success(has ? "Removed from wishlist" : "Added to wishlist");
@@ -251,6 +271,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
               : [productId, ...s.wishlist],
           };
         });
+        const has = state.wishlist.includes(productId);
+        void (has
+          ? customerDataService.removeWishlistProduct(productId)
+          : customerDataService.addWishlistProduct(productId)
+        ).catch((error) => toast.error(error instanceof Error ? error.message : "Unable to save wishlist."));
         return !state.wishlist.includes(productId);
       },
       isWishlisted: (productId) => state.wishlist.includes(productId),
@@ -276,11 +301,27 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         else toast.error("Invalid coupon code");
       },
       setUser: (user, tokens) => {
-        patch((s) => ({ ...s, user, tokens: tokens || null }));
+        let privateState: Pick<ShopState, "cart" | "wishlist" | "addresses"> = {
+          cart: [],
+          wishlist: [],
+          addresses: EMPTY.addresses,
+        };
+        if (user) {
+          try {
+            const raw = localStorage.getItem(customerStateKey(user.id));
+            if (raw) {
+              const saved = normalizeStoredState(JSON.parse(raw));
+              privateState = { cart: saved.cart, wishlist: saved.wishlist, addresses: saved.addresses };
+            }
+          } catch {
+            /* start a clean private customer state */
+          }
+        }
+        patch((s) => ({ ...s, ...privateState, user, tokens: tokens || null, coupon: null }));
         if (user) toast.success("Login successful");
       },
       logout: () => {
-        patch((s) => ({ ...s, user: null, tokens: null }));
+        patch((s) => ({ ...s, user: null, tokens: null, cart: [], wishlist: [], coupon: null, addresses: EMPTY.addresses }));
         localStorage.removeItem("authTokens");
         toast.success("Logged out");
       },

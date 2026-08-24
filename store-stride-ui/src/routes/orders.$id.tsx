@@ -1,13 +1,14 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ChevronLeft, Check, Clock, Package } from "lucide-react";
+import { ChevronLeft, Check, Clock, Package, Box, Printer, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Price } from "@/components/common/Price";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { EmptyState } from "@/components/common/EmptyState";
-import { orderService } from "@/services";
+import { orderService, returnService } from "@/services";
+import { toast } from "sonner";
 import type { Order } from "@/types";
 
 export const Route = createFileRoute("/orders/$id")({
@@ -20,6 +21,8 @@ function OrderDetailsPage() {
   const [order, setOrder] = useState<Order | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [replacementItemId, setReplacementItemId] = useState("");
+  const [requestingReplacement, setRequestingReplacement] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -83,56 +86,47 @@ function OrderDetailsPage() {
     shipped: "bg-purple-100 text-purple-800",
     delivered: "bg-green-100 text-green-800",
     cancelled: "bg-red-100 text-red-800",
+    replacement_requested: "bg-orange-100 text-orange-800",
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-50">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 md:py-10">
         {/* Header */}
         <div className="mb-8">
-          <Button variant="ghost" onClick={() => navigate({ to: "/orders" })} className="mb-4">
+          <Button variant="ghost" onClick={() => navigate({ to: "/orders" })} className="mb-5 -ml-2 text-slate-700">
             <ChevronLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
 
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Order {order.id}</h1>
-              <p className="text-gray-600">Placed on {new Date(order.date).toLocaleDateString()}</p>
-            </div>
-            <span
-              className={`px-4 py-2 rounded-full font-semibold ${
-                statusColors[order.status] || "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-            </span>
-          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="mb-6 flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-50 text-orange-500"><Box className="h-7 w-7" /></div><div><h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Order {order.id}</h1><p className="mt-1 text-sm text-slate-500">Placed on {new Date(order.date).toLocaleString()}</p></div></div>
+            <span className={`w-fit rounded-full px-4 py-2 text-sm font-semibold capitalize ${statusColors[order.status] || "bg-slate-100 text-slate-800"}`}>{order.status.replace(/_/g, " ")}</span>
+          </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="space-y-5 lg:col-span-2">
             {/* Timeline */}
-            <div className="border rounded-lg p-6">
+            <div className="rounded-lg border border-slate-200 p-5 md:p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-6">Order Timeline</h2>
-              <div className="space-y-6">
+              <div className="space-y-5">
                 {order.timeline.map((event, idx) => (
                   <div key={idx} className="flex gap-4">
                     <div className="flex flex-col items-center">
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          event.done ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-600"
+                          event.done ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"
                         }`}
                       >
                         {event.done ? <Check className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                       </div>
                       {idx < order.timeline.length - 1 && (
-                        <div
-                          className={`w-0.5 h-12 ${event.done ? "bg-green-100" : "bg-gray-100"}`}
-                        />
+                        <div className={`h-10 w-0.5 ${event.done ? "bg-emerald-200" : "bg-slate-200"}`} />
                       )}
                     </div>
                     <div className="pt-1">
@@ -147,7 +141,7 @@ function OrderDetailsPage() {
             </div>
 
             {/* Order Items */}
-            <div className="border rounded-lg p-6">
+            <div className="rounded-lg border border-slate-200 p-5 md:p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-6">Order Items</h2>
               <div className="space-y-4">
                 {order.items.map((item, idx) => (
@@ -175,7 +169,7 @@ function OrderDetailsPage() {
             </div>
 
             {/* Delivery Address */}
-            <div className="border rounded-lg p-6">
+            <div className="rounded-lg border border-slate-200 p-5 md:p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Delivery Address</h2>
               <p className="font-semibold text-gray-900">{order.address.name}</p>
               <p className="text-gray-600">{order.address.phone}</p>
@@ -188,9 +182,9 @@ function OrderDetailsPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="space-y-5 lg:col-span-1">
             {/* Price Summary */}
-            <div className="border rounded-lg p-6 sticky top-20">
+            <div className="rounded-lg border border-slate-200 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Price Details</h2>
               <div className="space-y-3">
                 <div className="flex justify-between">
@@ -216,7 +210,7 @@ function OrderDetailsPage() {
             </div>
 
             {/* Payment Info */}
-            <div className="border rounded-lg p-6">
+            <div className="rounded-lg border border-slate-200 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Payment</h2>
               <div className="space-y-2">
                 <div className="flex justify-between">
@@ -243,19 +237,34 @@ function OrderDetailsPage() {
             {/* Actions */}
             <div className="space-y-2">
               <Button className="w-full" variant="outline">
-                Track Order
+                <Truck className="mr-2 h-4 w-4" /> Track Order
               </Button>
-              <Button className="w-full" variant="outline">
-                Print Invoice
+              <Button className="w-full" variant="outline" onClick={() => window.print()}>
+                <Printer className="mr-2 h-4 w-4" /> Print Invoice
               </Button>
               {order.status === "delivered" && (
-                <Button className="w-full" variant="outline">
-                  Write Review
-                </Button>
+                <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                  <p className="mb-2 text-sm font-semibold text-orange-900">Need a replacement?</p>
+                  <select value={replacementItemId} onChange={(event) => setReplacementItemId(event.target.value)} className="mb-2 h-9 w-full rounded-md border border-orange-200 bg-white px-2 text-sm">
+                    <option value="">Select a product</option>
+                    {order.items.map((item) => <option key={item.id ?? item.productId} value={item.id ?? ""}>{item.name} ({item.variant})</option>)}
+                  </select>
+                  <Button className="w-full" variant="outline" disabled={!replacementItemId || requestingReplacement} onClick={async () => {
+                    setRequestingReplacement(true);
+                    try {
+                      await returnService.requestReplacement(replacementItemId, 1);
+                      toast.success("Replacement requested. Order status updated.");
+                      const refreshed = await orderService.byId(order.id);
+                      setOrder(refreshed);
+                    } catch (requestError) { toast.error(requestError instanceof Error ? requestError.message : "Unable to request replacement."); }
+                    finally { setRequestingReplacement(false); }
+                  }}>{requestingReplacement ? "Submitting..." : "Request Replacement"}</Button>
+                </div>
               )}
             </div>
           </div>
         </div>
+        </section>
       </div>
 
       <Footer />

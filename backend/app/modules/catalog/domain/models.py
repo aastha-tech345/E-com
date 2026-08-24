@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import ClassVar
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,6 +16,9 @@ class Category(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(120), index=True)
     slug: Mapped[str] = mapped_column(String(140), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -29,7 +32,25 @@ class Brand(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(120), index=True)
     slug: Mapped[str] = mapped_column(String(140), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProductAttribute(Base):
+    __tablename__ = "product_attributes"
+    __table_args__ = (UniqueConstraint("slug", name="uq_product_attributes_slug"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    slug: Mapped[str] = mapped_column(String(140), index=True)
+    attribute_type: Mapped[str] = mapped_column(String(40), default="select")
+    values: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Product(Base):
@@ -45,6 +66,8 @@ class Product(Base):
     short_description: Mapped[str] = mapped_column(String(255), default="")
     description: Mapped[str] = mapped_column(Text, default="")
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

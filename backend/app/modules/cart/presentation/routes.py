@@ -10,6 +10,8 @@ from app.modules.cart.application.service import (
     get_cart,
     update_cart_item,
 )
+from app.modules.catalog.domain.models import ProductVariant
+from sqlalchemy import select
 from app.modules.identity.application.schemas import UserProfileResponse
 from app.modules.identity.presentation.dependencies import get_current_user
 
@@ -31,12 +33,22 @@ def add_cart_item(
     db: Session = Depends(get_db_session),
 ) -> CartResponse:
     try:
+        variant_id = payload.variant_id
+        if not variant_id and payload.product_id:
+            variant_id = db.scalar(
+                select(ProductVariant.id).where(
+                    ProductVariant.product_id == payload.product_id,
+                    ProductVariant.is_default.is_(True),
+                )
+            )
+        if not variant_id:
+            raise ValueError("A product or variant is required.")
         return build_cart_response(
             db,
             cart=add_item_to_cart(
                 db,
                 user_id=current_user.id,
-                variant_id=payload.variant_id,
+                variant_id=variant_id,
                 quantity=payload.quantity,
             ),
         )

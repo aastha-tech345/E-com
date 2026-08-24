@@ -16,6 +16,20 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Some development databases were initialized with Base.metadata.create_all()
+    # before this revision was recorded. In that case the complete AI assistant
+    # schema already exists and Alembic must only advance its version marker.
+    existing_tables = set(sa.inspect(op.get_bind()).get_table_names())
+    assistant_tables = {
+        "ai_conversation_contexts",
+        "ai_tool_invocations",
+        "ai_knowledge_documents",
+        "ai_knowledge_chunks",
+        "ai_assistant_feedback",
+    }
+    if assistant_tables.issubset(existing_tables):
+        return
+
     op.add_column("ai_conversations", sa.Column("title", sa.String(length=160), nullable=False, server_default="New conversation"))
     op.add_column("ai_conversations", sa.Column("last_intent", sa.String(length=40), nullable=False, server_default="product_search"))
     op.add_column("ai_conversations", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))

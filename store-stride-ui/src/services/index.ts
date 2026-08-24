@@ -54,12 +54,14 @@ export interface CatalogCategoryOption {
   id: string;
   name: string;
   slug: string;
+  description: string;
 }
 
 export interface CatalogBrandOption {
   id: string;
   name: string;
   slug: string;
+  description: string;
 }
 
 interface BackendProduct {
@@ -171,6 +173,7 @@ function authHeaders(): HeadersInit {
 export interface PolicyDocument {
   id: string;
   title: string;
+  description: string;
   created_at: string;
 }
 
@@ -181,10 +184,11 @@ export const policyService = {
     return response.json();
   },
 
-  async upload(file: File, name?: string): Promise<{ id: string; title: string; chunks: number }> {
+  async upload(file: File, name?: string, description?: string): Promise<{ id: string; title: string; chunks: number }> {
     const body = new FormData();
     body.append("file", file);
     if (name) body.append("name", name);
+    if (description) body.append("description", description);
     const response = await fetch(`${API_BASE}/admin/policies`, {
       method: "POST",
       headers: authHeaders(),
@@ -196,7 +200,84 @@ export const policyService = {
     }
     return response.json();
   },
+  async rename(id: string, title: string, description: string) {
+    return adminCatalogRequest<{ id: string; title: string }>(`/admin/policies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ title, description }),
+    });
+  },
+  async replaceFile(id: string, file: File, name?: string, description?: string): Promise<{ id: string; title: string; chunks: number }> {
+    const body = new FormData();
+    body.append("file", file);
+    if (name) body.append("name", name);
+    if (description) body.append("description", description);
+    const response = await fetch(`${API_BASE}/admin/policies/${id}/file`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body,
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to replace policy file.");
+    }
+    return response.json();
+  },
+  async delete(id: string) {
+    const response = await fetch(`${API_BASE}/admin/policies/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!response.ok) throw new Error("Unable to delete policy.");
+  },
 };
+
+export const customerDataService = {
+  async addCartProduct(productId: string, quantity: number) {
+    return authenticatedJsonRequest("/cart/items", { method: "POST", body: JSON.stringify({ product_id: productId, quantity }) });
+  },
+  async addWishlistProduct(productId: string) {
+    return authenticatedJsonRequest("/wishlist", { method: "POST", body: JSON.stringify({ product_id: productId }) });
+  },
+  async removeWishlistProduct(productId: string) {
+    return authenticatedJsonRequest("/wishlist", { method: "DELETE", body: JSON.stringify({ product_id: productId }) });
+  },
+};
+
+export interface CustomerAddressRecord {
+  id: string;
+  recipient_name: string;
+  line1: string;
+  city: string;
+  state: string;
+  postal_code: string;
+}
+
+export const profileService = {
+  async update(payload: { full_name: string; email: string }) {
+    return authenticatedJsonRequest("/auth/me", { method: "PUT", body: JSON.stringify(payload) }) as Promise<{ id: string; full_name: string; email: string; roles: string[] }>;
+  },
+  async addresses(): Promise<CustomerAddressRecord[]> {
+    return authenticatedJsonRequest("/auth/me/addresses", { method: "GET" }) as Promise<CustomerAddressRecord[]>;
+  },
+  async saveAddress(payload: Omit<CustomerAddressRecord, "id">, id?: string): Promise<CustomerAddressRecord> {
+    return authenticatedJsonRequest(id ? `/auth/me/addresses/${id}` : "/auth/me/addresses", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) }) as Promise<CustomerAddressRecord>;
+  },
+  async deleteAddress(id: string) {
+    await authenticatedJsonRequest(`/auth/me/addresses/${id}`, { method: "DELETE" });
+  },
+};
+
+async function authenticatedJsonRequest(path: string, init: RequestInit) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...init.headers },
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail || "Unable to save customer data.");
+  }
+  return response.status === 204 ? undefined : response.json();
+}
 
 // ============================================================================
 // PRODUCT SERVICE
@@ -322,17 +403,82 @@ export const catalogService = {
     return (await response.json()) as CatalogBrandOption[];
   },
 
-  async createCategory(payload: { name: string; slug: string }) {
+  async createCategory(payload: { name: string; slug: string; description: string }) {
     return adminCatalogRequest<CatalogCategoryOption>("/admin/categories", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
-  async createBrand(payload: { name: string; slug: string }) {
+  async createBrand(payload: { name: string; slug: string; description: string }) {
     return adminCatalogRequest<CatalogBrandOption>("/admin/brands", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+  async updateCategory(id: string, payload: { name: string; slug: string; description: string }) {
+    return adminCatalogRequest<CatalogCategoryOption>(`/admin/categories/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
+  async deleteCategory(id: string) {
+    await adminCatalogRequest<void>(`/admin/categories/${id}`, { method: "DELETE" });
+  },
+  async updateBrand(id: string, payload: { name: string; slug: string; description: string }) {
+    return adminCatalogRequest<CatalogBrandOption>(`/admin/brands/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
+  async deleteBrand(id: string) {
+    await adminCatalogRequest<void>(`/admin/brands/${id}`, { method: "DELETE" });
+  },
+  async deleteProduct(id: string) {
+    await adminCatalogRequest<void>(`/admin/products/${id}`, { method: "DELETE" });
+  },
+  async adminProducts(params: CatalogListParams = {}): Promise<Paged<Product>> {
+    const query = new URLSearchParams({
+      page: String(params.page ?? 1),
+      page_size: String(params.pageSize ?? 10),
+      field: params.field ?? "all",
+    });
+    if (params.q) query.set("q", params.q);
+    const response = await fetch(`${API_BASE}/admin/products?${query.toString()}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load products.");
+    }
+    const data = (await response.json()) as { items: BackendProduct[]; total: number; page: number; page_size: number; pages: number };
+    const items = data.items.map(mapApiProduct);
+    items.forEach((product) => productCache.set(product.id, product));
+    return { items, total: data.total, page: data.page, perPage: data.page_size, pages: data.pages };
+  },
+  async updateProduct(id: string, payload: Record<string, unknown>) {
+    return adminCatalogRequest(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
+
+  async adminCategories(params: CatalogListParams = {}) {
+    return adminCatalogListWithFallback<CatalogCategoryOption>("/admin/categories", "/categories", params);
+  },
+
+  async adminBrands(params: CatalogListParams = {}) {
+    return adminCatalogListWithFallback<CatalogBrandOption>("/admin/brands", "/brands", params);
+  },
+
+  async adminAttributes(params: CatalogListParams = {}) {
+    return adminCatalogList<CatalogAttribute>("/admin/attributes", params);
+  },
+
+  async createAttribute(payload: CatalogAttributeInput) {
+    return adminCatalogRequest<CatalogAttribute>("/admin/attributes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateAttribute(id: string, payload: CatalogAttributeInput) {
+    return adminCatalogRequest<CatalogAttribute>(`/admin/attributes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteAttribute(id: string) {
+    await adminCatalogRequest<void>(`/admin/attributes/${id}`, { method: "DELETE" });
   },
 
   attributes() {
@@ -352,6 +498,79 @@ export const catalogService = {
   },
 };
 
+export interface CatalogListParams {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  field?: string;
+}
+
+export interface CatalogListResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface CatalogAttribute {
+  id: string;
+  name: string;
+  slug: string;
+  attribute_type: string;
+  values: string[];
+  created_at: string;
+}
+
+export interface CatalogAttributeInput {
+  name: string;
+  slug: string;
+  attribute_type: string;
+  values: string[];
+}
+
+async function adminCatalogList<T>(path: string, params: CatalogListParams): Promise<CatalogListResponse<T>> {
+  const query = new URLSearchParams({
+    page: String(params.page ?? 1),
+    page_size: String(params.pageSize ?? 10),
+    sort_by: params.sortBy ?? "created_at",
+    sort_order: params.sortOrder ?? "desc",
+  });
+  if (params.q?.trim()) query.set("q", params.q.trim());
+  if (params.field && params.field !== "all") query.set("field", params.field);
+  const response = await fetch(`${API_BASE}${path}?${query.toString()}`, { headers: authHeaders() });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail || "Catalog request failed.");
+  }
+  return response.json() as Promise<CatalogListResponse<T>>;
+}
+
+async function adminCatalogListWithFallback<T>(adminPath: string, publicPath: string, params: CatalogListParams): Promise<CatalogListResponse<T>> {
+  try {
+    return await adminCatalogList<T>(adminPath, params);
+  } catch {
+    const response = await fetch(`${API_BASE}${publicPath}`);
+    if (!response.ok) throw new Error("Unable to load catalog records. Run the latest database migration and restart the backend.");
+    const all = (await response.json()) as T[];
+    const query = params.q?.trim().toLowerCase() ?? "";
+    const matching = query
+      ? all.filter((item) => Object.values(item as Record<string, unknown>).join(" ").toLowerCase().includes(query))
+      : all;
+    const pageSize = params.pageSize ?? 10;
+    const page = params.page ?? 1;
+    return {
+      items: matching.slice((page - 1) * pageSize, page * pageSize),
+      total: matching.length,
+      page,
+      page_size: pageSize,
+      pages: Math.ceil(matching.length / pageSize),
+    };
+  }
+}
+
 async function adminCatalogRequest<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -361,6 +580,7 @@ async function adminCatalogRequest<T>(path: string, init: RequestInit): Promise<
     const detail = await response.json().catch(() => null);
     throw new Error(detail?.detail || "Catalog request failed.");
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -369,6 +589,30 @@ async function adminCatalogRequest<T>(path: string, init: RequestInit): Promise<
 // ============================================================================
 
 export const orderService = {
+  async adminList(params: { q?: string; field?: string; status?: string; page?: number; pageSize?: number } = {}): Promise<AdminOrderPage> {
+    const query = new URLSearchParams({ page: String(params.page ?? 1), page_size: String(params.pageSize ?? 10) });
+    if (params.q) query.set("q", params.q);
+    if (params.field) query.set("field", params.field);
+    if (params.status) query.set("status", params.status);
+    const response = await fetch(`${API_BASE}/admin/orders?${query.toString()}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load admin orders.");
+    }
+    return response.json() as Promise<AdminOrderPage>;
+  },
+  async updateStatus(orderId: string, status: string): Promise<{ id: string; status: string }> {
+    const response = await fetch(`${API_BASE}/admin/orders/${orderId}/status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to update order status.");
+    }
+    return response.json() as Promise<{ id: string; status: string }>;
+  },
   async list(): Promise<Order[]> {
     const token = getStoredAccessToken();
     if (!token) return [];
@@ -414,15 +658,37 @@ export const orderService = {
   },
 };
 
+export interface AdminOrder {
+  id: string;
+  order_number: string;
+  customer: string;
+  total: number;
+  status: string;
+  created_at: string;
+  shipping_address: { line1: string; city: string; state: string; postal_code: string };
+  items: Array<{ product_name: string; variant_name: string; sku: string; quantity: number; unit_price: number; line_total: number }>;
+}
+
+export interface AdminOrderPage {
+  items: AdminOrder[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
 // ============================================================================
 // PAYMENT SERVICE
 // ============================================================================
 
 export const paymentService = {
   async createStripeCheckoutSession(payload: StripeCheckoutRequest) {
+    if (!getStoredAccessToken()) {
+      throw new Error("Please sign in before starting checkout.");
+    }
     const response = await fetch(`${API_BASE}/payments/stripe/checkout-session`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
 
@@ -435,11 +701,55 @@ export const paymentService = {
   },
 };
 
+export const checkoutService = {
+  async placeOrder(payload: {
+    shipping_name: string;
+    address_line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    payment_method: string;
+    payment_reference: string;
+    idempotency_key: string;
+    coupon_code?: string | null;
+  }) {
+    return authenticatedJsonRequest("/checkout", { method: "POST", body: JSON.stringify(payload) });
+  },
+};
+
+export const returnService = {
+  async requestReplacement(orderItemId: string, quantity: number) {
+    return authenticatedJsonRequest("/returns", {
+      method: "POST",
+      body: JSON.stringify({ order_item_id: orderItemId, quantity, reason: "replacement" }),
+    });
+  },
+};
+
 // ============================================================================
 // CUSTOMER SERVICE
 // ============================================================================
 
 export const customerService = {
+  async adminList(params: { q?: string; field?: string; page?: number; pageSize?: number } = {}): Promise<AdminCustomerPage> {
+    const query = new URLSearchParams({ page: String(params.page ?? 1), page_size: String(params.pageSize ?? 10) });
+    if (params.q) query.set("q", params.q);
+    if (params.field && params.field !== "all") query.set("field", params.field);
+    const response = await fetch(`${API_BASE}/admin/customers?${query.toString()}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load customers.");
+    }
+    return response.json() as Promise<AdminCustomerPage>;
+  },
+  async adminById(id: string): Promise<AdminCustomerDetail> {
+    const response = await fetch(`${API_BASE}/admin/customers/${id}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load customer details.");
+    }
+    return response.json() as Promise<AdminCustomerDetail>;
+  },
   async list() {
     return customers;
   },
@@ -452,6 +762,36 @@ export const customerService = {
     return [];
   },
 };
+
+export interface AdminCustomer {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  created_at: string;
+}
+
+export interface AdminCustomerPage {
+  items: AdminCustomer[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface AdminCustomerDetail extends AdminCustomer {
+  orders_count: number;
+  total_spent: number;
+  addresses: Array<{
+    id: string;
+    recipient_name: string;
+    line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    updated_at: string;
+  }>;
+}
 
 // ============================================================================
 // AUTH SERVICE
@@ -692,6 +1032,7 @@ interface BackendOrder {
 function toOrder(order: BackendOrder): Order {
   const subtotal = Number(order.subtotal ?? 0);
   const items = order.items.map((item) => ({
+    id: item.id,
     productId: item.product_id,
     name: item.product_name,
     image: "",
@@ -730,7 +1071,7 @@ function toOrder(order: BackendOrder): Order {
 }
 
 function normalizeOrderStatus(status: string): Order["status"] {
-  if (["pending", "processing", "shipped", "delivered", "cancelled"].includes(status)) {
+  if (["pending", "processing", "shipped", "delivered", "cancelled", "replacement_requested"].includes(status)) {
     return status as Order["status"];
   }
   if (status === "paid") return "processing";

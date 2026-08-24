@@ -65,11 +65,6 @@ export function AdminSidebar() {
             roles: ["super_admin", "admin_catalog", "seller_owner"],
           },
           {
-            label: "Add Product",
-            href: "/admin/products/create",
-            roles: ["super_admin", "admin_catalog", "seller_owner"],
-          },
-          {
             label: "Attributes",
             href: "/admin/attributes",
             roles: ["super_admin", "admin_catalog"],
@@ -101,51 +96,14 @@ export function AdminSidebar() {
       {
         label: "Orders",
         icon: ShoppingCart,
+        href: "/admin/orders",
         roles: ["super_admin", "admin_orders", "seller_owner"],
-        submenu: [
-          {
-            label: "All Orders",
-            href: "/admin/orders",
-            roles: ["super_admin", "admin_orders", "seller_owner"],
-          },
-          {
-            label: "Pending",
-            href: "/admin/orders?status=pending",
-            roles: ["super_admin", "admin_orders", "seller_owner"],
-          },
-          {
-            label: "Processing",
-            href: "/admin/orders?status=processing",
-            roles: ["super_admin", "admin_orders", "seller_owner"],
-          },
-          {
-            label: "Shipped",
-            href: "/admin/orders?status=shipped",
-            roles: ["super_admin", "admin_orders", "seller_owner"],
-          },
-          {
-            label: "Delivered",
-            href: "/admin/orders?status=delivered",
-            roles: ["super_admin", "admin_orders", "seller_owner"],
-          },
-        ],
       },
       {
         label: "Customers",
         icon: Users,
+        href: "/admin/customers",
         roles: ["super_admin", "admin_customers"],
-        submenu: [
-          {
-            label: "All Customers",
-            href: "/admin/customers",
-            roles: ["super_admin", "admin_customers"],
-          },
-          {
-            label: "Customer Details",
-            href: "/admin/customers/:id",
-            roles: ["super_admin", "admin_customers"],
-          },
-        ],
       },
       {
         label: "Marketing",
@@ -205,7 +163,10 @@ export function AdminSidebar() {
   const isActive = (href: string) => location.pathname === href;
 
   const NavItem = ({ item }: { item: ReturnType<typeof getVisibleMenuItems>[number] }) => {
-    const [expanded, setExpanded] = useState(false);
+    const submenuHasActiveRoute = Boolean(
+      "submenu" in item && item.submenu?.some((subitem) => location.pathname === subitem.href),
+    );
+    const [expanded, setExpanded] = useState(submenuHasActiveRoute);
     const hasSubmenu = "submenu" in item && item.submenu && item.submenu.length > 0;
 
     if (!hasSubmenu || !("submenu" in item) || !item.submenu) {
@@ -214,10 +175,10 @@ export function AdminSidebar() {
         <Link
           to={href}
           className={cn(
-            "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200",
+            "flex items-center gap-3 px-3 py-2 text-[13px] font-medium transition-colors",
             isActive(href)
-              ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-lg shadow-blue-500/10"
-              : "text-gray-300 hover:bg-gray-700/50 hover:text-gray-100",
+              ? "bg-blue-50 text-blue-700"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
           )}
         >
           <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -231,10 +192,10 @@ export function AdminSidebar() {
         <button
           onClick={() => setExpanded(!expanded)}
           className={cn(
-            "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 w-full",
-            expanded
-              ? "bg-gray-700/50 text-gray-100"
-              : "text-gray-300 hover:bg-gray-700/50 hover:text-gray-100",
+            "flex items-center gap-3 px-3 py-2 text-[13px] font-medium transition-colors w-full",
+            expanded || submenuHasActiveRoute
+              ? "bg-blue-50 text-blue-700"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
           )}
         >
           <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -243,17 +204,17 @@ export function AdminSidebar() {
             className={cn("w-4 h-4 transition-transform flex-shrink-0", expanded && "rotate-180")}
           />
         </button>
-        {expanded && (
-          <div className="ml-4 mt-1 space-y-1 pl-2 border-l border-gray-700">
+        {(expanded || submenuHasActiveRoute) && (
+          <div className="ml-6 mt-1 space-y-0.5 border-l border-slate-200 pl-2">
             {item.submenu.map((subitem) => (
               <Link
                 key={subitem.href}
                 to={subitem.href}
                 className={cn(
-                  "block px-3 py-2 rounded text-sm transition-all duration-200",
+                  "block px-3 py-1.5 rounded text-[13px] transition-colors",
                   isActive(subitem.href)
-                    ? "bg-blue-600/20 text-blue-400 font-medium border border-blue-500/30"
-                    : "text-gray-400 hover:text-gray-100 hover:bg-gray-700/30",
+                    ? "bg-blue-50 text-blue-700 font-medium"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50",
                 )}
               >
                 {subitem.label}
@@ -286,41 +247,42 @@ export function AdminSidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed md:static inset-y-0 left-0 z-40 w-64 bg-gradient-to-b from-gray-900 to-gray-800 border-r border-gray-700 transition-transform md:translate-x-0 flex flex-col",
+          "fixed md:static inset-y-0 left-0 z-40 w-56 bg-white border-r border-slate-200 transition-transform md:translate-x-0 flex flex-col",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-700">
+        <div className="flex h-14 items-center border-b border-slate-200 px-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">📦</span>
+            <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
+              <span className="text-white font-bold text-sm">S</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Store Admin</h1>
-              <p className="text-xs text-gray-400">Dashboard</p>
+              <h1 className="text-sm font-bold text-slate-900">Store Admin</h1>
+              <p className="text-[11px] text-slate-500">Dashboard</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
           {menuItems.map((item) => (
             <NavItem key={item.label} item={item} />
           ))}
         </nav>
 
         {/* User Info Section */}
-        <div className="border-t border-gray-700 p-4 space-y-3">
-          <div className="px-3 py-2 rounded-lg bg-gray-800/50">
-            <p className="text-xs text-gray-400">Logged in as</p>
-            <p className="text-sm font-semibold text-white truncate">{admin?.full_name}</p>
-            <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 rounded text-xs font-medium text-blue-300 border border-blue-500/30">
+        <div className="border-t border-slate-200 p-3 space-y-2">
+          <div className="px-2 py-1">
+            <p className="text-[11px] text-slate-500">Logged in as</p>
+            <p className="text-xs font-semibold text-slate-800 truncate">{admin?.full_name}</p>
+            <div className="mt-1 inline-flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-[11px] font-medium text-blue-700">
               {admin?.roles.includes("seller_owner") ? "🏪 Seller" : "👤 Admin"}
             </div>
           </div>
           <Button
-            className="w-full justify-start bg-gray-700 hover:bg-gray-600 text-gray-100 border border-gray-600 transition-colors gap-2"
+            variant="outline"
+            className="w-full justify-start text-slate-600 transition-colors gap-2"
             onClick={() => {
               adminLogout();
               window.location.href = "/admin/login";
