@@ -22,6 +22,8 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 
 def _frontend_url(path: str) -> str:
+    if path.startswith(("http://", "https://")):
+        return path
     normalized_path = path if path.startswith("/") else f"/{path}"
     return f"{settings.frontend_url.rstrip('/')}{normalized_path}"
 
