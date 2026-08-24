@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -28,7 +28,7 @@ def bootstrap_admin() -> None:
     session = SessionLocal()
     try:
         ensure_default_admin(session, settings.admin_email, settings.admin_password)
-    except ProgrammingError:
+    except (OperationalError, ProgrammingError):
         session.rollback()
         if not settings.auto_create_tables:
             raise

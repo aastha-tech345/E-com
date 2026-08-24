@@ -1,1 +1,0 @@
-import{r as e}from"./useRouter-Ch6OGJRG.js";import{F as t}from"./index-D16Dxbt9.js";var n=e(),r=()=>(0,n.jsx)(t,{to:`/admin/dashboard`});export{r as component};

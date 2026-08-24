@@ -10,6 +10,7 @@ import { Footer } from "@/components/customer/Footer";
 import { useShop } from "@/store/shop";
 import { EmptyState } from "@/components/common/EmptyState";
 import { toast } from "sonner";
+import { paymentService } from "@/services";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -21,6 +22,7 @@ function CheckoutPage() {
   const [step, setStep] = React.useState<"address" | "delivery" | "payment" | "review">("address");
   const [selectedAddress, setSelectedAddress] = React.useState<string | null>(addresses[0]?.id || null);
   const [selectedDelivery, setSelectedDelivery] = React.useState("standard");
+  const [submittingPayment, setSubmittingPayment] = React.useState(false);
   const [newAddress, setNewAddress] = React.useState({
     name: "",
     phone: "",
@@ -70,17 +72,30 @@ function CheckoutPage() {
     toast.success("Address added successfully");
   };
 
-  const handleCompleteOrder = () => {
+  const handleCompleteOrder = async () => {
     if (!selectedAddress || !selectedDelivery) {
       toast.error("Please select address and delivery method");
       return;
     }
-    // In a real app, this would submit to backend
-    toast.success("Order placed successfully!");
-    clearCart();
-    setTimeout(() => {
-      navigate({ to: "/orders" });
-    }, 1000);
+    setSubmittingPayment(true);
+    try {
+      const session = await paymentService.createStripeCheckoutSession({
+        customer_email: user?.email,
+        success_path: "/checkout/success",
+        cancel_path: "/checkout/cancel",
+        items: cartProducts.map(({ product, line }) => ({
+          product_id: product.id,
+          name: product.name,
+          quantity: line.quantity,
+          unit_amount: product.price,
+          image: product.images?.[0],
+        })),
+      });
+      window.location.assign(session.checkout_url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to start Stripe checkout");
+      setSubmittingPayment(false);
+    }
   };
 
   return (
@@ -448,10 +463,11 @@ function CheckoutPage() {
                   </Button>
                   <Button
                     onClick={handleCompleteOrder}
+                    disabled={submittingPayment}
                     className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 rounded-lg font-semibold text-base py-3"
                   >
                     <CheckCircle className="w-5 h-5 mr-2" />
-                    Place Order Now
+                    {submittingPayment ? "Opening Stripe..." : "Pay with Stripe"}
                   </Button>
                 </div>
               </div>

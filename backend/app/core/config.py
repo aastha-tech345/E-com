@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     ai_tool_timeout_seconds: int = 8
     ai_cache_ttl_seconds: int = 120
     ai_allow_write_actions: bool = False
+    frontend_url: str = "http://localhost:8081"
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_currency: str = "inr"
 
 
 @lru_cache

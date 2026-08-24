@@ -6,7 +6,7 @@
  * API base: http://localhost:8000/api/v1
  */
 
-import type { ChatMessage, Order, Product } from "@/types";
+import type { AssistantProductResult, ChatMessage, Order, Product } from "@/types";
 import {
   adminUsers,
   banners,
@@ -22,6 +22,7 @@ import {
 } from "@/data/catalog";
 
 const API_BASE = import.meta.env["VITE_API_URL"] || "http://localhost:8000/api/v1";
+let assistantConversationId: string | undefined;
 
 export interface ProductQuery {
   search?: string;
@@ -48,180 +49,20 @@ export interface Paged<T> {
   pages: number;
 }
 
-const productCache = new Map<string, Product>();
-
-function mapApiProduct(product: any): Product {
-  const variant = product.variants?.find((item: any) => item.is_default) || product.variants?.[0] || {};
-  return {
-    id: product.id,
-    sku: variant.sku || product.slug,
-    name: product.name,
-    slug: product.slug,
-    brand: product.brand_name || "Unbranded",
-    category: product.category_name || "Uncategorized",
-    categorySlug: product.category_slug || "uncategorized",
-    subcategory: "",
-    description: product.description || "",
-    shortDescription: product.short_description || "",
-    images: [...(product.media || [])].sort((a: any, b: any) => a.sort_order - b.sort_order).map((media: any) => media.media_url),
-    mrp: Number(variant.price || 0),
-    price: Number(variant.price || 0),
-    costPrice: 0,
-    rating: Number(product.average_rating || 0),
-    reviewCount: Number(product.review_count || 0),
-    stock: Number(variant.quantity_available || 0),
-    reserved: Number(variant.inventory_reserved || 0),
-    minStock: 0,
-    colors: [],
-    sizes: [],
-    specifications: [],
-    tags: [],
-    status: product.is_published ? "active" : "draft",
-    createdAt: "",
-    featured: false,
-    trending: false,
-    bestSeller: false,
-    deal: false,
-  };
+export interface StripeCheckoutItem {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit_amount: number;
+  image?: string;
 }
 
-// ============================================================================
-// AUTH SERVICE
-// ============================================================================
-
-interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
-    roles: string[];
-  };
+export interface StripeCheckoutRequest {
+  items: StripeCheckoutItem[];
+  customer_email?: string;
+  success_path?: string;
+  cancel_path?: string;
 }
-
-interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-}
-
-export const authService = {
-  async register(email: string, full_name: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, full_name, password }),
-    });
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.detail || "Registration failed");
-    }
-    const data = await response.json();
-    this.saveTokens(data.access_token, data.refresh_token);
-    this.saveUser(data.user);
-    return data;
-  },
-
-  async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.detail || "Login failed");
-    }
-    const data = await response.json();
-    this.saveTokens(data.access_token, data.refresh_token);
-    this.saveUser(data.user);
-    return data;
-  },
-
-  async refresh(): Promise<AuthResponse> {
-    const tokens = this.getTokens();
-    if (!tokens) throw new Error("No refresh token available");
-    
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-    });
-    if (!response.ok) {
-      this.clearTokens();
-      throw new Error("Token refresh failed");
-    }
-    const data = await response.json();
-    this.saveTokens(data.access_token, data.refresh_token);
-    this.saveUser(data.user);
-    return data;
-  },
-
-  async me(): Promise<AuthResponse["user"]> {
-    const tokens = this.getTokens();
-    if (!tokens) throw new Error("Not authenticated");
-    
-    const response = await fetch(`${API_BASE}/auth/me`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${tokens.access_token}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch user profile");
-    const user = await response.json();
-    this.saveUser(user);
-    return user;
-  },
-
-  saveTokens(accessToken: string, refreshToken: string) {
-    localStorage.setItem("authTokens", JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }));
-  },
-
-  saveUser(user: AuthResponse["user"]) {
-    localStorage.setItem("authUser", JSON.stringify(user));
-  },
-
-  getTokens(): AuthTokens | null {
-    const stored = localStorage.getItem("authTokens");
-    return stored ? JSON.parse(stored) : null;
-  },
-
-  getUser(): AuthResponse["user"] | null {
-    const stored = localStorage.getItem("authUser");
-    return stored ? JSON.parse(stored) : null;
-  },
-
-  getAccessToken(): string | null {
-    const tokens = this.getTokens();
-    return tokens?.access_token || null;
-  },
-
-  getUserRoles(): string[] {
-    const user = this.getUser();
-    return user?.roles || [];
-  },
-
-  isAdmin(): boolean {
-    const roles = this.getUserRoles();
-    return roles.includes("super_admin") || roles.includes("admin");
-  },
-
-  isSeller(): boolean {
-    const roles = this.getUserRoles();
-    return roles.includes("seller_owner");
-  },
-
-  clearTokens() {
-    localStorage.removeItem("authTokens");
-    localStorage.removeItem("authUser");
-  },
-
-  logout() {
-    this.clearTokens();
-  },
-};
 
 // ============================================================================
 // PRODUCT SERVICE
@@ -255,14 +96,14 @@ export const productService = {
   },
 
   byId(id: string): Product | undefined {
-    return productCache.get(id) || products.find((p) => p.id === id);
+    // Use mock data only - API not implemented yet
+    return products.find((p) => p.id === id);
   },
 
   byIds(ids: string[]): Product[] {
-    // Return products by array of IDs
     return ids
-      .map((id) => products.find((p) => p.id === id))
-      .filter((p) => p !== undefined) as Product[];
+      .map((id) => this.byId(id))
+      .filter((product): product is Product => Boolean(product));
   },
 
   all(): Product[] {
@@ -384,6 +225,27 @@ export const orderService = {
 };
 
 // ============================================================================
+// PAYMENT SERVICE
+// ============================================================================
+
+export const paymentService = {
+  async createStripeCheckoutSession(payload: StripeCheckoutRequest) {
+    const response = await fetch(`${API_BASE}/payments/stripe/checkout-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to start Stripe checkout");
+    }
+
+    return (await response.json()) as { session_id: string; checkout_url: string };
+  },
+};
+
+// ============================================================================
 // CUSTOMER SERVICE
 // ============================================================================
 
@@ -402,19 +264,148 @@ export const customerService = {
 };
 
 // ============================================================================
+// AUTH SERVICE
+// ============================================================================
+
+export const authService = {
+  async login(email: string, password: string) {
+    // Mock for now - will be integrated with backend
+    if (email && password.length >= 4) {
+      return {
+        id: "user-1",
+        name: "Customer",
+        email,
+      };
+    }
+    throw new Error("Invalid credentials");
+  },
+
+  async adminLogin(email: string, password: string) {
+    // Mock for now - will be integrated with backend
+    if (email && password.length >= 4) {
+      return {
+        name: "Admin",
+        email,
+        role: "admin",
+      };
+    }
+    throw new Error("Invalid credentials");
+  },
+
+  async register(email: string, password: string, name: string) {
+    return {
+      id: "user-new",
+      name,
+      email,
+    };
+  },
+};
+
 // ============================================================================
 // CHATBOT SERVICE
 // ============================================================================
 
 export const chatbotService = {
-  async reply(message: string, history: ChatMessage[]): Promise<string> {
-    // Mock chatbot response
-    const responses: string[] = [
-      "How can I help you find the perfect product?",
-      "Have you checked our latest deals?",
-      "Would you like me to recommend something?",
-      "Our customer service team is here to help!",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)]!;
+  async reply(message: string): Promise<ChatMessage> {
+    try {
+      const response = await fetch(`${API_BASE}/assistant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: message,
+          conversation_id: assistantConversationId,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.detail || "Assistant request failed");
+      }
+
+      const payload = (await response.json()) as {
+        conversation_id: string;
+        answer: string;
+        products: BackendAssistantProduct[];
+        intent?: string;
+        metadata?: { suggestions?: string[]; popular_search_terms?: string[] };
+      };
+
+      assistantConversationId = payload.conversation_id;
+      return {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: payload.answer,
+        conversationId: payload.conversation_id,
+        intent: payload.intent,
+        productResults: payload.products.map(toAssistantProductResult),
+        suggestions: payload.metadata?.suggestions ?? payload.metadata?.popular_search_terms ?? [],
+      };
+    } catch (err) {
+      console.warn("Backend assistant failed, using local fallback:", err);
+    }
+
+    const lower = message.toLowerCase();
+    const matchedProducts = products
+      .filter((product) => {
+        const haystack = [
+          product.id,
+          product.name,
+          product.brand,
+          product.category,
+          product.subcategory,
+          ...product.tags,
+        ]
+          .join(" ")
+          .toLowerCase();
+        return lower
+          .split(/\s+/)
+          .filter((part) => part.length > 2)
+          .some((part) => haystack.includes(part));
+      })
+      .slice(0, 3);
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      text:
+        matchedProducts.length > 0
+          ? "I found a few products that match what you're looking for."
+          : "I can help you find products, compare prices, or look up product IDs.",
+      products: matchedProducts.map((product) => product.id),
+      suggestions: ["Try headphones", "Show running shoes", "Find deals"],
+    };
   },
 };
+
+interface BackendAssistantProduct {
+  id: string;
+  name: string;
+  slug: string;
+  short_description: string;
+  description: string;
+  variants: Array<{
+    price: string | number;
+    currency: string;
+    quantity_available: number;
+    is_default: boolean;
+  }>;
+  media: Array<{
+    media_url: string;
+    sort_order: number;
+  }>;
+}
+
+function toAssistantProductResult(product: BackendAssistantProduct): AssistantProductResult {
+  const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
+  const media = [...product.media].sort((a, b) => a.sort_order - b.sort_order)[0];
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description: product.short_description || product.description,
+    image: media?.media_url,
+    price: Number(variant?.price ?? 0),
+    currency: variant?.currency ?? "INR",
+    stock: variant?.quantity_available ?? 0,
+  };
+}
