@@ -30,118 +30,63 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { analyticsService, catalogService, productService, type AnalyticsSummary } from "@/services";
 import { useShop } from "@/store/shop";
+import type { Product } from "@/types";
 
 export const Route = createFileRoute("/admin/dashboard")({
   component: AdminDashboard,
 });
 
 function AdminDashboard() {
+  const navigate = useNavigate();
   const { admin } = useShop();
-  const [stats, setStats] = useState({
-    totalProducts: 0,
-    totalCategories: 0,
-    totalCustomers: 0,
-    totalOrders: 0,
-    revenue: 0,
-  });
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categoryCount, setCategoryCount] = useState(0);
+  const [brandCount, setBrandCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // TODO: Fetch stats from backend API
-    setStats({
-      totalProducts: 150,
-      totalCategories: 8,
-      totalCustomers: 1250,
-      totalOrders: 3450,
-      revenue: 2500000,
-    });
+    const loadDashboard = async () => {
+      setLoading(true);
+      try {
+        const [analytics, productRows, categories, brands] = await Promise.all([
+          analyticsService.summary().catch(() => null),
+          productService.adminList().catch(() => []),
+          catalogService.categories().catch(() => []),
+          catalogService.brands().catch(() => []),
+        ]);
+
+        setSummary(analytics);
+        setProducts(productRows);
+        setCategoryCount(categories.length);
+        setBrandCount(brands.length);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadDashboard();
   }, []);
 
-  if (!admin) {
-    return null;
-  }
-
-  const isSeller = admin.roles.includes("seller_owner");
-
-  const revenueData = [
-    { month: "Jan", revenue: 180000, target: 200000 },
-    { month: "Feb", revenue: 220000, target: 200000 },
-    { month: "Mar", revenue: 200000, target: 200000 },
-    { month: "Apr", revenue: 270000, target: 250000 },
-    { month: "May", revenue: 250000, target: 250000 },
-    { month: "Jun", revenue: 290000, target: 300000 },
-  ];
-
-  const ordersData = [
-    { month: "Jan", orders: 240, completed: 220 },
-    { month: "Feb", orders: 290, completed: 275 },
-    { month: "Mar", orders: 200, completed: 185 },
-    { month: "Apr", orders: 320, completed: 310 },
-    { month: "May", orders: 280, completed: 265 },
-    { month: "Jun", orders: 350, completed: 340 },
-  ];
-
-  const categoryData = [
-    { name: "Electronics", value: 35 },
-    { name: "Fashion", value: 25 },
-    { name: "Home", value: 20 },
-    { name: "Others", value: 20 },
-  ];
-
-  const COLORS = ["#3b82f6", "#ec4899", "#f59e0b", "#10b981"];
-
-  const StatCard = ({
-    title,
-    value,
-    icon: Icon,
-    color,
-    change,
-    positive,
-  }: {
-    title: string;
-    value: number | string;
-    icon: LucideIcon;
-    color: string;
-    change?: number;
-    positive?: boolean;
-  }) => (
-    <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-100 overflow-hidden">
-      <div className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <p className="text-gray-600 text-sm font-medium">{title}</p>
-            <p className="text-3xl font-bold mt-3 text-gray-900">
-              {typeof value === "number" && value > 1000 ? (value / 1000).toFixed(1) + "K" : value}
-            </p>
-            {change && (
-              <div className="mt-3 flex items-center gap-1">
-                {positive ? (
-                  <ArrowUpRight className="w-4 h-4 text-green-600" />
-                ) : (
-                  <ArrowDownRight className="w-4 h-4 text-red-600" />
-                )}
-                <span
-                  className={
-                    positive
-                      ? "text-green-600 text-sm font-medium"
-                      : "text-red-600 text-sm font-medium"
-                  }
-                >
-                  {change}% from last month
-                </span>
-              </div>
-            )}
-          </div>
-          <div
-            className="w-12 h-12 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: color + "15" }}
-          >
-            <Icon className="w-6 h-6" style={{ color }} />
-          </div>
-        </div>
-      </div>
-    </div>
+  const stats = useMemo(
+    () => ({
+      products: summary?.total_products ?? products.length,
+      categories: categoryCount,
+      brands: brandCount,
+      customers: summary?.total_customers ?? 0,
+      orders: summary?.total_orders ?? 0,
+      revenue: Number(summary?.total_revenue ?? 0),
+    }),
+    [brandCount, categoryCount, products.length, summary],
   );
+
+  const recentProducts = products.slice(0, 8);
+  const lowStockProducts = products.filter((product) => product.stock <= product.minStock).slice(0, 6);
+
+  if (!admin) return null;
 
   return (
     <AdminLayout>

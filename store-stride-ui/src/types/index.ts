@@ -2,6 +2,7 @@ export type ProductStatus = "active" | "draft" | "inactive";
 
 export interface Product {
   id: string;
+  defaultVariantId?: string;
   sku: string;
   name: string;
   slug: string;

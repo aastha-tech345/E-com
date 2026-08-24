@@ -8,7 +8,7 @@ import { Rating } from "@/components/common/Rating";
 import { chatbotService, productService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, Product } from "@/types";
 
 const STARTERS = [
   "I need a wireless headphone under ₹3000",
@@ -158,7 +158,13 @@ export function ShoppingAssistant() {
   );
 }
 
-function ChatBubble({ message, onAdd }: { message: ChatMessage; onAdd: (id: string) => void }) {
+function ChatBubble({
+  message,
+  onAdd,
+}: {
+  message: ChatMessage;
+  onAdd: (id: string, quantity?: number, opts?: { product?: Product }) => void;
+}) {
   const mockItems = message.products ? productService.byIds(message.products) : [];
   const backendItems = message.productResults ?? [];
   if (message.role === "user") {
@@ -215,7 +221,10 @@ function ChatBubble({ message, onAdd }: { message: ChatMessage; onAdd: (id: stri
                   size="sm"
                   className="h-7 text-xs"
                   disabled={!canAddToLocalCart || p.stock <= 0}
-                  onClick={() => onAdd(p.id)}
+                  onClick={() => {
+                    const product = productService.byId(p.id);
+                    onAdd(p.id, 1, product ? { product } : undefined);
+                  }}
                 >
                   Add to Cart
                 </Button>
@@ -244,7 +253,7 @@ function ChatBubble({ message, onAdd }: { message: ChatMessage; onAdd: (id: stri
                 size="sm"
                 className="h-7 text-xs"
                 disabled={p.stock <= 0}
-                onClick={() => onAdd(p.id)}
+                onClick={() => onAdd(p.id, 1, { product: p })}
               >
                 Add to Cart
               </Button>

@@ -76,6 +76,15 @@ function isCartLine(value: unknown): value is CartLine {
   );
 }
 
+function normalizeCartLine(line: CartLine): CartLine {
+  return {
+    productId: line.productId,
+    quantity: line.quantity,
+    ...(line.color ? { color: line.color } : {}),
+    ...(line.size ? { size: line.size } : {}),
+  };
+}
+
 function isChatMessage(value: unknown): value is ChatMessage {
   return (
     isRecord(value) &&
@@ -104,7 +113,9 @@ function normalizeStoredState(value: unknown): ShopState {
 
   return {
     ...EMPTY,
-    cart: Array.isArray(value["cart"]) ? value["cart"].filter(isCartLine) : EMPTY.cart,
+    cart: Array.isArray(value["cart"])
+      ? value["cart"].filter(isCartLine).map(normalizeCartLine)
+      : EMPTY.cart,
     wishlist: stringArray(value["wishlist"]),
     recentlyViewed: stringArray(value["recentlyViewed"]).slice(0, 12),
     recentSearches: stringArray(value["recentSearches"]).slice(0, 6),
@@ -129,11 +140,12 @@ interface ShopContextValue extends ShopState {
   addToCart: (
     productId: string,
     quantity?: number,
-    opts?: { color?: string; size?: string },
+    opts?: { color?: string; size?: string; product?: Product },
   ) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeFromCart: (productId: string) => void;
-  clearCart: () => void;
+  clearCart: (opts?: { syncBackend?: boolean }) => void;
+  syncCartFromBackend: () => Promise<void>;
   toggleWishlist: (productId: string) => boolean;
   isWishlisted: (productId: string) => boolean;
   markViewed: (productId: string) => void;
@@ -177,6 +189,32 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, [state, hydrated]);
 
   const patch = useCallback((fn: (s: ShopState) => ShopState) => setState(fn), []);
+  const syncBackendCart = useCallback((request: Promise<unknown>) => {
+    request.catch((error) => {
+      toast.error(error instanceof Error ? error.message : "Backend cart sync failed");
+    });
+  }, []);
+
+  const syncCartFromBackend = useCallback(async () => {
+    if (!cartService.isAuthenticated()) return;
+
+    const backendCart = await cartService.current();
+    if (!backendCart) return;
+
+    if (backendCart.items.length === 0) {
+      patch((s) => (s.cart.length || s.coupon ? { ...s, cart: [], coupon: null } : s));
+      return;
+    }
+
+    const activeVariantIds = new Set(backendCart.items.map((item) => item.variant_id));
+    patch((s) => {
+      const cart = s.cart.filter((line) => {
+        const product = productService.byId(line.productId);
+        return product?.defaultVariantId ? activeVariantIds.has(product.defaultVariantId) : true;
+      });
+      return cart.length === s.cart.length ? s : { ...s, cart, coupon: cart.length ? s.coupon : null };
+    });
+  }, [patch]);
 
   const addToCart: ShopContextValue["addToCart"] = useCallback(
     (productId, quantity = 1, opts) => {
@@ -188,7 +226,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         const existing = s.cart.find((l) => l.productId === productId);
         const cart = existing
           ? s.cart.map((l) =>
-              l.productId === productId ? { ...l, quantity: l.quantity + quantity } : l,
+              l.productId === productId
+                ? { ...l, quantity: l.quantity + quantity }
+                : l,
             )
           : [
               ...s.cart,
@@ -243,19 +283,26 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         total: Math.max(0, subtotal - couponDiscount + shipping),
       },
       addToCart,
-      updateQuantity: (productId, quantity) =>
+      updateQuantity: (productId, quantity) => {
         patch((s) => ({
           ...s,
           cart:
             quantity <= 0
               ? s.cart.filter((l) => l.productId !== productId)
               : s.cart.map((l) => (l.productId === productId ? { ...l, quantity } : l)),
-        })),
+        }));
+        syncBackendCart(cartService.updateProduct(productId, quantity));
+      },
       removeFromCart: (productId) => {
         patch((s) => ({ ...s, cart: s.cart.filter((l) => l.productId !== productId) }));
+        syncBackendCart(cartService.removeProduct(productId));
         toast.success("Removed from cart");
       },
-      clearCart: () => patch((s) => ({ ...s, cart: [], coupon: null })),
+      clearCart: (opts) => {
+        patch((s) => ({ ...s, cart: [], coupon: null }));
+        if (opts?.syncBackend !== false) syncBackendCart(cartService.clear());
+      },
+      syncCartFromBackend,
       toggleWishlist: (productId) => {
         if (!state.user) {
           toast.error("Please sign in to save products to your wishlist.");
@@ -341,7 +388,31 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       pushChat: (message) => patch((s) => ({ ...s, chat: [...s.chat, message] })),
       resetChat: () => patch((s) => ({ ...s, chat: [] })),
     };
-  }, [state, hydrated, addToCart, patch]);
+  }, [state, hydrated, addToCart, patch, syncBackendCart, syncCartFromBackend]);
+
+  useEffect(() => {
+    if (!hydrated || !state.tokens?.access_token) return;
+    syncCartFromBackend().catch((error) => {
+      console.warn("Cart refresh failed:", error);
+    });
+  }, [hydrated, state.tokens?.access_token, syncCartFromBackend]);
+
+  useEffect(() => {
+    if (!hydrated || !state.tokens?.access_token || typeof window === "undefined") return;
+
+    const refreshCart = () => {
+      syncCartFromBackend().catch((error) => {
+        console.warn("Cart refresh failed:", error);
+      });
+    };
+
+    window.addEventListener("focus", refreshCart);
+    document.addEventListener("visibilitychange", refreshCart);
+    return () => {
+      window.removeEventListener("focus", refreshCart);
+      document.removeEventListener("visibilitychange", refreshCart);
+    };
+  }, [hydrated, state.tokens?.access_token, syncCartFromBackend]);
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
 }

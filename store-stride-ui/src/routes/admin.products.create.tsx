@@ -8,7 +8,12 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
-import { type CatalogBrandOption, type CatalogCategoryOption, catalogService } from "@/services";
+import {
+  type CatalogBrandOption,
+  type CatalogCategoryOption,
+  catalogService,
+  productService,
+} from "@/services";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/products/create")({
@@ -73,6 +78,7 @@ function CreateProduct() {
   } = useForm<ProductFormInput, unknown, ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
+      is_published: true,
       variants: [{ name: "Default", sku: "", price: 0, quantity_available: 0, is_default: true }],
       media: [],
     },
@@ -99,12 +105,33 @@ function CreateProduct() {
   const onSubmit = async (data: ProductFormData) => {
     setLoading(true);
     try {
-      // TODO: Call API to create product
-      // await fetch("/api/v1/admin/products", { method: "POST", body: JSON.stringify(data) });
+      const canUseAdminCatalog =
+        admin?.roles.includes("super_admin") || admin?.roles.includes("admin_catalog");
+      const endpoint = canUseAdminCatalog ? "admin" : "seller";
+      await productService.create(
+        {
+          ...data,
+          brand_id: data.brand_id || null,
+          short_description: data.short_description || "",
+          description: data.description || "",
+          variants: data.variants.map((variant) => ({
+            ...variant,
+            currency: "INR",
+          })),
+          media: data.media
+            .filter((item) => item.media_url.trim())
+            .map((item, index) => ({
+              ...item,
+              alt_text: item.alt_text || data.name,
+              sort_order: index,
+            })),
+        },
+        endpoint,
+      );
       toast.success("Product created successfully");
       navigate({ to: "/admin/products" });
-    } catch (err) {
-      toast.error("Failed to create product");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to create product");
       console.error("Error:", err);
     } finally {
       setLoading(false);

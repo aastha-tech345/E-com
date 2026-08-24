@@ -25,11 +25,18 @@ function CartPage() {
     updateQuantity,
     removeFromCart,
     clearCart,
+    syncCartFromBackend,
     toggleWishlist,
     applyCoupon,
     coupon,
   } = useShop();
   const [couponCode, setCouponCode] = React.useState("");
+
+  React.useEffect(() => {
+    syncCartFromBackend().catch((error) => {
+      console.warn("Cart refresh failed:", error);
+    });
+  }, [syncCartFromBackend]);
 
   if (cartProducts.length === 0) {
     return (

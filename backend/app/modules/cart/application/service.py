@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -8,6 +9,10 @@ from app.modules.cart.domain.models import Cart, CartItem
 from app.modules.catalog.domain.models import ProductVariant
 from app.modules.inventory.application.service import get_inventory_item, release_inventory, reserve_inventory
 from app.modules.pricing.application.service import get_active_price
+
+
+ACTIVE_CART_STATUS = "active"
+PURCHASED_CART_STATUS = "purchased"
 
 
 def get_or_create_cart(db: Session, *, user_id: str) -> Cart:
@@ -31,7 +36,13 @@ def get_cart(db: Session, *, user_id: str) -> Cart:
 
 def add_item_to_cart(db: Session, *, user_id: str, variant_id: str, quantity: int) -> Cart:
     cart = get_or_create_cart(db, user_id=user_id)
-    item = db.scalar(select(CartItem).where(CartItem.cart_id == cart.id, CartItem.variant_id == variant_id))
+    item = db.scalar(
+        select(CartItem).where(
+            CartItem.cart_id == cart.id,
+            CartItem.variant_id == variant_id,
+            CartItem.status == ACTIVE_CART_STATUS,
+        )
+    )
     previous_quantity = item.quantity if item is not None else 0
     desired_quantity = previous_quantity + quantity
     delta = desired_quantity - previous_quantity
@@ -50,7 +61,13 @@ def add_item_to_cart(db: Session, *, user_id: str, variant_id: str, quantity: in
 
 def update_cart_item(db: Session, *, user_id: str, variant_id: str, quantity: int) -> Cart:
     cart = get_or_create_cart(db, user_id=user_id)
-    item = db.scalar(select(CartItem).where(CartItem.cart_id == cart.id, CartItem.variant_id == variant_id))
+    item = db.scalar(
+        select(CartItem).where(
+            CartItem.cart_id == cart.id,
+            CartItem.variant_id == variant_id,
+            CartItem.status == ACTIVE_CART_STATUS,
+        )
+    )
     if item is None:
         raise ValueError("Cart item not found.")
 
@@ -72,14 +89,32 @@ def update_cart_item(db: Session, *, user_id: str, variant_id: str, quantity: in
 
 def clear_cart(db: Session, *, user_id: str, release_inventory_items: bool = True) -> None:
     cart = get_or_create_cart(db, user_id=user_id)
-    for item in list(cart.items):
+    for item in [cart_item for cart_item in list(cart.items) if cart_item.status == ACTIVE_CART_STATUS]:
         if release_inventory_items:
             release_inventory(db, variant_id=item.variant_id, quantity=item.quantity)
         db.delete(item)
-    cart.items.clear()
     db.flush()
     db.expire_all()
     db.commit()
+
+
+def mark_active_cart_items_purchased(
+    db: Session,
+    *,
+    user_id: str,
+    checkout_session_id: str,
+    order_id: str | None = None,
+) -> int:
+    cart = get_or_create_cart(db, user_id=user_id)
+    changed = 0
+    for item in [cart_item for cart_item in list(cart.items) if cart_item.status == ACTIVE_CART_STATUS]:
+        item.status = PURCHASED_CART_STATUS
+        item.checkout_session_id = checkout_session_id
+        item.order_id = order_id
+        item.purchased_at = datetime.now(timezone.utc)
+        changed += 1
+    db.commit()
+    return changed
 
 
 def build_cart_response(db: Session, *, cart: Cart) -> CartResponse:
@@ -88,7 +123,9 @@ def build_cart_response(db: Session, *, cart: Cart) -> CartResponse:
     lines: list[CartLineResponse] = []
     subtotal = Decimal("0.00")
 
-    for item in cart.items:
+    active_items = [cart_item for cart_item in cart.items if cart_item.status == ACTIVE_CART_STATUS]
+
+    for item in active_items:
         variant = item.variant
         price = get_active_price(db, variant_id=variant.id)
         inventory = get_inventory_item(db, variant_id=variant.id)
@@ -115,7 +152,7 @@ def build_cart_response(db: Session, *, cart: Cart) -> CartResponse:
     return CartResponse(
         id=cart.id,
         currency=cart.currency,
-        total_items=sum(item.quantity for item in cart.items),
+        total_items=sum(item.quantity for item in active_items),
         subtotal=subtotal,
         items=lines,
     )
