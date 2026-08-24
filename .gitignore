@@ -60,6 +60,8 @@ htmlcov/
 # Misc
 .DS_Store
 *.pem
+backend/uploads/
+backend/uploads/product_image/
 
 # Frontend generated build output
 store-stride-ui/.output/

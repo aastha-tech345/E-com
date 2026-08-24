@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -42,6 +45,14 @@ from app.modules.identity.presentation.dependencies import require_roles
 from app.shared.enums.roles import SystemRole
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024
+PRODUCT_IMAGE_CONTENT_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 
 def _page(items: list[object], total: int, page: int, page_size: int) -> dict[str, object]:
@@ -307,6 +318,50 @@ def admin_products(
             "brand_slug": product.brand.slug if product.brand else None,
         }))
     return _page(items, total, page, page_size)
+
+
+@router.get("/products/{product_id}", response_model=ProductResponse)
+def admin_product(
+    product_id: str,
+    _: UserProfileResponse = Depends(require_roles(SystemRole.ADMIN_CATALOG.value, SystemRole.SUPER_ADMIN.value)),
+    db: Session = Depends(get_db_session),
+) -> Product:
+    product = next((item for item in list_admin_products(db) if item.id == product_id), None)
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    hydrated = hydrate_product_read_model(db, product)
+    return ProductResponse.model_validate(hydrated).model_copy(
+        update={
+            "category_name": hydrated.category.name if hydrated.category else None,
+            "category_slug": hydrated.category.slug if hydrated.category else None,
+            "brand_name": hydrated.brand.name if hydrated.brand else None,
+            "brand_slug": hydrated.brand.slug if hydrated.brand else None,
+        }
+    )
+
+
+@router.post("/product-images")
+async def admin_upload_product_image(
+    request: Request,
+    file: UploadFile = File(...),
+    _: UserProfileResponse = Depends(require_roles(SystemRole.ADMIN_CATALOG.value, SystemRole.SUPER_ADMIN.value)),
+) -> dict[str, str]:
+    extension = PRODUCT_IMAGE_CONTENT_TYPES.get(file.content_type or "")
+    if extension is None:
+        raise HTTPException(status_code=400, detail="Upload a JPG, PNG, WEBP, or GIF image.")
+
+    content = await file.read(MAX_PRODUCT_IMAGE_BYTES + 1)
+    if not content:
+        raise HTTPException(status_code=400, detail="Choose an image to upload.")
+    if len(content) > MAX_PRODUCT_IMAGE_BYTES:
+        raise HTTPException(status_code=400, detail="Product images must be 5 MB or smaller.")
+
+    upload_dir = Path(__file__).resolve().parents[4] / "uploads" / "product_image"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4().hex}{extension}"
+    (upload_dir / filename).write_bytes(content)
+    return {"media_url": f"{str(request.base_url).rstrip('/')}/uploads/product_image/{filename}"}
 
 
 @router.get("/categories")

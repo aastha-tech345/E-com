@@ -53,6 +53,10 @@ class ProductUpdateRequest(BaseModel):
     short_description: str | None = Field(default=None, max_length=255)
     description: str | None = None
     is_published: bool | None = None
+    sku: str | None = Field(default=None, min_length=2, max_length=120)
+    price: Decimal | None = Field(default=None, gt=0)
+    quantity_available: int | None = Field(default=None, ge=0)
+    media: list[ProductMediaPayload] | None = None
 
 
 class CategoryUpdateRequest(BaseModel):

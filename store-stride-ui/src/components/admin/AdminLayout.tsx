@@ -10,20 +10,20 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children, title, description }: AdminLayoutProps) {
   return (
-    <div className="flex h-screen bg-[#f6f8fb] overflow-hidden">
+    <div className="flex h-[100dvh] overflow-hidden bg-[#f6f8fb]">
       {/* Sidebar */}
       <AdminSidebar />
 
-        {/* Main Content Area */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Header */}
-          <AdminHeader />
+      {/* Main Content Area */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Header */}
+        <AdminHeader />
 
-          {/* Page Content */}
-          <main className="flex-1 overflow-auto">
-            <div className="p-4 md:p-5 h-full">{children}</div>
-          </main>
-        </div>
+        {/* Page Content */}
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="min-h-full p-4 md:p-5">{children}</div>
+        </main>
       </div>
+    </div>
   );
 }

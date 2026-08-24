@@ -1,16 +1,15 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { ChevronLeft, Upload, Trash2 } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { ChevronLeft, ImagePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ConfirmationDialog } from "@/components/admin/ConfirmationDialog";
 import { useShop } from "@/store/shop";
-import { categories, brands, products } from "@/data/catalog";
 import { toast } from "sonner";
-import type { ProductStatus } from "@/types";
-import { catalogService } from "@/services";
+import type { Product, ProductStatus } from "@/types";
+import { catalogService, type CatalogBrandOption, type CatalogCategoryOption } from "@/services";
 
 export const Route = createFileRoute("/admin/products/$id/edit")({
   component: EditProductPage,
@@ -20,35 +19,95 @@ function EditProductPage() {
   const navigate = useNavigate();
   const { id } = useParams({ from: "/admin/products/$id/edit" });
   const { admin } = useShop();
-  const product = products.find((p) => p.id === id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
+  const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
+  const [loadingProduct, setLoadingProduct] = useState(true);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
-    name: product?.name || "",
-    sku: product?.sku || "",
-    brand: product?.brand || "",
-    category: categories.find((c) => c.name === product?.category)?.id || "",
-    subcategory: product?.subcategory || "",
-    shortDescription: product?.shortDescription || "",
-    description: product?.description || "",
-    mrp: product?.mrp || 0,
-    price: product?.price || 0,
-    costPrice: product?.costPrice || 0,
-    stock: product?.stock || 0,
-    minStock: product?.minStock || 10,
-    maxStock: product?.stock || 1000,
-    status: product?.status || "active",
-    colors: product?.colors?.join(", ") || "",
-    sizes: product?.sizes?.join(", ") || "",
+    name: "",
+    sku: "",
+    brandId: "",
+    category: "",
+    shortDescription: "",
+    description: "",
+    price: 0,
+    stock: 0,
+    status: "active" as ProductStatus,
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  if (!admin || !product) {
+  useEffect(() => {
+    let active = true;
+
+    const loadProduct = async () => {
+      setLoadingProduct(true);
+      try {
+        const [record, categoryOptions, brandOptions] = await Promise.all([
+          catalogService.adminProduct(id),
+          catalogService.categories(),
+          catalogService.brands(),
+        ]);
+        if (!active) return;
+
+        setProduct(record);
+        setCategories(categoryOptions);
+        setBrands(brandOptions);
+        setImageUrls(record.images);
+        setFormData({
+          name: record.name,
+          sku: record.sku,
+          brandId: brandOptions.find((brand) => brand.name === record.brand)?.id ?? "",
+          category: categoryOptions.find((category) => category.name === record.category)?.id ?? "",
+          shortDescription: record.shortDescription,
+          description: record.description,
+          price: record.price,
+          stock: record.stock,
+          status: record.status,
+        });
+      } catch (error) {
+        if (active) toast.error(error instanceof Error ? error.message : "Unable to load product.");
+      } finally {
+        if (active) setLoadingProduct(false);
+      }
+    };
+
+    void loadProduct();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (!admin) {
     return null;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  if (loadingProduct) {
+    return (
+      <AdminLayout>
+        <p className="text-sm text-slate-600">Loading product...</p>
+      </AdminLayout>
+    );
+  }
+
+  if (!product) {
+    return (
+      <AdminLayout>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">This product could not be found.</p>
+          <Button variant="outline" onClick={() => navigate({ to: "/admin/products" })}>
+            Back to products
+          </Button>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.sku || !formData.brand || !formData.category) {
+    if (!formData.name || !formData.sku || !formData.category) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -57,10 +116,20 @@ function EditProductPage() {
         name: formData.name,
         slug: product.slug,
         category_id: formData.category,
-        brand_id: brands.find((brand) => brand.name === formData.brand)?.id || null,
+        brand_id: formData.brandId || null,
         short_description: formData.shortDescription,
         description: formData.description,
         is_published: formData.status === "active",
+        sku: formData.sku,
+        price: formData.price,
+        quantity_available: formData.stock,
+        media: imageUrls
+          .map((media_url, sort_order) => ({
+            media_url: media_url.trim(),
+            alt_text: formData.name,
+            sort_order,
+          }))
+          .filter((media) => media.media_url),
       });
       toast.success("Product updated successfully!");
       navigate({ to: "/admin/products" });
@@ -69,7 +138,29 @@ function EditProductPage() {
     }
   };
 
-  const selectedCategory = categories.find((c) => c.id === formData.category);
+  const uploadImages = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const selectedFiles = Array.from(files);
+    if (selectedFiles.some((file) => !file.type.startsWith("image/"))) {
+      toast.error("Please select image files only.");
+      return;
+    }
+
+    setUploadingImages(true);
+    try {
+      const uploadedUrls = await Promise.all(
+        selectedFiles.map((file) => catalogService.uploadProductImage(file)),
+      );
+      setImageUrls((current) => [...current, ...uploadedUrls]);
+      toast.success(
+        `${uploadedUrls.length} image${uploadedUrls.length === 1 ? "" : "s"} uploaded.`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to upload image.");
+    } finally {
+      setUploadingImages(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -79,7 +170,12 @@ function EditProductPage() {
           <p className="mt-1 text-sm text-slate-600">{product.name}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="icon" onClick={() => navigate({ to: "/admin/products" })}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate({ to: "/admin/products" })}
+          >
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <p className="text-sm text-slate-500">Back to products</p>
@@ -111,16 +207,15 @@ function EditProductPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Brand *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Brand</label>
                 <select
-                  value={formData.brand}
-                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  value={formData.brandId}
+                  onChange={(e) => setFormData({ ...formData, brandId: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
                 >
                   <option value="">Select Brand</option>
                   {brands.map((b) => (
-                    <option key={b.id} value={b.name}>
+                    <option key={b.id} value={b.id}>
                       {b.name}
                     </option>
                   ))}
@@ -134,7 +229,6 @@ function EditProductPage() {
                     setFormData({
                       ...formData,
                       category: e.target.value,
-                      subcategory: "",
                     })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -148,25 +242,6 @@ function EditProductPage() {
                   ))}
                 </select>
               </div>
-              {selectedCategory && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Subcategory
-                  </label>
-                  <select
-                    value={formData.subcategory}
-                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select Subcategory</option>
-                    {selectedCategory.subcategories.map((sub) => (
-                      <option key={sub.id} value={sub.name}>
-                        {sub.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           </div>
 
@@ -200,17 +275,7 @@ function EditProductPage() {
           {/* Pricing */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Pricing</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">MRP (₹) *</label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.mrp}
-                  onChange={(e) => setFormData({ ...formData, mrp: Number(e.target.value) })}
-                  required
-                />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Selling Price (₹) *
@@ -223,29 +288,13 @@ function EditProductPage() {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cost Price (₹)
-                </label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.costPrice}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      costPrice: Number(e.target.value),
-                    })
-                  }
-                />
-              </div>
             </div>
           </div>
 
           {/* Inventory */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Inventory</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-1">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Stock *</label>
                 <Input
@@ -256,95 +305,54 @@ function EditProductPage() {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Min Stock</label>
-                <Input
-                  type="number"
-                  placeholder="10"
-                  value={formData.minStock}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      minStock: Number(e.target.value),
-                    })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Max Stock</label>
-                <Input
-                  type="number"
-                  placeholder="1000"
-                  value={formData.maxStock}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      maxStock: Number(e.target.value),
-                    })
-                  }
-                />
-              </div>
             </div>
           </div>
 
           {/* Images */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Images</h3>
-            {product.images.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-3">Current Images</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {product.images.map((img, idx) => (
-                    <div key={idx} className="relative group">
-                      <img
-                        src={img}
-                        alt={`Product ${idx}`}
-                        className="w-full h-24 rounded-lg object-cover"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-lg"
-                      >
-                        <Trash2 className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            <p className="text-sm text-slate-500">The first image is shown in the product table.</p>
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center transition hover:border-blue-500 hover:bg-blue-50">
+              <ImagePlus className="mb-2 h-8 w-8 text-slate-400" />
+              <span className="text-sm font-medium text-slate-700">
+                {uploadingImages ? "Uploading images..." : "Choose product images"}
+              </span>
+              <span className="mt-1 text-xs text-slate-500">
+                JPG, PNG, WEBP, or GIF up to 5 MB each
+              </span>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                className="sr-only"
+                disabled={uploadingImages}
+                onChange={(event) => {
+                  void uploadImages(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            {imageUrls.map((imageUrl, index) => (
+              <div key={imageUrl} className="relative inline-block">
+                <img
+                  src={imageUrl}
+                  alt={`Product ${index + 1}`}
+                  className="h-24 w-24 rounded-lg border border-slate-200 object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={`Remove image ${index + 1}`}
+                  onClick={() =>
+                    setImageUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                  }
+                  className="absolute right-1 top-1 h-7 w-7 bg-white/90"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                </Button>
               </div>
-            )}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-600 mb-2">Drag and drop images here or click to browse</p>
-              <p className="text-gray-500 text-sm">
-                Supported formats: JPG, PNG, GIF (Max 5MB each)
-              </p>
-              <Input type="file" multiple accept="image/*" className="mt-4" />
-            </div>
-          </div>
-
-          {/* Variants */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Variants</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Colors (comma-separated)
-              </label>
-              <Input
-                placeholder="Red, Blue, Black, White"
-                value={formData.colors}
-                onChange={(e) => setFormData({ ...formData, colors: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sizes (comma-separated)
-              </label>
-              <Input
-                placeholder="S, M, L, XL, XXL"
-                value={formData.sizes}
-                onChange={(e) => setFormData({ ...formData, sizes: e.target.value })}
-              />
-            </div>
+            ))}
           </div>
 
           {/* Status */}
@@ -397,13 +405,13 @@ function EditProductPage() {
           onOpenChange={setConfirmDelete}
           onConfirm={() => {
             void (async () => {
-                try {
-                  await catalogService.deleteProduct(product.id);
-                  toast.success("Product deleted.");
-                  navigate({ to: "/admin/products" });
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Unable to delete product.");
-                }
+              try {
+                await catalogService.deleteProduct(product.id);
+                toast.success("Product deleted.");
+                navigate({ to: "/admin/products" });
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Unable to delete product.");
+              }
             })();
           }}
         />

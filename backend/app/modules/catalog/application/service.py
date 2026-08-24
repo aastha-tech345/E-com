@@ -17,8 +17,8 @@ from app.modules.catalog.application.schemas import (
 from app.modules.catalog.domain.models import Brand, Category, Product, ProductMedia, ProductVariant
 from app.modules.reviews.domain.models import Review
 from app.modules.catalog.infrastructure.seed_data import SEED_BRANDS, SEED_CATEGORIES, SEED_PRODUCTS
-from app.modules.inventory.application.service import ensure_inventory_item, get_inventory_item
-from app.modules.pricing.application.service import create_default_price, get_active_price
+from app.modules.inventory.application.service import ensure_inventory_item, get_inventory_item, set_inventory_level
+from app.modules.pricing.application.service import create_default_price, get_active_price, set_active_price
 
 
 def create_category(db: Session, payload: CategoryCreateRequest) -> Category:
@@ -279,6 +279,36 @@ def update_product(db: Session, product_id: str, payload: "ProductUpdateRequest"
         product.description = payload.description
     if payload.is_published is not None:
         product.is_published = payload.is_published
+    default_variant = next((variant for variant in product.variants if variant.is_default), None)
+    if default_variant is not None:
+        if payload.sku is not None:
+            default_variant.sku = payload.sku
+        if payload.price is not None:
+            default_variant.price = payload.price
+            set_active_price(
+                db,
+                variant_id=default_variant.id,
+                amount=payload.price,
+                currency=default_variant.currency,
+            )
+        if payload.quantity_available is not None:
+            default_variant.quantity_available = payload.quantity_available
+            set_inventory_level(
+                db,
+                variant_id=default_variant.id,
+                on_hand=payload.quantity_available,
+                reason="admin_product_update",
+            )
+    if payload.media is not None:
+        product.media.clear()
+        for media in payload.media:
+            product.media.append(
+                ProductMedia(
+                    media_url=media.media_url,
+                    alt_text=media.alt_text,
+                    sort_order=media.sort_order,
+                )
+            )
     
     db.commit()
     db.refresh(product)

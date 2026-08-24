@@ -74,6 +74,24 @@ export interface ProductCreatePayload {
   }>;
 }
 
+export interface ProductUpdatePayload {
+  category_id?: string;
+  brand_id?: string | null;
+  name?: string;
+  slug?: string;
+  short_description?: string;
+  description?: string;
+  is_published?: boolean;
+  sku?: string;
+  price?: number;
+  quantity_available?: number;
+  media?: Array<{
+    media_url: string;
+    alt_text?: string;
+    sort_order?: number;
+  }>;
+}
+
 export interface CatalogCategoryOption {
   id: string;
   name: string;
@@ -264,7 +282,11 @@ export const policyService = {
     return response.json();
   },
 
-  async upload(file: File, name?: string, description?: string): Promise<{ id: string; title: string; chunks: number }> {
+  async upload(
+    file: File,
+    name?: string,
+    description?: string,
+  ): Promise<{ id: string; title: string; chunks: number }> {
     const body = new FormData();
     body.append("file", file);
     if (name) body.append("name", name);
@@ -286,7 +308,12 @@ export const policyService = {
       body: JSON.stringify({ title, description }),
     });
   },
-  async replaceFile(id: string, file: File, name?: string, description?: string): Promise<{ id: string; title: string; chunks: number }> {
+  async replaceFile(
+    id: string,
+    file: File,
+    name?: string,
+    description?: string,
+  ): Promise<{ id: string; title: string; chunks: number }> {
     const body = new FormData();
     body.append("file", file);
     if (name) body.append("name", name);
@@ -313,13 +340,22 @@ export const policyService = {
 
 export const customerDataService = {
   async addCartProduct(productId: string, quantity: number) {
-    return authenticatedJsonRequest("/cart/items", { method: "POST", body: JSON.stringify({ product_id: productId, quantity }) });
+    return authenticatedJsonRequest("/cart/items", {
+      method: "POST",
+      body: JSON.stringify({ product_id: productId, quantity }),
+    });
   },
   async addWishlistProduct(productId: string) {
-    return authenticatedJsonRequest("/wishlist", { method: "POST", body: JSON.stringify({ product_id: productId }) });
+    return authenticatedJsonRequest("/wishlist", {
+      method: "POST",
+      body: JSON.stringify({ product_id: productId }),
+    });
   },
   async removeWishlistProduct(productId: string) {
-    return authenticatedJsonRequest("/wishlist", { method: "DELETE", body: JSON.stringify({ product_id: productId }) });
+    return authenticatedJsonRequest("/wishlist", {
+      method: "DELETE",
+      body: JSON.stringify({ product_id: productId }),
+    });
   },
 };
 
@@ -334,13 +370,24 @@ export interface CustomerAddressRecord {
 
 export const profileService = {
   async update(payload: { full_name: string; email: string }) {
-    return authenticatedJsonRequest("/auth/me", { method: "PUT", body: JSON.stringify(payload) }) as Promise<{ id: string; full_name: string; email: string; roles: string[] }>;
+    return authenticatedJsonRequest("/auth/me", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }) as Promise<{ id: string; full_name: string; email: string; roles: string[] }>;
   },
   async addresses(): Promise<CustomerAddressRecord[]> {
-    return authenticatedJsonRequest("/auth/me/addresses", { method: "GET" }) as Promise<CustomerAddressRecord[]>;
+    return authenticatedJsonRequest("/auth/me/addresses", { method: "GET" }) as Promise<
+      CustomerAddressRecord[]
+    >;
   },
-  async saveAddress(payload: Omit<CustomerAddressRecord, "id">, id?: string): Promise<CustomerAddressRecord> {
-    return authenticatedJsonRequest(id ? `/auth/me/addresses/${id}` : "/auth/me/addresses", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) }) as Promise<CustomerAddressRecord>;
+  async saveAddress(
+    payload: Omit<CustomerAddressRecord, "id">,
+    id?: string,
+  ): Promise<CustomerAddressRecord> {
+    return authenticatedJsonRequest(id ? `/auth/me/addresses/${id}` : "/auth/me/addresses", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(payload),
+    }) as Promise<CustomerAddressRecord>;
   },
   async deleteAddress(id: string) {
     await authenticatedJsonRequest(`/auth/me/addresses/${id}`, { method: "DELETE" });
@@ -372,12 +419,22 @@ export const productService = {
       const detail = await response.json().catch(() => null);
       throw new Error(detail?.detail || "Unable to load admin products");
     }
-    const items = ((await response.json()) as BackendProduct[]).map(mapApiProduct);
+    const data = (await response.json()) as {
+      items: BackendProduct[];
+      total: number;
+      page: number;
+      page_size: number;
+      pages: number;
+    };
+    const items = data.items.map(mapApiProduct);
     rememberProducts(items);
     return items;
   },
 
-  async create(payload: ProductCreatePayload, endpoint: "admin" | "seller" = "admin"): Promise<Product> {
+  async create(
+    payload: ProductCreatePayload,
+    endpoint: "admin" | "seller" = "admin",
+  ): Promise<Product> {
     const response = await fetch(`${API_BASE}/${endpoint}/products`, {
       method: "POST",
       headers: {
@@ -536,13 +593,19 @@ export const catalogService = {
     });
   },
   async updateCategory(id: string, payload: { name: string; slug: string; description: string }) {
-    return adminCatalogRequest<CatalogCategoryOption>(`/admin/categories/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+    return adminCatalogRequest<CatalogCategoryOption>(`/admin/categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
   async deleteCategory(id: string) {
     await adminCatalogRequest<void>(`/admin/categories/${id}`, { method: "DELETE" });
   },
   async updateBrand(id: string, payload: { name: string; slug: string; description: string }) {
-    return adminCatalogRequest<CatalogBrandOption>(`/admin/brands/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+    return adminCatalogRequest<CatalogBrandOption>(`/admin/brands/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
   async deleteBrand(id: string) {
     await adminCatalogRequest<void>(`/admin/brands/${id}`, { method: "DELETE" });
@@ -557,22 +620,67 @@ export const catalogService = {
       field: params.field ?? "all",
     });
     if (params.q) query.set("q", params.q);
-    const response = await fetch(`${API_BASE}/admin/products?${query.toString()}`, { headers: authHeaders() });
+    const response = await fetch(`${API_BASE}/admin/products?${query.toString()}`, {
+      headers: authHeaders(),
+    });
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
       throw new Error(detail?.detail || "Unable to load products.");
     }
-    const data = (await response.json()) as { items: BackendProduct[]; total: number; page: number; page_size: number; pages: number };
+    const data = (await response.json()) as {
+      items: BackendProduct[];
+      total: number;
+      page: number;
+      page_size: number;
+      pages: number;
+    };
     const items = data.items.map(mapApiProduct);
     items.forEach((product) => productCache.set(product.id, product));
-    return { items, total: data.total, page: data.page, perPage: data.page_size, pages: data.pages };
+    return {
+      items,
+      total: data.total,
+      page: data.page,
+      perPage: data.page_size,
+      pages: data.pages,
+    };
   },
-  async updateProduct(id: string, payload: Record<string, unknown>) {
-    return adminCatalogRequest(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  async adminProduct(id: string): Promise<Product> {
+    const response = await fetch(`${API_BASE}/admin/products/${id}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load product.");
+    }
+    const product = mapApiProduct((await response.json()) as BackendProduct);
+    rememberProducts([product]);
+    return product;
+  },
+  async uploadProductImage(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch(`${API_BASE}/admin/product-images`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to upload image.");
+    }
+    return ((await response.json()) as { media_url: string }).media_url;
+  },
+  async updateProduct(id: string, payload: ProductUpdatePayload) {
+    return adminCatalogRequest<Product>(`/admin/products/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
 
   async adminCategories(params: CatalogListParams = {}) {
-    return adminCatalogListWithFallback<CatalogCategoryOption>("/admin/categories", "/categories", params);
+    return adminCatalogListWithFallback<CatalogCategoryOption>(
+      "/admin/categories",
+      "/categories",
+      params,
+    );
   },
 
   async adminBrands(params: CatalogListParams = {}) {
@@ -651,7 +759,10 @@ export interface CatalogAttributeInput {
   values: string[];
 }
 
-async function adminCatalogList<T>(path: string, params: CatalogListParams): Promise<CatalogListResponse<T>> {
+async function adminCatalogList<T>(
+  path: string,
+  params: CatalogListParams,
+): Promise<CatalogListResponse<T>> {
   const query = new URLSearchParams({
     page: String(params.page ?? 1),
     page_size: String(params.pageSize ?? 10),
@@ -660,7 +771,9 @@ async function adminCatalogList<T>(path: string, params: CatalogListParams): Pro
   });
   if (params.q?.trim()) query.set("q", params.q.trim());
   if (params.field && params.field !== "all") query.set("field", params.field);
-  const response = await fetch(`${API_BASE}${path}?${query.toString()}`, { headers: authHeaders() });
+  const response = await fetch(`${API_BASE}${path}?${query.toString()}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
     throw new Error(detail?.detail || "Catalog request failed.");
@@ -668,16 +781,28 @@ async function adminCatalogList<T>(path: string, params: CatalogListParams): Pro
   return response.json() as Promise<CatalogListResponse<T>>;
 }
 
-async function adminCatalogListWithFallback<T>(adminPath: string, publicPath: string, params: CatalogListParams): Promise<CatalogListResponse<T>> {
+async function adminCatalogListWithFallback<T>(
+  adminPath: string,
+  publicPath: string,
+  params: CatalogListParams,
+): Promise<CatalogListResponse<T>> {
   try {
     return await adminCatalogList<T>(adminPath, params);
   } catch {
     const response = await fetch(`${API_BASE}${publicPath}`);
-    if (!response.ok) throw new Error("Unable to load catalog records. Run the latest database migration and restart the backend.");
+    if (!response.ok)
+      throw new Error(
+        "Unable to load catalog records. Run the latest database migration and restart the backend.",
+      );
     const all = (await response.json()) as T[];
     const query = params.q?.trim().toLowerCase() ?? "";
     const matching = query
-      ? all.filter((item) => Object.values(item as Record<string, unknown>).join(" ").toLowerCase().includes(query))
+      ? all.filter((item) =>
+          Object.values(item as Record<string, unknown>)
+            .join(" ")
+            .toLowerCase()
+            .includes(query),
+        )
       : all;
     const pageSize = params.pageSize ?? 10;
     const page = params.page ?? 1;
@@ -726,12 +851,19 @@ export const analyticsService = {
 // ============================================================================
 
 export const orderService = {
-  async adminList(params: { q?: string; field?: string; status?: string; page?: number; pageSize?: number } = {}): Promise<AdminOrderPage> {
-    const query = new URLSearchParams({ page: String(params.page ?? 1), page_size: String(params.pageSize ?? 10) });
+  async adminList(
+    params: { q?: string; field?: string; status?: string; page?: number; pageSize?: number } = {},
+  ): Promise<AdminOrderPage> {
+    const query = new URLSearchParams({
+      page: String(params.page ?? 1),
+      page_size: String(params.pageSize ?? 10),
+    });
     if (params.q) query.set("q", params.q);
     if (params.field) query.set("field", params.field);
     if (params.status) query.set("status", params.status);
-    const response = await fetch(`${API_BASE}/admin/orders?${query.toString()}`, { headers: authHeaders() });
+    const response = await fetch(`${API_BASE}/admin/orders?${query.toString()}`, {
+      headers: authHeaders(),
+    });
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
       throw new Error(detail?.detail || "Unable to load admin orders.");
@@ -803,7 +935,14 @@ export interface AdminOrder {
   status: string;
   created_at: string;
   shipping_address: { line1: string; city: string; state: string; postal_code: string };
-  items: Array<{ product_name: string; variant_name: string; sku: string; quantity: number; unit_price: number; line_total: number }>;
+  items: Array<{
+    product_name: string;
+    variant_name: string;
+    sku: string;
+    quantity: number;
+    unit_price: number;
+    line_total: number;
+  }>;
 }
 
 export interface AdminOrderPage {
@@ -951,7 +1090,10 @@ export const cartService = {
     return (await response.json()) as BackendCartResponse;
   },
 
-  async saveProductQuantity(productId: string, quantity: number): Promise<BackendCartResponse | null> {
+  async saveProductQuantity(
+    productId: string,
+    quantity: number,
+  ): Promise<BackendCartResponse | null> {
     const updated = await this.updateProduct(productId, quantity);
     if (updated || quantity <= 0) return updated;
     return this.addProduct(productId, quantity);
@@ -980,11 +1122,18 @@ export const cartService = {
 // ============================================================================
 
 export const customerService = {
-  async adminList(params: { q?: string; field?: string; page?: number; pageSize?: number } = {}): Promise<AdminCustomerPage> {
-    const query = new URLSearchParams({ page: String(params.page ?? 1), page_size: String(params.pageSize ?? 10) });
+  async adminList(
+    params: { q?: string; field?: string; page?: number; pageSize?: number } = {},
+  ): Promise<AdminCustomerPage> {
+    const query = new URLSearchParams({
+      page: String(params.page ?? 1),
+      page_size: String(params.pageSize ?? 10),
+    });
     if (params.q) query.set("q", params.q);
     if (params.field && params.field !== "all") query.set("field", params.field);
-    const response = await fetch(`${API_BASE}/admin/customers?${query.toString()}`, { headers: authHeaders() });
+    const response = await fetch(`${API_BASE}/admin/customers?${query.toString()}`, {
+      headers: authHeaders(),
+    });
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
       throw new Error(detail?.detail || "Unable to load customers.");
@@ -1320,7 +1469,16 @@ function toOrder(order: BackendOrder): Order {
 }
 
 function normalizeOrderStatus(status: string): Order["status"] {
-  if (["pending", "processing", "shipped", "delivered", "cancelled", "replacement_requested"].includes(status)) {
+  if (
+    [
+      "pending",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "replacement_requested",
+    ].includes(status)
+  ) {
     return status as Order["status"];
   }
   if (status === "paid") return "processing";

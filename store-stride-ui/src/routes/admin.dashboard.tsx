@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -17,21 +15,16 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import {
-  TrendingUp,
-  Package,
-  Users,
-  ShoppingCart,
-  ArrowUpRight,
-  ArrowDownRight,
-  Download,
-  Filter,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { TrendingUp, Package, Users, ShoppingCart, Download, Filter } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { analyticsService, catalogService, productService, type AnalyticsSummary } from "@/services";
+import { StatCard } from "@/components/admin/StatCard";
+import {
+  analyticsService,
+  catalogService,
+  productService,
+  type AnalyticsSummary,
+} from "@/services";
 import { useShop } from "@/store/shop";
 import type { Product } from "@/types";
 
@@ -40,7 +33,6 @@ export const Route = createFileRoute("/admin/dashboard")({
 });
 
 function AdminDashboard() {
-  const navigate = useNavigate();
   const { admin } = useShop();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,7 +76,17 @@ function AdminDashboard() {
   );
 
   const recentProducts = products.slice(0, 8);
-  const lowStockProducts = products.filter((product) => product.stock <= product.minStock).slice(0, 6);
+  const lowStockProducts = products
+    .filter((product) => product.stock <= product.minStock)
+    .slice(0, 6);
+  const isSeller = admin?.roles.includes("seller") ?? false;
+  const revenueData = [{ month: "Current", revenue: stats.revenue }];
+  const ordersData = [{ month: "Current", orders: stats.orders, completed: stats.orders }];
+  const categoryData = [
+    { name: "Categories", value: stats.categories },
+    { name: "Brands", value: stats.brands },
+  ].filter((item) => item.value > 0);
+  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899"];
 
   if (!admin) return null;
 
@@ -138,36 +140,32 @@ function AdminDashboard() {
               {/* Seller Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard
-                  title="My Products"
-                  value={stats.totalProducts}
+                  label="My Products"
+                  value={stats.products}
                   icon={Package}
-                  color="#3b82f6"
+                  color="blue"
                   change={12}
-                  positive={true}
                 />
                 <StatCard
-                  title="Total Orders"
-                  value={stats.totalOrders}
+                  label="Total Orders"
+                  value={stats.orders}
                   icon={ShoppingCart}
-                  color="#f59e0b"
+                  color="orange"
                   change={8}
-                  positive={true}
                 />
                 <StatCard
-                  title="Total Customers"
-                  value={stats.totalCustomers}
+                  label="Total Customers"
+                  value={stats.customers}
                   icon={Users}
-                  color="#ec4899"
+                  color="red"
                   change={-3}
-                  positive={false}
                 />
                 <StatCard
-                  title="Revenue"
+                  label="Revenue"
                   value={"₹" + (stats.revenue / 100000).toFixed(1) + "L"}
                   icon={TrendingUp}
-                  color="#10b981"
+                  color="green"
                   change={15}
-                  positive={true}
                 />
               </div>
 
@@ -196,36 +194,32 @@ function AdminDashboard() {
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard
-                  title="Total Products"
-                  value={stats.totalProducts}
+                  label="Total Products"
+                  value={stats.products}
                   icon={Package}
-                  color="#3b82f6"
+                  color="blue"
                   change={5}
-                  positive={true}
                 />
                 <StatCard
-                  title="Categories"
-                  value={stats.totalCategories}
+                  label="Categories"
+                  value={stats.categories}
                   icon={Package}
-                  color="#10b981"
+                  color="green"
                   change={0}
-                  positive={true}
                 />
                 <StatCard
-                  title="Total Customers"
-                  value={stats.totalCustomers}
+                  label="Total Customers"
+                  value={stats.customers}
                   icon={Users}
-                  color="#f59e0b"
+                  color="orange"
                   change={18}
-                  positive={true}
                 />
                 <StatCard
-                  title="Total Orders"
-                  value={stats.totalOrders}
+                  label="Total Orders"
+                  value={stats.orders}
                   icon={ShoppingCart}
-                  color="#ec4899"
+                  color="red"
                   change={22}
-                  positive={true}
                 />
               </div>
             </>
@@ -327,7 +321,7 @@ function AdminDashboard() {
                     dataKey="value"
                   >
                     {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
                     ))}
                   </Pie>
                   <Tooltip

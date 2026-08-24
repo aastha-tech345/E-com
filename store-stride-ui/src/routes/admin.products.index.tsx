@@ -21,6 +21,28 @@ export const Route = createFileRoute("/admin/products/")({
   component: AdminProductsPage,
 });
 
+function ProductThumbnail({ images, name }: { images?: string[]; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const source = images?.[0];
+
+  if (!source || failed) {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded bg-slate-100 text-[10px] font-medium text-slate-500">
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={source}
+      alt={name}
+      className="h-10 w-10 rounded bg-gray-100 object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function AdminProductsPage() {
   const navigate = useNavigate();
   const { admin } = useShop();
@@ -81,8 +103,8 @@ function AdminProductsPage() {
       key: "images",
       label: "Image",
       width: "80px",
-      render: (value: string[]) => (
-        <img src={value[0]} alt="product" className="w-10 h-10 rounded object-cover bg-gray-100" />
+      render: (value: string[], row: Product) => (
+        <ProductThumbnail images={value} name={row.name} />
       ),
     },
     {
@@ -181,7 +203,19 @@ function AdminProductsPage() {
               }}
               placeholder={`Filter by ${fields.find((field) => field.key === filterField)?.label.toLowerCase()}...`}
             />
-            {filterValue && <button type="button" aria-label="Clear field filter" onClick={() => { setFilterValue(""); setPage(1); }} className="absolute right-2 top-2 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>}
+            {filterValue && (
+              <button
+                type="button"
+                aria-label="Clear field filter"
+                onClick={() => {
+                  setFilterValue("");
+                  setPage(1);
+                }}
+                className="absolute right-2 top-2 text-slate-400 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="ml-auto flex items-center gap-2">
             <div className="relative w-64">

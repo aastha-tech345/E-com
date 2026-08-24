@@ -1,9 +1,11 @@
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from app.core.cache import cache_backend
@@ -40,6 +42,10 @@ app = FastAPI(
     version="0.1.0",
     openapi_url=f"{settings.api_prefix}/openapi.json",
 )
+
+UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
