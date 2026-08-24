@@ -10,11 +10,13 @@ import type { Product } from "@/types";
 export function ProductCard({
   product,
   layout = "grid",
+  onProductClick,
   onQuickView,
   className,
 }: {
   product: Product;
   layout?: "grid" | "list";
+  onProductClick?: (product: Product) => void;
   onQuickView?: (product: Product) => void;
   className?: string;
 }) {
@@ -33,6 +35,7 @@ export function ProductCard({
       <Link
         to="/products/$id"
         params={{ id: product.id }}
+        onClick={() => onProductClick?.(product)}
         className={cn(
           "relative block shrink-0 overflow-hidden bg-stone-100",
           layout === "grid" ? "aspect-[4/5] w-full" : "aspect-square w-full sm:w-52",

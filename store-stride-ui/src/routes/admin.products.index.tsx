@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { DataTable } from "@/components/admin/DataTable";
 import { useShop } from "@/store/shop";
 import { products } from "@/data/catalog";
+import type { Product } from "@/types";
 
 export const Route = createFileRoute("/admin/products/")({
   component: AdminProductsPage,
@@ -25,19 +26,13 @@ function AdminProductsPage() {
       label: "Image",
       width: "80px",
       render: (value: string[]) => (
-        <img
-          src={value[0]}
-          alt="product"
-          className="w-10 h-10 rounded object-cover bg-gray-100"
-        />
+        <img src={value[0]} alt="product" className="w-10 h-10 rounded object-cover bg-gray-100" />
       ),
     },
     {
       key: "name",
       label: "Product Name",
-      render: (value: string) => (
-        <div className="font-medium text-gray-900">{value}</div>
-      ),
+      render: (value: string) => <div className="font-medium text-gray-900">{value}</div>,
     },
     {
       key: "sku",
@@ -53,22 +48,20 @@ function AdminProductsPage() {
     {
       key: "price",
       label: "Price",
-      render: (value: number) => (
-        <span className="font-semibold text-gray-900">₹{value}</span>
-      ),
+      render: (value: number) => <span className="font-semibold text-gray-900">₹{value}</span>,
     },
     {
       key: "stock",
       label: "Stock",
-      render: (value: number, row: any) => (
+      render: (value: unknown, row: Product) => (
         <span
           className={`px-2 py-1 rounded text-xs font-medium ${
-            value - row.reserved < row.minStock
+            Number(value) - row.reserved < row.minStock
               ? "bg-red-100 text-red-800"
               : "bg-green-100 text-green-800"
           }`}
         >
-          {value - row.reserved}
+          {Number(value) - row.reserved}
         </span>
       ),
     },

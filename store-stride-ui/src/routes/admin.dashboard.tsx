@@ -1,7 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
-import { TrendingUp, Package, Users, ShoppingCart, ArrowUpRight, ArrowDownRight, Download, Filter } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from "recharts";
+import {
+  TrendingUp,
+  Package,
+  Users,
+  ShoppingCart,
+  ArrowUpRight,
+  ArrowDownRight,
+  Download,
+  Filter,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { useShop } from "@/store/shop";
@@ -64,14 +90,28 @@ function AdminDashboard() {
 
   const COLORS = ["#3b82f6", "#ec4899", "#f59e0b", "#10b981"];
 
-  const StatCard = ({ title, value, icon: Icon, color, change, positive }: any) => (
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    color,
+    change,
+    positive,
+  }: {
+    title: string;
+    value: number | string;
+    icon: LucideIcon;
+    color: string;
+    change?: number;
+    positive?: boolean;
+  }) => (
     <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-100 overflow-hidden">
       <div className="p-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <p className="text-gray-600 text-sm font-medium">{title}</p>
             <p className="text-3xl font-bold mt-3 text-gray-900">
-              {typeof value === 'number' && value > 1000 ? (value / 1000).toFixed(1) + 'K' : value}
+              {typeof value === "number" && value > 1000 ? (value / 1000).toFixed(1) + "K" : value}
             </p>
             {change && (
               <div className="mt-3 flex items-center gap-1">
@@ -80,13 +120,19 @@ function AdminDashboard() {
                 ) : (
                   <ArrowDownRight className="w-4 h-4 text-red-600" />
                 )}
-                <span className={positive ? "text-green-600 text-sm font-medium" : "text-red-600 text-sm font-medium"}>
+                <span
+                  className={
+                    positive
+                      ? "text-green-600 text-sm font-medium"
+                      : "text-red-600 text-sm font-medium"
+                  }
+                >
                   {change}% from last month
                 </span>
               </div>
             )}
           </div>
-          <div 
+          <div
             className="w-12 h-12 rounded-lg flex items-center justify-center"
             style={{ backgroundColor: color + "15" }}
           >
@@ -141,7 +187,8 @@ function AdminDashboard() {
                   <div>
                     <h3 className="font-semibold text-amber-100">Sales Tip</h3>
                     <p className="text-amber-100/80 text-sm mt-1">
-                      Your shop is performing great! Consider adding seasonal items to boost sales further.
+                      Your shop is performing great! Consider adding seasonal items to boost sales
+                      further.
                     </p>
                   </div>
                 </div>
@@ -258,18 +305,29 @@ function AdminDashboard() {
                 <AreaChart data={revenueData}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="month" stroke="#9ca3af" />
                   <YAxis stroke="#9ca3af" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                    labelStyle={{ color: '#f3f4f6' }}
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "1px solid #374151",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "#f3f4f6" }}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorRevenue)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -288,9 +346,13 @@ function AdminDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="month" stroke="#9ca3af" />
                   <YAxis stroke="#9ca3af" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                    labelStyle={{ color: '#f3f4f6' }}
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "1px solid #374151",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "#f3f4f6" }}
                   />
                   <Legend />
                   <Bar dataKey="orders" fill="#3b82f6" name="Total Orders" radius={[8, 8, 0, 0]} />
@@ -327,9 +389,13 @@ function AdminDashboard() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                    labelStyle={{ color: '#f3f4f6' }}
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "1px solid #374151",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "#f3f4f6" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -346,13 +412,20 @@ function AdminDashboard() {
               </div>
               <div className="space-y-3">
                 {[1, 2, 3].map((order) => (
-                  <div key={order} className="flex justify-between items-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition">
+                  <div
+                    key={order}
+                    className="flex justify-between items-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition"
+                  >
                     <div className="flex-1">
                       <p className="font-medium text-white">Order #{1000 + order}</p>
-                      <p className="text-gray-400 text-sm">Customer Name • {new Date().toLocaleDateString()}</p>
+                      <p className="text-gray-400 text-sm">
+                        Customer Name • {new Date().toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-white">₹{(5999 + order * 1000).toLocaleString()}</p>
+                      <p className="font-semibold text-white">
+                        ₹{(5999 + order * 1000).toLocaleString()}
+                      </p>
                       <span className="inline-block px-3 py-1 mt-2 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
                         ✓ Delivered
                       </span>

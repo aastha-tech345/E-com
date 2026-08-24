@@ -24,13 +24,9 @@ export function EmptyState({
         <div className="rounded-lg bg-muted p-3 mb-4">
           <Icon className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-semibold text-foreground mb-1">
-          {title}
-        </h3>
+        <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
         {description && (
-          <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
-            {description}
-          </p>
+          <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">{description}</p>
         )}
         {action && <div>{action}</div>}
       </CardContent>

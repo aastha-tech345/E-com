@@ -22,17 +22,17 @@ function Index() {
     queryKey: ["featured"],
     queryFn: () => productService.featured(),
   });
-  
+
   const { data: trending = [] } = useQuery({
     queryKey: ["trending"],
     queryFn: () => productService.trending(),
   });
-  
+
   const { data: bestSellers = [] } = useQuery({
     queryKey: ["bestSellers"],
     queryFn: () => productService.bestSellers(),
   });
-  
+
   const { data: deals = [] } = useQuery({
     queryKey: ["deals"],
     queryFn: () => productService.deals(),
@@ -59,7 +59,8 @@ function Index() {
               Timeless essentials for a smarter, more elegant way to shop.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200">
-              ShopNest brings together elevated fashion, trusted electronics, beauty, and home picks with dependable service and curated value.
+              ShopNest brings together elevated fashion, trusted electronics, beauty, and home picks
+              with dependable service and curated value.
             </p>
             <div className="mt-8 flex gap-4 flex-wrap">
               <Button
@@ -85,7 +86,10 @@ function Index() {
                 { value: "1K+", label: "trusted brands" },
                 { value: "4.8/5", label: "average rating" },
               ].map((item) => (
-                <div key={item.label} className="rounded-3xl border border-white/10 bg-white/6 px-5 py-4 backdrop-blur">
+                <div
+                  key={item.label}
+                  className="rounded-3xl border border-white/10 bg-white/6 px-5 py-4 backdrop-blur"
+                >
                   <p className="text-2xl font-semibold text-white">{item.value}</p>
                   <p className="mt-1 text-sm text-slate-300">{item.label}</p>
                 </div>
@@ -97,7 +101,9 @@ function Index() {
               <div className="rounded-[28px] bg-[#f8f3e7] p-6 text-slate-900">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Editor’s pick</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+                      Editor’s pick
+                    </p>
                     <h2 className="mt-2 text-2xl font-bold">Classic living, modern utility</h2>
                   </div>
                   <div className="rounded-full bg-white p-3 shadow-sm">
@@ -110,7 +116,10 @@ function Index() {
                     "Exclusive offers on premium essentials",
                     "Fast delivery with reliable after-sales support",
                   ].map((line) => (
-                    <div key={line} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
+                    <div
+                      key={line}
+                      className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm"
+                    >
                       <Star className="h-4 w-4 text-amber-500" />
                       <span className="text-sm font-medium text-slate-700">{line}</span>
                     </div>
@@ -162,7 +171,9 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Best of ShopNest</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+                Best of ShopNest
+              </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Featured Products</h2>
             </div>
             <Button
@@ -190,7 +201,9 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Fresh demand</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+                Fresh demand
+              </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Trending Now</h2>
             </div>
             <Button
@@ -218,7 +231,9 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Customer favorites</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+                Customer favorites
+              </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Best Sellers</h2>
             </div>
             <Button
@@ -246,7 +261,9 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">Limited-time selection</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">
+                Limited-time selection
+              </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Hot Deals</h2>
               <p className="mt-1 text-slate-600">Exceptional value on standout picks</p>
             </div>

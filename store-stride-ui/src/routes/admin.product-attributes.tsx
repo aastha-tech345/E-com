@@ -23,16 +23,12 @@ function AdminAttributesPage() {
     {
       key: "name",
       label: "Attribute Name",
-      render: (value: string) => (
-        <div className="font-medium text-gray-900">{value}</div>
-      ),
+      render: (value: string) => <div className="font-medium text-gray-900">{value}</div>,
     },
     {
       key: "type",
       label: "Type",
-      render: (value: string) => (
-        <span className="text-gray-600 capitalize">{value}</span>
-      ),
+      render: (value: string) => <span className="text-gray-600 capitalize">{value}</span>,
     },
     {
       key: "values",
@@ -44,9 +40,7 @@ function AdminAttributesPage() {
               {v}
             </span>
           ))}
-          {value.length > 3 && (
-            <span className="text-gray-600 text-xs">+{value.length - 3}</span>
-          )}
+          {value.length > 3 && <span className="text-gray-600 text-xs">+{value.length - 3}</span>}
         </div>
       ),
     },

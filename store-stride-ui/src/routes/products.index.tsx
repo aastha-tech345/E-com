@@ -17,7 +17,7 @@ import { catalogService, productService } from "@/services";
 import { EmptyState } from "@/components/common/EmptyState";
 
 export const Route = createFileRoute("/products/")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: ((search: Record<string, unknown>) => ({
     search: (search.search as string) || "",
     category: Array.isArray(search.category)
       ? search.category
@@ -43,8 +43,10 @@ export const Route = createFileRoute("/products/")({
           : [],
     sort: (search.sort as string) || "relevance",
     layout: (search.layout as string) || "grid",
-    page: (search.page as number) || 1,
-  }),
+    page: (search["page"] as number) || 1,
+    // TanStack uses this normalization at the routing boundary; application code receives typed values.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  })) as (search: Record<string, unknown>) => any,
   component: ProductListingPage,
 });
 
@@ -57,22 +59,33 @@ function ProductListingPage() {
   const [localPriceMax, setLocalPriceMax] = useState(search.priceMax);
 
   const itemsPerPage = 12;
-  const { data: productPage, isPending, isError } = useQuery({
+  const {
+    data: productPage,
+    isPending,
+    isError,
+  } = useQuery({
     queryKey: ["products", search],
-    queryFn: () => productService.list({
-      search: search.search || undefined,
-      category: search.category,
-      brands: search.brand,
-      minPrice: search.priceMin,
-      maxPrice: search.priceMax,
-      minRating: search.rating.length ? Math.min(...search.rating) : undefined,
-      sort: search.sort,
-      page: search.page,
-      perPage: itemsPerPage,
-    }),
+    queryFn: () =>
+      productService.list({
+        search: search.search || undefined,
+        category: search.category,
+        brands: search.brand,
+        minPrice: search.priceMin,
+        maxPrice: search.priceMax,
+        minRating: search.rating.length ? Math.min(...search.rating) : undefined,
+        sort: search.sort,
+        page: search.page,
+        perPage: itemsPerPage,
+      }),
   });
-  const { data: categoryOptions = [] } = useQuery({ queryKey: ["categories"], queryFn: () => catalogService.categories() });
-  const { data: brandOptions = [] } = useQuery({ queryKey: ["brands"], queryFn: () => catalogService.brands() });
+  const { data: categoryOptions = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => catalogService.categories(),
+  });
+  const { data: brandOptions = [] } = useQuery({
+    queryKey: ["brands"],
+    queryFn: () => catalogService.brands(),
+  });
   const paginatedProducts = productPage?.items || [];
   const totalProducts = productPage?.total || 0;
   const totalPages = productPage?.pages || 0;
@@ -85,14 +98,14 @@ function ProductListingPage() {
 
   const updateSearch = (updates: Partial<typeof search>) => {
     navigate({
-      to: "/products/",
+      to: "/products",
       search: { ...search, ...updates, page: 1 },
     });
   };
 
   const clearFilters = () => {
     navigate({
-      to: "/products/",
+      to: "/products",
       search: {
         search: "",
         category: [],
@@ -108,7 +121,10 @@ function ProductListingPage() {
   };
 
   const hasActiveFilters =
-    search.search || search.category.length > 0 || search.brand.length > 0 || search.rating.length > 0;
+    search.search ||
+    search.category.length > 0 ||
+    search.brand.length > 0 ||
+    search.rating.length > 0;
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -122,7 +138,8 @@ function ProductListingPage() {
           </p>
           <h1 className="mb-2 text-3xl font-bold text-slate-900 md:text-4xl">Products</h1>
           <p className="max-w-2xl text-sm text-slate-600 md:text-base">
-            Discover premium everyday essentials with refined filters for category, brand, and rating.
+            Discover premium everyday essentials with refined filters for category, brand, and
+            rating.
           </p>
           <p className="mt-4 text-sm font-medium text-slate-500">
             Showing {totalProducts > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to{" "}
@@ -152,11 +169,7 @@ function ProductListingPage() {
 
           {/* Mobile Filter Button */}
           <div className="lg:hidden mb-4 flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setMobileFilterOpen(true)}
-              className="flex-1"
-            >
+            <Button variant="outline" onClick={() => setMobileFilterOpen(true)} className="flex-1">
               <Filter className="w-4 h-4 mr-2" />
               Filters
             </Button>
@@ -201,7 +214,11 @@ function ProductListingPage() {
                   variant={search.layout === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => updateSearch({ layout: "grid" })}
-                  className={search.layout === "grid" ? "rounded-full bg-slate-900 hover:bg-slate-800" : "rounded-full"}
+                  className={
+                    search.layout === "grid"
+                      ? "rounded-full bg-slate-900 hover:bg-slate-800"
+                      : "rounded-full"
+                  }
                 >
                   <Grid3x3 className="w-4 h-4" />
                 </Button>
@@ -209,7 +226,11 @@ function ProductListingPage() {
                   variant={search.layout === "list" ? "default" : "outline"}
                   size="icon"
                   onClick={() => updateSearch({ layout: "list" })}
-                  className={search.layout === "list" ? "rounded-full bg-slate-900 hover:bg-slate-800" : "rounded-full"}
+                  className={
+                    search.layout === "list"
+                      ? "rounded-full bg-slate-900 hover:bg-slate-800"
+                      : "rounded-full"
+                  }
                 >
                   <List className="w-4 h-4" />
                 </Button>
@@ -218,9 +239,14 @@ function ProductListingPage() {
 
             {/* Products */}
             {isPending ? (
-              <div className="py-16 text-center text-sm text-slate-500">Loading products from the server...</div>
+              <div className="py-16 text-center text-sm text-slate-500">
+                Loading products from the server...
+              </div>
             ) : isError ? (
-              <EmptyState title="Products are unavailable" description="Please make sure the backend is running and try again." />
+              <EmptyState
+                title="Products are unavailable"
+                description="Please make sure the backend is running and try again."
+              />
             ) : paginatedProducts.length > 0 ? (
               <div
                 className={
@@ -326,6 +352,7 @@ function FilterPanel({
   hasActiveFilters,
   categories,
   brands,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) {
   const toggleMultiSelect = (values: string[], value: string, checked: boolean) =>
     checked ? [...values, value] : values.filter((item) => item !== value);
@@ -351,13 +378,18 @@ function FilterPanel({
       <div>
         <label className="mb-3 block text-sm font-semibold text-slate-900">Category</label>
         <div className="space-y-2">
-          {categories.map((cat) => (
-            <label key={cat.id} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer">
+          {categories.map((cat: { id: string; name: string; slug: string }) => (
+            <label
+              key={cat.id}
+              className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer"
+            >
               <Checkbox
                 checked={search.category.includes(cat.slug)}
                 onCheckedChange={(checked) =>
                   onSearchChange({
-                    category: toggleMultiSelect(search.category, cat.slug, Boolean(checked)).join(","),
+                    category: toggleMultiSelect(search.category, cat.slug, Boolean(checked)).join(
+                      ",",
+                    ),
                   })
                 }
               />
@@ -373,8 +405,11 @@ function FilterPanel({
       <div>
         <label className="mb-3 block text-sm font-semibold text-slate-900">Brand</label>
         <div className="space-y-2 max-h-40 overflow-y-auto">
-          {brands.map((brand) => (
-            <label key={brand.id} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer">
+          {brands.map((brand: { id: string; name: string }) => (
+            <label
+              key={brand.id}
+              className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer"
+            >
               <Checkbox
                 checked={search.brand.includes(brand.name)}
                 onCheckedChange={(checked) => {
@@ -421,7 +456,11 @@ function FilterPanel({
               placeholder="Max"
             />
           </div>
-          <Button onClick={onPriceApply} className="w-full rounded-full bg-slate-900 hover:bg-slate-800" size="sm">
+          <Button
+            onClick={onPriceApply}
+            className="w-full rounded-full bg-slate-900 hover:bg-slate-800"
+            size="sm"
+          >
             Apply Price
           </Button>
         </div>
@@ -434,7 +473,10 @@ function FilterPanel({
         <label className="mb-3 block text-sm font-semibold text-slate-900">Rating</label>
         <div className="space-y-2">
           {[4.5, 4, 3.5, 3].map((rating) => (
-            <label key={rating} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer">
+            <label
+              key={rating}
+              className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-stone-50 cursor-pointer"
+            >
               <Checkbox
                 checked={search.rating.includes(rating)}
                 onCheckedChange={(checked) =>
@@ -443,9 +485,7 @@ function FilterPanel({
                   })
                 }
               />
-              <span className="text-sm text-slate-700">
-                {rating} ★ and above
-              </span>
+              <span className="text-sm text-slate-700">{rating} ★ and above</span>
             </label>
           ))}
         </div>

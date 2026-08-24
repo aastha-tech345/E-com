@@ -1,16 +1,7 @@
-"""
-LangChain-powered semantic search tool for product discovery.
-
-This tool uses LangChain for advanced text processing and semantic search
-capabilities to find products based on user intent and queries.
-"""
+"""Semantic search tool for product discovery used by the LangGraph assistant."""
 
 from __future__ import annotations
 
-from typing import Optional
-
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings.base import Embeddings
 from sqlalchemy.orm import Session
 
 from app.modules.ai_assistant.application.tool_registry import AssistantTool
@@ -19,7 +10,7 @@ from app.modules.catalog.application.service import hydrate_product_read_model, 
 from app.modules.catalog.domain.models import Product
 
 
-class SimpleEmbeddings(Embeddings):
+class SimpleEmbeddings:
     """Simple embedding implementation using keyword matching for demo.
     
     In production, replace with OpenAI embeddings or similar.
@@ -56,13 +47,10 @@ class SimpleEmbeddings(Embeddings):
 
 
 class LangChainSemanticSearchTool(AssistantTool):
-    """LangChain-powered semantic search tool.
-    
-    Uses LangChain for:
-    - Text splitting and chunking
-    - Semantic similarity matching
-    - Query expansion
-    - Result ranking
+    """Dependency-free semantic search tool.
+
+    The class name is kept stable because the orchestrator already imports it.
+    LangGraph owns the assistant orchestration; this tool only ranks products.
     """
 
     name = "catalog.semantic_search"
@@ -71,11 +59,8 @@ class LangChainSemanticSearchTool(AssistantTool):
     def __init__(self):
         super().__init__()
         self.embeddings = SimpleEmbeddings()
-        self.text_splitter = CharacterTextSplitter(
-            separator="\n",
-            chunk_size=500,
-            chunk_overlap=50,
-        )
+        self.chunk_size = 500
+        self.chunk_overlap = 50
 
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
         """Run semantic search using LangChain."""
@@ -89,7 +74,7 @@ class LangChainSemanticSearchTool(AssistantTool):
             # Split product descriptions into chunks
             chunks = []
             for product, doc_text in product_documents:
-                split_texts = self.text_splitter.split_text(doc_text)
+                split_texts = self._split_text(doc_text)
                 for chunk in split_texts:
                     chunks.append((product, chunk))
 
@@ -183,6 +168,24 @@ class LangChainSemanticSearchTool(AssistantTool):
                 expanded += " " + " ".join(synonyms_list)
 
         return expanded
+
+    def _split_text(self, text: str) -> list[str]:
+        """Split text into overlapping chunks without external dependencies."""
+        normalized = " ".join(text.split())
+        if not normalized:
+            return []
+        if len(normalized) <= self.chunk_size:
+            return [normalized]
+
+        chunks: list[str] = []
+        step = max(1, self.chunk_size - self.chunk_overlap)
+        for start in range(0, len(normalized), step):
+            chunk = normalized[start:start + self.chunk_size].strip()
+            if chunk:
+                chunks.append(chunk)
+            if start + self.chunk_size >= len(normalized):
+                break
+        return chunks
 
     def _score_chunks(
         self,

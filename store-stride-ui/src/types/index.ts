@@ -63,12 +63,7 @@ export interface Review {
   status: "published" | "pending" | "rejected";
 }
 
-export type OrderStatus =
-  | "pending"
-  | "processing"
-  | "shipped"
-  | "delivered"
-  | "cancelled";
+export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 
 export interface OrderItem {
   productId: string;
@@ -167,6 +162,9 @@ export interface ChatMessage {
   suggestions?: string[];
   conversationId?: string;
   intent?: string;
+  usedTools?: string[];
+  orchestrator?: string;
+  source?: "backend" | "fallback";
 }
 
 export interface AssistantProductResult {

@@ -61,7 +61,10 @@ function ProductDetailsPage() {
       toast.error("Please select a size");
       return;
     }
-    addToCart(product.id, quantity, { color: selectedColor || undefined, size: selectedSize || undefined });
+    addToCart(product.id, quantity, {
+      color: selectedColor || undefined,
+      size: selectedSize || undefined,
+    });
     setQuantity(1);
   };
 
@@ -80,7 +83,9 @@ function ProductDetailsPage() {
           </button>
           <ChevronRight className="w-4 h-4 text-gray-500" />
           <button
-            onClick={() => navigate({ to: "/products", search: { category: product.categorySlug } })}
+            onClick={() =>
+              navigate({ to: "/products", search: { category: product.categorySlug } })
+            }
             className="text-blue-600 hover:underline"
           >
             {product.category}
@@ -110,7 +115,11 @@ function ProductDetailsPage() {
                     selectedImage === idx ? "border-blue-600" : "border-gray-200"
                   }`}
                 >
-                  <img src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" />
+                  <img
+                    src={img}
+                    alt={`${product.name} ${idx}`}
+                    className="w-full h-full object-cover"
+                  />
                 </button>
               ))}
             </div>
@@ -152,9 +161,7 @@ function ProductDetailsPage() {
             {/* Colors */}
             {product.colors.length > 0 && (
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  Color
-                </label>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">Color</label>
                 <div className="flex gap-3">
                   {product.colors.map((color) => (
                     <button
@@ -176,9 +183,7 @@ function ProductDetailsPage() {
             {/* Sizes */}
             {product.sizes.length > 0 && (
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  Size
-                </label>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">Size</label>
                 <div className="flex gap-3">
                   {product.sizes.map((size) => (
                     <button
@@ -200,9 +205,7 @@ function ProductDetailsPage() {
             {/* Quantity & Actions */}
             <div className="mb-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  Quantity
-                </label>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">Quantity</label>
                 <QuantitySelector
                   value={quantity}
                   max={product.stock - product.reserved}
@@ -266,13 +269,22 @@ function ProductDetailsPage() {
         <div className="mb-12">
           <Tabs defaultValue="description" className="w-full">
             <TabsList className="border-b bg-transparent rounded-none w-full justify-start">
-              <TabsTrigger value="description" className="rounded-none border-b-2 border-b-transparent data-[state=active]:border-b-blue-600">
+              <TabsTrigger
+                value="description"
+                className="rounded-none border-b-2 border-b-transparent data-[state=active]:border-b-blue-600"
+              >
                 Description
               </TabsTrigger>
-              <TabsTrigger value="specifications" className="rounded-none border-b-2 border-b-transparent data-[state=active]:border-b-blue-600">
+              <TabsTrigger
+                value="specifications"
+                className="rounded-none border-b-2 border-b-transparent data-[state=active]:border-b-blue-600"
+              >
                 Specifications
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="rounded-none border-b-2 border-b-transparent data-[state=active]:border-b-blue-600">
+              <TabsTrigger
+                value="reviews"
+                className="rounded-none border-b-2 border-b-transparent data-[state=active]:border-b-blue-600"
+              >
                 Reviews
               </TabsTrigger>
             </TabsList>

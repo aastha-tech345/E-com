@@ -20,28 +20,73 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
 import { useShop } from "@/store/shop";
 
 interface AdminHeaderProps {
-  title?: string;
-  description?: string;
+  title?: string | undefined;
+  description?: string | undefined;
 }
 
-const routeTitles: Record<string, { title: string; breadcrumbs: Array<{ label: string; href?: string }> }> = {
+const routeTitles: Record<
+  string,
+  { title: string; breadcrumbs: Array<{ label: string; href?: string }> }
+> = {
   "/admin": { title: "Dashboard", breadcrumbs: [{ label: "Admin" }, { label: "Dashboard" }] },
-  "/admin/products": { title: "Products", breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Products" }] },
-  "/admin/products/create": { title: "Add Product", breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Products", href: "/admin/products" }, { label: "Add Product" }] },
-  "/admin/categories": { title: "Categories", breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Categories" }] },
-  "/admin/brands": { title: "Brands", breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Brands" }] },
-  "/admin/attributes": { title: "Attributes", breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Attributes" }] },
-  "/admin/inventory": { title: "Inventory", breadcrumbs: [{ label: "Admin" }, { label: "Inventory" }] },
+  "/admin/products": {
+    title: "Products",
+    breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Products" }],
+  },
+  "/admin/products/create": {
+    title: "Add Product",
+    breadcrumbs: [
+      { label: "Admin" },
+      { label: "Catalog", href: "#" },
+      { label: "Products", href: "/admin/products" },
+      { label: "Add Product" },
+    ],
+  },
+  "/admin/categories": {
+    title: "Categories",
+    breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Categories" }],
+  },
+  "/admin/brands": {
+    title: "Brands",
+    breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Brands" }],
+  },
+  "/admin/attributes": {
+    title: "Attributes",
+    breadcrumbs: [{ label: "Admin" }, { label: "Catalog", href: "#" }, { label: "Attributes" }],
+  },
+  "/admin/inventory": {
+    title: "Inventory",
+    breadcrumbs: [{ label: "Admin" }, { label: "Inventory" }],
+  },
   "/admin/orders": { title: "Orders", breadcrumbs: [{ label: "Admin" }, { label: "Orders" }] },
-  "/admin/customers": { title: "Customers", breadcrumbs: [{ label: "Admin" }, { label: "Customers" }] },
-  "/admin/coupons": { title: "Coupons", breadcrumbs: [{ label: "Admin" }, { label: "Marketing", href: "#" }, { label: "Coupons" }] },
-  "/admin/promotions": { title: "Promotions", breadcrumbs: [{ label: "Admin" }, { label: "Marketing", href: "#" }, { label: "Promotions" }] },
-  "/admin/settings": { title: "Settings", breadcrumbs: [{ label: "Admin" }, { label: "Settings" }] },
+  "/admin/customers": {
+    title: "Customers",
+    breadcrumbs: [{ label: "Admin" }, { label: "Customers" }],
+  },
+  "/admin/coupons": {
+    title: "Coupons",
+    breadcrumbs: [{ label: "Admin" }, { label: "Marketing", href: "#" }, { label: "Coupons" }],
+  },
+  "/admin/promotions": {
+    title: "Promotions",
+    breadcrumbs: [{ label: "Admin" }, { label: "Marketing", href: "#" }, { label: "Promotions" }],
+  },
+  "/admin/settings": {
+    title: "Settings",
+    breadcrumbs: [{ label: "Admin" }, { label: "Settings" }],
+  },
 };
 
 export function AdminHeader({ title, description }: AdminHeaderProps) {
@@ -80,9 +125,7 @@ export function AdminHeader({ title, description }: AdminHeaderProps) {
               ))}
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className="text-lg md:text-2xl font-bold text-foreground truncate">
-            {displayTitle}
-          </h1>
+          <h1 className="text-lg md:text-2xl font-bold text-foreground truncate">{displayTitle}</h1>
           {description && (
             <p className="text-sm text-muted-foreground mt-1 hidden md:block truncate">
               {description}
@@ -93,10 +136,12 @@ export function AdminHeader({ title, description }: AdminHeaderProps) {
         {/* Right: Search, Notifications, Profile */}
         <div className="flex items-center gap-2 md:gap-4">
           {/* Search */}
-          <div className={cn(
-            "hidden md:flex items-center gap-2 transition-all",
-            searchOpen ? "w-48" : "w-auto"
-          )}>
+          <div
+            className={cn(
+              "hidden md:flex items-center gap-2 transition-all",
+              searchOpen ? "w-48" : "w-auto",
+            )}
+          >
             {searchOpen ? (
               <Input
                 placeholder="Search..."
@@ -117,11 +162,7 @@ export function AdminHeader({ title, description }: AdminHeaderProps) {
           </div>
 
           {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 relative"
-          >
+          <Button variant="ghost" size="icon" className="h-9 w-9 relative">
             <Bell className="h-4 w-4" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
           </Button>
@@ -135,7 +176,7 @@ export function AdminHeader({ title, description }: AdminHeaderProps) {
                   <AvatarFallback className="text-xs font-semibold">
                     {admin?.full_name
                       ?.split(" ")
-                      .map(n => n[0])
+                      .map((n) => n[0])
                       .join("")
                       .toUpperCase() || "AD"}
                   </AvatarFallback>

@@ -20,7 +20,9 @@ function CheckoutPage() {
   const navigate = useNavigate();
   const { cartProducts, totals, clearCart, user, addresses, addAddress } = useShop();
   const [step, setStep] = React.useState<"address" | "delivery" | "payment" | "review">("address");
-  const [selectedAddress, setSelectedAddress] = React.useState<string | null>(addresses[0]?.id || null);
+  const [selectedAddress, setSelectedAddress] = React.useState<string | null>(
+    addresses[0]?.id || null,
+  );
   const [selectedDelivery, setSelectedDelivery] = React.useState("standard");
   const [submittingPayment, setSubmittingPayment] = React.useState(false);
   const [newAddress, setNewAddress] = React.useState({
@@ -52,7 +54,14 @@ function CheckoutPage() {
   }
 
   const handleAddNewAddress = () => {
-    if (!newAddress.name || !newAddress.phone || !newAddress.line1 || !newAddress.city || !newAddress.state || !newAddress.pincode) {
+    if (
+      !newAddress.name ||
+      !newAddress.phone ||
+      !newAddress.line1 ||
+      !newAddress.city ||
+      !newAddress.state ||
+      !newAddress.pincode
+    ) {
       toast.error("Please fill all address fields");
       return;
     }
@@ -146,12 +155,16 @@ function CheckoutPage() {
                           }`}
                         >
                           <div className="flex items-start gap-4">
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                              selectedAddress === addr.id
-                                ? "border-blue-600 bg-blue-600"
-                                : "border-gray-300"
-                            }`}>
-                              {selectedAddress === addr.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                            <div
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
+                                selectedAddress === addr.id
+                                  ? "border-blue-600 bg-blue-600"
+                                  : "border-gray-300"
+                              }`}
+                            >
+                              {selectedAddress === addr.id && (
+                                <div className="w-2 h-2 bg-white rounded-full" />
+                              )}
                             </div>
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900 text-base">{addr.name}</p>
@@ -251,9 +264,27 @@ function CheckoutPage() {
 
                   <div className="space-y-4">
                     {[
-                      { id: "standard", label: "Standard Delivery", days: "5-7 business days", price: 49, badge: "STANDARD" },
-                      { id: "express", label: "Express Delivery", days: "2-3 business days", price: 149, badge: "FASTER" },
-                      { id: "priority", label: "Priority Delivery", days: "Next day", price: 299, badge: "FASTEST" },
+                      {
+                        id: "standard",
+                        label: "Standard Delivery",
+                        days: "5-7 business days",
+                        price: 49,
+                        badge: "STANDARD",
+                      },
+                      {
+                        id: "express",
+                        label: "Express Delivery",
+                        days: "2-3 business days",
+                        price: 149,
+                        badge: "FASTER",
+                      },
+                      {
+                        id: "priority",
+                        label: "Priority Delivery",
+                        days: "Next day",
+                        price: 299,
+                        badge: "FASTEST",
+                      },
                     ].map((option) => (
                       <label
                         key={option.id}
@@ -264,16 +295,22 @@ function CheckoutPage() {
                         }`}
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                            selectedDelivery === option.id
-                              ? "border-blue-600 bg-blue-600"
-                              : "border-gray-300"
-                          }`}>
-                            {selectedDelivery === option.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
+                              selectedDelivery === option.id
+                                ? "border-blue-600 bg-blue-600"
+                                : "border-gray-300"
+                            }`}
+                          >
+                            {selectedDelivery === option.id && (
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            )}
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-1">
-                              <p className="font-semibold text-gray-900 text-base">{option.label}</p>
+                              <p className="font-semibold text-gray-900 text-base">
+                                {option.label}
+                              </p>
                               <span className="px-2.5 py-0.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-bold rounded-full">
                                 {option.badge}
                               </span>
@@ -298,16 +335,16 @@ function CheckoutPage() {
                 </div>
 
                 <div className="flex gap-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setStep("address")} 
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep("address")}
                     className="flex-1 rounded-lg border-gray-200 hover:bg-gray-50"
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button 
-                    onClick={() => setStep("payment")} 
+                  <Button
+                    onClick={() => setStep("payment")}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold"
                   >
                     Continue to Payment <ArrowLeft className="w-4 h-4 ml-2 rotate-180" />
@@ -328,29 +365,46 @@ function CheckoutPage() {
                   <div className="space-y-4">
                     {[
                       { id: "upi", label: "UPI", desc: "Fast & secure using UPI apps", icon: "📱" },
-                      { id: "card", label: "Credit/Debit Card", desc: "Visa, Mastercard, RuPay", icon: "💳" },
-                      { id: "wallet", label: "Digital Wallet", desc: "PhonePe, Google Pay, Amazon Pay", icon: "👛" },
-                      { id: "cod", label: "Cash on Delivery", desc: "Pay when you receive your order", icon: "💰" },
+                      {
+                        id: "card",
+                        label: "Credit/Debit Card",
+                        desc: "Visa, Mastercard, RuPay",
+                        icon: "💳",
+                      },
+                      {
+                        id: "wallet",
+                        label: "Digital Wallet",
+                        desc: "PhonePe, Google Pay, Amazon Pay",
+                        icon: "👛",
+                      },
+                      {
+                        id: "cod",
+                        label: "Cash on Delivery",
+                        desc: "Pay when you receive your order",
+                        icon: "💰",
+                      },
                     ].map((option, idx) => (
                       <label
                         key={option.id}
                         className="border-2 rounded-xl p-5 cursor-pointer transition-all duration-200 border-gray-200 hover:border-gray-300 hover:shadow-sm"
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                            idx === 0
-                              ? "border-blue-600 bg-blue-600"
-                              : "border-gray-300"
-                          }`}>
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
+                              idx === 0 ? "border-blue-600 bg-blue-600" : "border-gray-300"
+                            }`}
+                          >
                             {idx === 0 && <div className="w-2 h-2 bg-white rounded-full" />}
                           </div>
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-900 text-base">{option.icon} {option.label}</p>
+                            <p className="font-semibold text-gray-900 text-base">
+                              {option.icon} {option.label}
+                            </p>
                             <p className="text-sm text-gray-600 mt-1">{option.desc}</p>
                           </div>
-                          <input 
-                            type="radio" 
-                            name="payment" 
+                          <input
+                            type="radio"
+                            name="payment"
                             value={option.id}
                             defaultChecked={idx === 0}
                             className="hidden"
@@ -365,22 +419,24 @@ function CheckoutPage() {
                     <Lock className="w-5 h-5 text-green-600 flex-shrink-0" />
                     <div>
                       <p className="font-semibold text-green-900 text-sm">Secure Payment</p>
-                      <p className="text-xs text-green-700">Your payment information is encrypted and secure</p>
+                      <p className="text-xs text-green-700">
+                        Your payment information is encrypted and secure
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex gap-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setStep("delivery")} 
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep("delivery")}
                     className="flex-1 rounded-lg border-gray-200 hover:bg-gray-50"
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button 
-                    onClick={() => setStep("review")} 
+                  <Button
+                    onClick={() => setStep("review")}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold"
                   >
                     Continue to Review <ArrowLeft className="w-4 h-4 ml-2 rotate-180" />
@@ -402,27 +458,36 @@ function CheckoutPage() {
                   <div className="border-2 border-gray-200 rounded-xl p-6 mb-6">
                     <h3 className="font-semibold text-gray-900 mb-4 text-lg">Order Items</h3>
                     <div className="space-y-4">
-                      {cartProducts.filter(({ product }) => product).map(({ product, line }) => (
-                        <div
-                          key={`${product.id}-${line.color || ""}-${line.size || ""}`}
-                          className="flex items-start gap-4 pb-4 border-b border-gray-200 last:border-0"
-                        >
-                          {product.images?.[0] && (
-                            <img 
-                              src={product.images[0]} 
-                              alt={product.name}
-                              className="w-16 h-16 rounded-lg object-cover bg-gray-100"
+                      {cartProducts
+                        .filter(({ product }) => product)
+                        .map(({ product, line }) => (
+                          <div
+                            key={`${product.id}-${line.color || ""}-${line.size || ""}`}
+                            className="flex items-start gap-4 pb-4 border-b border-gray-200 last:border-0"
+                          >
+                            {product.images?.[0] && (
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="w-16 h-16 rounded-lg object-cover bg-gray-100"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 truncate">{product.name}</p>
+                              <p className="text-sm text-gray-600">Quantity: {line.quantity}</p>
+                              {line.color && (
+                                <p className="text-xs text-gray-600 mt-1">Color: {line.color}</p>
+                              )}
+                              {line.size && (
+                                <p className="text-xs text-gray-600">Size: {line.size}</p>
+                              )}
+                            </div>
+                            <Price
+                              value={product.price * line.quantity}
+                              className="font-bold text-lg flex-shrink-0"
                             />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 truncate">{product.name}</p>
-                            <p className="text-sm text-gray-600">Quantity: {line.quantity}</p>
-                            {line.color && <p className="text-xs text-gray-600 mt-1">Color: {line.color}</p>}
-                            {line.size && <p className="text-xs text-gray-600">Size: {line.size}</p>}
                           </div>
-                          <Price value={product.price * line.quantity} className="font-bold text-lg flex-shrink-0" />
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </div>
 
@@ -441,7 +506,9 @@ function CheckoutPage() {
                           <p className="text-sm text-gray-600 mt-2">
                             {addresses.find((a) => a.id === selectedAddress)?.line1}
                             <br />
-                            {addresses.find((a) => a.id === selectedAddress)?.city}, {addresses.find((a) => a.id === selectedAddress)?.state} {addresses.find((a) => a.id === selectedAddress)?.pincode}
+                            {addresses.find((a) => a.id === selectedAddress)?.city},{" "}
+                            {addresses.find((a) => a.id === selectedAddress)?.state}{" "}
+                            {addresses.find((a) => a.id === selectedAddress)?.pincode}
                           </p>
                           <p className="text-sm text-gray-600 mt-2">
                             📱 {addresses.find((a) => a.id === selectedAddress)?.phone}
@@ -453,9 +520,9 @@ function CheckoutPage() {
                 </div>
 
                 <div className="flex gap-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setStep("payment")} 
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep("payment")}
                     className="flex-1 rounded-lg border-gray-200 hover:bg-gray-50"
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
@@ -483,21 +550,31 @@ function CheckoutPage() {
               </h2>
 
               <div className="space-y-3 max-h-96 overflow-y-auto mb-6 pb-6 border-b border-gray-200">
-                {cartProducts.filter(({ product }) => product).map(({ product, line }) => (
-                  <div key={`${product.id}-${line.color || ""}-${line.size || ""}`} className="flex justify-between items-start text-sm">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-700 truncate font-medium">{product.name}</p>
-                      <p className="text-xs text-gray-600">x{line.quantity}</p>
+                {cartProducts
+                  .filter(({ product }) => product)
+                  .map(({ product, line }) => (
+                    <div
+                      key={`${product.id}-${line.color || ""}-${line.size || ""}`}
+                      className="flex justify-between items-start text-sm"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-700 truncate font-medium">{product.name}</p>
+                        <p className="text-xs text-gray-600">x{line.quantity}</p>
+                      </div>
+                      <Price
+                        value={product.price * line.quantity}
+                        className="text-gray-900 font-semibold flex-shrink-0 ml-2"
+                      />
                     </div>
-                    <Price value={product.price * line.quantity} className="text-gray-900 font-semibold flex-shrink-0 ml-2" />
-                  </div>
-                ))}
+                  ))}
               </div>
 
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="text-gray-900 font-semibold"><Price value={totals.subtotal} /></span>
+                  <span className="text-gray-900 font-semibold">
+                    <Price value={totals.subtotal} />
+                  </span>
                 </div>
                 {totals.discount > 0 && (
                   <div className="flex justify-between text-sm">
@@ -507,7 +584,9 @@ function CheckoutPage() {
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Delivery</span>
-                  <span className="text-gray-900 font-semibold">{totals.shipping === 0 ? "FREE 🎉" : `₹${totals.shipping}`}</span>
+                  <span className="text-gray-900 font-semibold">
+                    {totals.shipping === 0 ? "FREE 🎉" : `₹${totals.shipping}`}
+                  </span>
                 </div>
               </div>
 
@@ -570,7 +649,7 @@ function StepIndicator({
         {steps.map((s, idx) => {
           const isComplete = idx < currentStepIndex;
           const isCurrent = idx === currentStepIndex;
-          
+
           return (
             <React.Fragment key={s.id}>
               <button
@@ -589,19 +668,13 @@ function StepIndicator({
                         : "border-gray-300 bg-white text-gray-400"
                   }`}
                 >
-                  {isComplete ? (
-                    <CheckCircle className="w-6 h-6" />
-                  ) : (
-                    s.icon
-                  )}
+                  {isComplete ? <CheckCircle className="w-6 h-6" /> : s.icon}
                 </div>
-                <span className={`text-xs font-semibold transition-colors ${
-                  isCurrent
-                    ? "text-blue-600"
-                    : isComplete
-                      ? "text-green-600"
-                      : "text-gray-600"
-                }`}>
+                <span
+                  className={`text-xs font-semibold transition-colors ${
+                    isCurrent ? "text-blue-600" : isComplete ? "text-green-600" : "text-gray-600"
+                  }`}
+                >
                   {s.label}
                 </span>
               </button>

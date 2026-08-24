@@ -1,6 +1,6 @@
 /**
  * Frontend service layer - Real API Integration (with Mock Fallback)
- * 
+ *
  * Calls REST APIs from FastAPI backend.
  * Falls back to mock data while backend is initializing.
  * API base: http://localhost:8000/api/v1
@@ -23,6 +23,7 @@ import {
 
 const API_BASE = import.meta.env["VITE_API_URL"] || "http://localhost:8000/api/v1";
 let assistantConversationId: string | undefined;
+const SHOP_STATE_KEY = "shopnest-state-v1";
 
 export interface ProductQuery {
   search?: string;
@@ -49,6 +50,81 @@ export interface Paged<T> {
   pages: number;
 }
 
+export interface CatalogCategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface CatalogBrandOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface BackendProduct {
+  id: string;
+  name: string;
+  slug: string;
+  short_description: string;
+  description: string;
+  is_published: boolean;
+  category_name?: string | null;
+  category_slug?: string | null;
+  brand_name?: string | null;
+  average_rating?: number;
+  review_count?: number;
+  variants: Array<{
+    sku: string;
+    price: string | number;
+    quantity_available: number;
+    inventory_reserved?: number;
+    is_default: boolean;
+  }>;
+  media: Array<{ media_url: string; sort_order: number }>;
+}
+
+const productCache = new Map<string, Product>();
+
+function mapApiProduct(product: BackendProduct): Product {
+  const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
+  const price = Number(variant?.price ?? 0);
+
+  return {
+    id: product.id,
+    sku: variant?.sku ?? product.slug,
+    name: product.name,
+    slug: product.slug,
+    brand: product.brand_name ?? "Unbranded",
+    category: product.category_name ?? "Uncategorized",
+    categorySlug: product.category_slug ?? "uncategorized",
+    subcategory: "",
+    description: product.description,
+    shortDescription: product.short_description,
+    images: [...product.media]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((media) => media.media_url),
+    mrp: price,
+    price,
+    costPrice: 0,
+    rating: Number(product.average_rating ?? 0),
+    reviewCount: Number(product.review_count ?? 0),
+    stock: variant?.quantity_available ?? 0,
+    reserved: variant?.inventory_reserved ?? 0,
+    minStock: 0,
+    colors: [],
+    sizes: [],
+    specifications: [],
+    tags: [],
+    status: product.is_published ? "active" : "draft",
+    createdAt: "",
+    featured: false,
+    trending: false,
+    bestSeller: false,
+    deal: false,
+  };
+}
+
 export interface StripeCheckoutItem {
   product_id: string;
   name: string;
@@ -62,6 +138,34 @@ export interface StripeCheckoutRequest {
   customer_email?: string;
   success_path?: string;
   cancel_path?: string;
+}
+
+function getStoredAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+
+  const authTokens = localStorage.getItem("authTokens");
+  if (authTokens) {
+    try {
+      const parsed = JSON.parse(authTokens) as { access_token?: unknown };
+      if (typeof parsed.access_token === "string") return parsed.access_token;
+    } catch {
+      /* ignore corrupt token storage */
+    }
+  }
+
+  const shopState = localStorage.getItem(SHOP_STATE_KEY);
+  if (!shopState) return null;
+  try {
+    const parsed = JSON.parse(shopState) as { tokens?: { access_token?: unknown } };
+    return typeof parsed.tokens?.access_token === "string" ? parsed.tokens.access_token : null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(): HeadersInit {
+  const token = getStoredAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 // ============================================================================
@@ -83,9 +187,15 @@ export const productService = {
 
     const response = await fetch(`${API_BASE}/products?${params.toString()}`);
     if (!response.ok) throw new Error("Unable to load products from the server.");
-    const data = await response.json();
+    const data = (await response.json()) as {
+      items: BackendProduct[];
+      total: number;
+      page: number;
+      per_page: number;
+      pages: number;
+    };
     const items = data.items.map(mapApiProduct);
-    items.forEach((product: Product) => productCache.set(product.id, product));
+    items.forEach((product) => productCache.set(product.id, product));
     return {
       items,
       total: data.total,
@@ -96,14 +206,11 @@ export const productService = {
   },
 
   byId(id: string): Product | undefined {
-    // Use mock data only - API not implemented yet
-    return products.find((p) => p.id === id);
+    return productCache.get(id) ?? products.find((product) => product.id === id);
   },
 
   byIds(ids: string[]): Product[] {
-    return ids
-      .map((id) => this.byId(id))
-      .filter((product): product is Product => Boolean(product));
+    return ids.map((id) => this.byId(id)).filter((product): product is Product => Boolean(product));
   },
 
   all(): Product[] {
@@ -150,7 +257,11 @@ export const productService = {
     }
   },
 
-  suggestions(_term: string) {
+  suggestions(_term: string): {
+    categories: CatalogCategoryOption[];
+    brands: CatalogBrandOption[];
+    products: Product[];
+  } {
     return {
       // Search results are loaded from the backend after submission.
       categories: [],
@@ -158,7 +269,7 @@ export const productService = {
       products: [],
     };
   },
-  
+
   get popularSearches() {
     return popularSearches;
   },
@@ -172,13 +283,13 @@ export const catalogService = {
   async categories() {
     const response = await fetch(`${API_BASE}/categories`);
     if (!response.ok) throw new Error("Failed to fetch categories");
-    return response.json();
+    return (await response.json()) as CatalogCategoryOption[];
   },
 
   async brands() {
     const response = await fetch(`${API_BASE}/brands`);
     if (!response.ok) throw new Error("Failed to fetch brands");
-    return response.json();
+    return (await response.json()) as CatalogBrandOption[];
   },
 
   attributes() {
@@ -204,23 +315,47 @@ export const catalogService = {
 
 export const orderService = {
   async list(): Promise<Order[]> {
-    // TODO: Implement with backend API
-    return [];
+    const token = getStoredAccessToken();
+    if (!token) return [];
+
+    const response = await fetch(`${API_BASE}/orders`, {
+      headers: authHeaders(),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load orders");
+    }
+
+    const payload = (await response.json()) as BackendOrder[];
+    return payload.map(toOrder);
   },
 
   async byId(id: string): Promise<Order | undefined> {
-    // TODO: Implement with backend API
-    return undefined;
+    const token = getStoredAccessToken();
+    if (!token) return undefined;
+
+    const response = await fetch(`${API_BASE}/orders/${id}`, {
+      headers: authHeaders(),
+    });
+
+    if (response.status === 404) return undefined;
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load order");
+    }
+
+    return toOrder((await response.json()) as BackendOrder);
   },
 
   async byStatus(status: string): Promise<Order[]> {
-    // TODO: Implement with backend API
-    return [];
+    const list = await this.list();
+    return list.filter((order) => order.status === status);
   },
 
   async byCustomer(customerId: string): Promise<Order[]> {
-    // TODO: Implement with backend API
-    return [];
+    const list = await this.list();
+    return list.filter((order) => order.customerId === customerId);
   },
 };
 
@@ -269,35 +404,88 @@ export const customerService = {
 
 export const authService = {
   async login(email: string, password: string) {
-    // Mock for now - will be integrated with backend
-    if (email && password.length >= 4) {
-      return {
-        id: "user-1",
-        name: "Customer",
-        email,
-      };
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Login failed");
     }
-    throw new Error("Invalid credentials");
+
+    const payload = await response.json();
+    localStorage.setItem(
+      "authTokens",
+      JSON.stringify({
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token,
+      }),
+    );
+    return payload;
   },
 
   async adminLogin(email: string, password: string) {
-    // Mock for now - will be integrated with backend
-    if (email && password.length >= 4) {
-      return {
-        name: "Admin",
-        email,
-        role: "admin",
-      };
-    }
-    throw new Error("Invalid credentials");
+    return this.login(email, password);
   },
 
-  async register(email: string, password: string, name: string) {
-    return {
-      id: "user-new",
-      name,
-      email,
-    };
+  async register(email: string, fullName: string, password: string) {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, full_name: fullName, password }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Registration failed");
+    }
+
+    const payload = await response.json();
+    localStorage.setItem(
+      "authTokens",
+      JSON.stringify({
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token,
+      }),
+    );
+    return payload;
+  },
+
+  logout() {
+    localStorage.removeItem("authTokens");
+  },
+
+  getAccessToken() {
+    return getStoredAccessToken();
+  },
+
+  getUser() {
+    if (typeof window === "undefined") return null;
+    const shopState = localStorage.getItem(SHOP_STATE_KEY);
+    if (!shopState) return null;
+    try {
+      const parsed = JSON.parse(shopState) as { user?: unknown; admin?: unknown };
+      return parsed.user ?? parsed.admin ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  getUserRoles(): string[] {
+    const user = this.getUser() as { roles?: unknown } | null;
+    return Array.isArray(user?.roles)
+      ? user.roles.filter((role): role is string => typeof role === "string")
+      : [];
+  },
+
+  isAdmin() {
+    return this.getUserRoles().some((role) => ["super_admin", "admin_catalog"].includes(role));
+  },
+
+  isSeller() {
+    return this.getUserRoles().includes("seller_owner");
   },
 };
 
@@ -310,7 +498,7 @@ export const chatbotService = {
     try {
       const response = await fetch(`${API_BASE}/assistant`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           prompt: message,
           conversation_id: assistantConversationId,
@@ -327,7 +515,12 @@ export const chatbotService = {
         answer: string;
         products: BackendAssistantProduct[];
         intent?: string;
-        metadata?: { suggestions?: string[]; popular_search_terms?: string[] };
+        used_tools?: string[];
+        metadata?: {
+          suggestions?: string[];
+          popular_search_terms?: string[];
+          orchestrator?: string;
+        };
       };
 
       assistantConversationId = payload.conversation_id;
@@ -337,6 +530,9 @@ export const chatbotService = {
         text: payload.answer,
         conversationId: payload.conversation_id,
         intent: payload.intent,
+        usedTools: payload.used_tools ?? [],
+        orchestrator: payload.metadata?.orchestrator,
+        source: "backend",
         productResults: payload.products.map(toAssistantProductResult),
         suggestions: payload.metadata?.suggestions ?? payload.metadata?.popular_search_terms ?? [],
       };
@@ -373,6 +569,7 @@ export const chatbotService = {
           : "I can help you find products, compare prices, or look up product IDs.",
       products: matchedProducts.map((product) => product.id),
       suggestions: ["Try headphones", "Show running shoes", "Find deals"],
+      source: "fallback",
     };
   },
 };
@@ -408,4 +605,88 @@ function toAssistantProductResult(product: BackendAssistantProduct): AssistantPr
     currency: variant?.currency ?? "INR",
     stock: variant?.quantity_available ?? 0,
   };
+}
+
+interface BackendOrderItem {
+  id: string;
+  product_id: string;
+  variant_id: string;
+  product_name: string;
+  variant_name: string;
+  sku: string;
+  quantity: number;
+  unit_price: string | number;
+  line_total: string | number;
+}
+
+interface BackendOrder {
+  id: string;
+  order_number: string;
+  status: string;
+  currency: string;
+  subtotal: string | number;
+  shipping_name: string;
+  address_line1: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  created_at: string;
+  items: BackendOrderItem[];
+}
+
+function toOrder(order: BackendOrder): Order {
+  const subtotal = Number(order.subtotal ?? 0);
+  const items = order.items.map((item) => ({
+    productId: item.product_id,
+    name: item.product_name,
+    image: "",
+    variant: item.variant_name || item.sku,
+    price: Number(item.unit_price ?? 0),
+    quantity: item.quantity,
+  }));
+  const normalizedStatus = normalizeOrderStatus(order.status);
+
+  return {
+    id: order.id,
+    customerId: "",
+    customerName: order.shipping_name,
+    email: "",
+    date: order.created_at,
+    items,
+    subtotal,
+    discount: 0,
+    shipping: 0,
+    total: subtotal,
+    status: normalizedStatus,
+    payment: {
+      method: "Stripe",
+      status: normalizedStatus === "pending" ? "pending" : "paid",
+    },
+    address: {
+      name: order.shipping_name,
+      phone: "",
+      line1: order.address_line1,
+      city: order.city,
+      state: order.state,
+      pincode: order.postal_code,
+    },
+    timeline: buildOrderTimeline(normalizedStatus, order.created_at),
+  };
+}
+
+function normalizeOrderStatus(status: string): Order["status"] {
+  if (["pending", "processing", "shipped", "delivered", "cancelled"].includes(status)) {
+    return status as Order["status"];
+  }
+  if (status === "paid") return "processing";
+  return "pending";
+}
+
+function buildOrderTimeline(status: Order["status"], date: string) {
+  return [
+    { label: "Order placed", date, done: true },
+    { label: "Payment confirmed", date, done: status !== "pending" && status !== "cancelled" },
+    { label: "Shipped", date, done: ["shipped", "delivered"].includes(status) },
+    { label: "Delivered", date, done: status === "delivered" },
+  ];
 }

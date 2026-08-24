@@ -7,7 +7,7 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
-import { catalogService } from "@/services";
+import { type CatalogBrandOption, type CatalogCategoryOption, catalogService } from "@/services";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/products/create")({
@@ -26,26 +26,27 @@ const productSchema = z.object({
     z.object({
       name: z.string().min(1, "Variant name required"),
       sku: z.string().min(2, "SKU required"),
-      price: z.string().transform((v) => parseFloat(v)),
-      quantity_available: z.string().transform((v) => parseInt(v)),
+      price: z.coerce.number().positive("Price must be greater than zero"),
+      quantity_available: z.coerce.number().int().nonnegative(),
       is_default: z.boolean().default(false),
-    })
+    }),
   ),
   media: z.array(
     z.object({
       media_url: z.string().url("Valid URL required"),
       alt_text: z.string().optional(),
-    })
+    }),
   ),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
+type ProductFormInput = z.input<typeof productSchema>;
 
 function CreateProduct() {
   const { admin } = useShop();
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
+  const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -54,10 +55,7 @@ function CreateProduct() {
 
   const loadOptions = async () => {
     try {
-      const [cats, brs] = await Promise.all([
-        catalogService.categories(),
-        catalogService.brands(),
-      ]);
+      const [cats, brs] = await Promise.all([catalogService.categories(), catalogService.brands()]);
       setCategories(cats);
       setBrands(brs);
     } catch (err) {
@@ -65,20 +63,33 @@ function CreateProduct() {
     }
   };
 
-  const { register, control, handleSubmit, formState: { errors } } = useForm<ProductFormData>({
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProductFormInput, unknown, ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      variants: [{ name: "Default", sku: "", price: "0", quantity_available: "0", is_default: true }],
+      variants: [{ name: "Default", sku: "", price: 0, quantity_available: 0, is_default: true }],
       media: [],
     },
   });
 
-  const { fields: variantFields, append: appendVariant, remove: removeVariant } = useFieldArray({
+  const {
+    fields: variantFields,
+    append: appendVariant,
+    remove: removeVariant,
+  } = useFieldArray({
     control,
     name: "variants",
   });
 
-  const { fields: mediaFields, append: appendMedia, remove: removeMedia } = useFieldArray({
+  const {
+    fields: mediaFields,
+    append: appendMedia,
+    remove: removeMedia,
+  } = useFieldArray({
     control,
     name: "media",
   });
@@ -131,9 +142,7 @@ function CreateProduct() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Slug *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">Slug *</label>
                     <Input {...register("slug")} />
                     {errors.slug && (
                       <p className="text-red-600 text-sm mt-1">{errors.slug.message}</p>
@@ -146,7 +155,10 @@ function CreateProduct() {
                     <label className="block text-sm font-medium text-gray-900 mb-2">
                       Category *
                     </label>
-                    <select {...register("category_id")} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <select
+                      {...register("category_id")}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
                       <option value="">Select Category</option>
                       {categories.map((cat) => (
                         <option key={cat.id} value={cat.id}>
@@ -159,10 +171,11 @@ function CreateProduct() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      Brand
-                    </label>
-                    <select {...register("brand_id")} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">Brand</label>
+                    <select
+                      {...register("brand_id")}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
                       <option value="">Select Brand</option>
                       {brands.map((br) => (
                         <option key={br.id} value={br.id}>
@@ -177,14 +190,22 @@ function CreateProduct() {
                   <label className="block text-sm font-medium text-gray-900 mb-2">
                     Short Description
                   </label>
-                  <textarea {...register("short_description")} className="w-full px-3 py-2 border border-gray-300 rounded-lg" rows={2} />
+                  <textarea
+                    {...register("short_description")}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    rows={2}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-900 mb-2">
                     Full Description
                   </label>
-                  <textarea {...register("description")} className="w-full px-3 py-2 border border-gray-300 rounded-lg" rows={4} />
+                  <textarea
+                    {...register("description")}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    rows={4}
+                  />
                 </div>
               </div>
             </div>
@@ -201,7 +222,10 @@ function CreateProduct() {
                     </div>
                     <div className="grid grid-cols-3 gap-4 mt-4">
                       <Input {...register(`variants.${idx}.price`)} placeholder="Price" />
-                      <Input {...register(`variants.${idx}.quantity_available`)} placeholder="Quantity" />
+                      <Input
+                        {...register(`variants.${idx}.quantity_available`)}
+                        placeholder="Quantity"
+                      />
                       <label className="flex items-center">
                         <input type="checkbox" {...register(`variants.${idx}.is_default`)} />
                         <span className="ml-2 text-sm">Default</span>
@@ -227,8 +251,8 @@ function CreateProduct() {
                   appendVariant({
                     name: "",
                     sku: "",
-                    price: "0",
-                    quantity_available: "0",
+                    price: 0,
+                    quantity_available: 0,
                     is_default: false,
                   })
                 }
@@ -243,7 +267,10 @@ function CreateProduct() {
               <h2 className="text-lg font-bold mb-4">Images</h2>
               <div className="space-y-4">
                 {mediaFields.map((field, idx) => (
-                  <div key={field.id} className="p-4 border border-gray-200 rounded-lg grid grid-cols-2 gap-4">
+                  <div
+                    key={field.id}
+                    className="p-4 border border-gray-200 rounded-lg grid grid-cols-2 gap-4"
+                  >
                     <Input {...register(`media.${idx}.media_url`)} placeholder="Image URL" />
                     <div>
                       <Input {...register(`media.${idx}.alt_text`)} placeholder="Alt Text" />

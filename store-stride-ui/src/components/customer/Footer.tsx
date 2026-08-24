@@ -30,8 +30,8 @@ export function Footer() {
             <span className="text-lg font-extrabold tracking-tight">ShopNest</span>
           </Link>
           <p className="mt-3 max-w-sm text-sm text-muted-foreground">
-            A curated marketplace for electronics, fashion, beauty and home essentials —
-            with dependable delivery across India.
+            A curated marketplace for electronics, fashion, beauty and home essentials — with
+            dependable delivery across India.
           </p>
           <form
             className="mt-5 flex max-w-sm gap-2"

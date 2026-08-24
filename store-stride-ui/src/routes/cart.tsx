@@ -74,73 +74,74 @@ function CartPage() {
           {/* Cart Items */}
           <div className="lg:col-span-2">
             <div className="space-y-4">
-              {cartProducts.filter(({ product }) => product).map(({ product, line }) => (
-                <div
-                  key={`${product.id}-${line.color || ""}-${line.size || ""}`}
-                  className="border rounded-lg p-4 flex gap-4"
-                >
-                  {/* Product Image */}
-                  <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                    {product.images?.[0] && (
-                      <img
-                        src={product.images[0]}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
+              {cartProducts
+                .filter(({ product }) => product)
+                .map(({ product, line }) => (
+                  <div
+                    key={`${product.id}-${line.color || ""}-${line.size || ""}`}
+                    className="border rounded-lg p-4 flex gap-4"
+                  >
+                    {/* Product Image */}
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                      {product.images?.[0] && (
+                        <img
+                          src={product.images[0]}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
 
-                  {/* Product Info */}
-                  <div className="flex-1 min-w-0">
-                    <button
-                      onClick={() => navigate({ to: "/products/$id", params: { id: product.id } })}
-                      className="font-semibold text-gray-900 hover:text-blue-600 truncate"
-                    >
-                      {product.name}
-                    </button>
-                    <p className="text-sm text-gray-600">{product.brand}</p>
-                    {line.color && <p className="text-sm text-gray-600">Color: {line.color}</p>}
-                    {line.size && <p className="text-sm text-gray-600">Size: {line.size}</p>}
-                    <div className="mt-3">
-                      <QuantitySelector
-                        value={line.quantity}
-                        min={1}
-                        max={Math.max(1, product.stock)}
-                        onChange={(quantity) => updateQuantity(product.id, quantity)}
-                      />
+                    {/* Product Info */}
+                    <div className="flex-1 min-w-0">
+                      <button
+                        onClick={() =>
+                          navigate({ to: "/products/$id", params: { id: product.id } })
+                        }
+                        className="font-semibold text-gray-900 hover:text-blue-600 truncate"
+                      >
+                        {product.name}
+                      </button>
+                      <p className="text-sm text-gray-600">{product.brand}</p>
+                      {line.color && <p className="text-sm text-gray-600">Color: {line.color}</p>}
+                      {line.size && <p className="text-sm text-gray-600">Size: {line.size}</p>}
+                      <div className="mt-3">
+                        <QuantitySelector
+                          value={line.quantity}
+                          min={1}
+                          max={Math.max(1, product.stock)}
+                          onChange={(quantity) => updateQuantity(product.id, quantity)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Price & Actions */}
+                    <div className="flex flex-col items-end justify-between">
+                      <Price value={product.price} className="font-bold text-lg" />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleWishlist(product.id)}
+                        >
+                          <Heart className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeFromCart(product.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Price & Actions */}
-                  <div className="flex flex-col items-end justify-between">
-                    <Price value={product.price} className="font-bold text-lg" />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleWishlist(product.id)}
-                      >
-                        <Heart className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeFromCart(product.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
 
             {/* Actions */}
             <div className="mt-8 flex gap-4">
-              <Button
-                variant="outline"
-                onClick={() => navigate({ to: "/products" })}
-              >
+              <Button variant="outline" onClick={() => navigate({ to: "/products" })}>
                 <ChevronLeft className="w-4 h-4 mr-2" />
                 Continue Shopping
               </Button>
@@ -169,21 +170,13 @@ function CartPage() {
                     disabled={!!coupon}
                   />
                   {coupon && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => applyCoupon("")}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => applyCoupon("")}>
                       ✕
                     </Button>
                   )}
                 </div>
                 {!coupon && (
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={handleApplyCoupon}
-                  >
+                  <Button size="sm" className="w-full" onClick={handleApplyCoupon}>
                     Apply Coupon
                   </Button>
                 )}

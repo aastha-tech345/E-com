@@ -85,7 +85,17 @@ function isChatMessage(value: unknown): value is ChatMessage {
 }
 
 function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function isAuthTokens(value: unknown): value is AuthTokens {
+  return (
+    isRecord(value) &&
+    typeof value["access_token"] === "string" &&
+    typeof value["refresh_token"] === "string"
+  );
 }
 
 function normalizeStoredState(value: unknown): ShopState {
@@ -97,9 +107,14 @@ function normalizeStoredState(value: unknown): ShopState {
     wishlist: stringArray(value["wishlist"]),
     recentlyViewed: stringArray(value["recentlyViewed"]).slice(0, 12),
     recentSearches: stringArray(value["recentSearches"]).slice(0, 6),
-    user: isRecord(value["user"]) ? (value["user"] as ShopState["user"]) : EMPTY.user,
-    admin: isRecord(value["admin"]) ? (value["admin"] as ShopState["admin"]) : EMPTY.admin,
-    addresses: Array.isArray(value["addresses"]) ? (value["addresses"] as Address[]) : EMPTY.addresses,
+    user: isRecord(value["user"]) ? (value["user"] as unknown as ShopState["user"]) : EMPTY.user,
+    admin: isRecord(value["admin"])
+      ? (value["admin"] as unknown as ShopState["admin"])
+      : EMPTY.admin,
+    tokens: isAuthTokens(value["tokens"]) ? value["tokens"] : EMPTY.tokens,
+    addresses: Array.isArray(value["addresses"])
+      ? (value["addresses"] as Address[])
+      : EMPTY.addresses,
     chat: Array.isArray(value["chat"]) ? value["chat"].filter(isChatMessage) : EMPTY.chat,
     coupon: typeof value["coupon"] === "string" ? value["coupon"] : EMPTY.coupon,
   };
@@ -110,7 +125,11 @@ interface ShopContextValue extends ShopState {
   cartProducts: { product: Product; line: CartLine }[];
   cartCount: number;
   totals: { subtotal: number; discount: number; shipping: number; total: number };
-  addToCart: (productId: string, quantity?: number, opts?: { color?: string; size?: string }) => void;
+  addToCart: (
+    productId: string,
+    quantity?: number,
+    opts?: { color?: string; size?: string },
+  ) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
@@ -186,10 +205,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       (sum, { product, line }) => sum + product.price * line.quantity,
       0,
     );
-    const couponDiscount = state.coupon === "WELCOME10" ? Math.round(subtotal * 0.1)
-      : state.coupon === "FLAT500" && subtotal >= 2999 ? 500
-      : state.coupon === "BIGSALE25" && subtotal >= 4999 ? Math.round(subtotal * 0.25)
-      : 0;
+    const couponDiscount =
+      state.coupon === "WELCOME10"
+        ? Math.round(subtotal * 0.1)
+        : state.coupon === "FLAT500" && subtotal >= 2999
+          ? 500
+          : state.coupon === "BIGSALE25" && subtotal >= 4999
+            ? Math.round(subtotal * 0.25)
+            : 0;
     const shipping = subtotal === 0 || subtotal > 999 ? 0 : 49;
 
     return {
@@ -234,7 +257,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       markViewed: (productId) =>
         patch((s) => ({
           ...s,
-          recentlyViewed: [productId, ...s.recentlyViewed.filter((id) => id !== productId)].slice(0, 12),
+          recentlyViewed: [productId, ...s.recentlyViewed.filter((id) => id !== productId)].slice(
+            0,
+            12,
+          ),
         })),
       addRecentSearch: (term) =>
         patch((s) => ({
@@ -267,7 +293,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("authTokens");
       },
       addAddress: (address) =>
-        patch((s) => ({ ...s, addresses: [...s.addresses, { ...address, id: `AD${Date.now()}` }] })),
+        patch((s) => ({
+          ...s,
+          addresses: [...s.addresses, { ...address, id: `AD${Date.now()}` }],
+        })),
       pushChat: (message) => patch((s) => ({ ...s, chat: [...s.chat, message] })),
       resetChat: () => patch((s) => ({ ...s, chat: [] })),
     };

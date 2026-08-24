@@ -8,13 +8,7 @@ interface StatCardProps {
   color?: "blue" | "green" | "red" | "orange";
 }
 
-export function StatCard({
-  label,
-  value,
-  change,
-  icon: Icon,
-  color = "blue",
-}: StatCardProps) {
+export function StatCard({ label, value, change, icon: Icon, color = "blue" }: StatCardProps) {
   const colorClasses = {
     blue: "bg-blue-50 text-blue-600",
     green: "bg-green-50 text-green-600",
@@ -29,11 +23,7 @@ export function StatCard({
           <p className="text-sm text-gray-600 mb-2">{label}</p>
           <p className="text-2xl font-bold text-gray-900">{value}</p>
           {change !== undefined && (
-            <p
-              className={`text-xs mt-2 ${
-                change >= 0 ? "text-green-600" : "text-red-600"
-              }`}
-            >
+            <p className={`text-xs mt-2 ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
               {change >= 0 ? "↑" : "↓"} {Math.abs(change)}% from last month
             </p>
           )}

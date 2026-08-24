@@ -9,17 +9,22 @@ export function useAuth() {
   const { user, admin } = useShop();
 
   const getCurrentUser = () => user || admin || null;
-  
+
+  const getCurrentRoles = (): string[] => {
+    const currentUser = getCurrentUser();
+    return currentUser?.roles ?? authService.getUserRoles();
+  };
+
   const isAuthenticated = (): boolean => {
     return !!user || !!admin;
   };
 
   const isAdmin = (): boolean => {
-    return authService.isAdmin();
+    return getCurrentRoles().some((role) => ["super_admin", "admin_catalog"].includes(role));
   };
 
   const isSeller = (): boolean => {
-    return authService.isSeller();
+    return getCurrentRoles().includes("seller_owner");
   };
 
   const hasAdminAccess = (): boolean => {
@@ -27,32 +32,32 @@ export function useAuth() {
   };
 
   const isCustomer = (): boolean => {
-    const roles = authService.getUserRoles();
+    const roles = getCurrentRoles();
     return roles.includes("customer") && !isAdmin() && !isSeller();
   };
 
   const hasRole = (role: string): boolean => {
-    const roles = authService.getUserRoles();
+    const roles = getCurrentRoles();
     return roles.includes(role);
   };
 
   const hasAnyRole = (roles: string[]): boolean => {
-    const userRoles = authService.getUserRoles();
-    return roles.some(role => userRoles.includes(role));
+    const userRoles = getCurrentRoles();
+    return roles.some((role) => userRoles.includes(role));
   };
 
   const getUserId = (): string | null => {
-    const user = authService.getUser();
-    return user?.id || null;
+    const currentUser = getCurrentUser();
+    return currentUser?.id || null;
   };
 
   const getUserEmail = (): string | null => {
-    const user = authService.getUser();
-    return user?.email || null;
+    const currentUser = getCurrentUser();
+    return currentUser?.email || null;
   };
 
   const getUserRoles = (): string[] => {
-    return authService.getUserRoles();
+    return getCurrentRoles();
   };
 
   const getAccessToken = (): string | null => {

@@ -13,7 +13,7 @@ export function Rating({
   className?: string;
 }) {
   if (!value) return null;
-  
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <span
@@ -24,9 +24,7 @@ export function Rating({
         <Star size={size - 3} className="fill-current" aria-hidden />
       </span>
       {count != null && (
-        <span className="text-xs text-muted-foreground">
-          ({count.toLocaleString("en-IN")})
-        </span>
+        <span className="text-xs text-muted-foreground">({count.toLocaleString("en-IN")})</span>
       )}
     </div>
   );
@@ -39,7 +37,9 @@ export function StarRow({ value, size = 16 }: { value: number; size?: number }) 
         <Star
           key={i}
           size={size}
-          className={i <= Math.round(value) ? "fill-accent text-accent" : "text-muted-foreground/40"}
+          className={
+            i <= Math.round(value) ? "fill-accent text-accent" : "text-muted-foreground/40"
+          }
           aria-hidden
         />
       ))}
