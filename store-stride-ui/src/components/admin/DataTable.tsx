@@ -1,152 +1,188 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface Column {
-  key: string;
-  label: string;
-  render?: (value: any, row: any) => React.ReactNode;
-  width?: string;
-}
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { ReactNode, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface DataTableProps {
-  columns: Column[];
-  data: any[];
-  onRowClick?: (row: any) => void;
-  actions?: {
+  columns: Array<{
+    key: string;
     label: string;
-    onClick: (row: any) => void;
-  }[];
-  searchable?: boolean;
-  searchFields?: string[];
-  itemsPerPage?: number;
+    width?: string;
+    render?: (value: any, row: any) => ReactNode;
+  }>;
+  data: any[];
+  isLoading?: boolean;
+  isEmpty?: boolean;
+  emptyMessage?: string;
+  emptyAction?: ReactNode;
+  onSearch?: (query: string) => void;
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    onPageChange: (page: number) => void;
+  };
+  rowActions?: (row: any) => ReactNode;
+  className?: string;
 }
 
 export function DataTable({
   columns,
   data,
-  onRowClick,
-  actions,
-  searchable = true,
-  searchFields = ["name"],
-  itemsPerPage = 10,
+  isLoading = false,
+  isEmpty = false,
+  emptyMessage = "No data found",
+  emptyAction,
+  onSearch,
+  pagination,
+  rowActions,
+  className,
 }: DataTableProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const filtered = searchable
-    ? data.filter((row) =>
-        searchFields.some((field) =>
-          String(row[field]).toLowerCase().includes(searchTerm.toLowerCase()),
-        ),
-      )
-    : data;
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    onSearch?.(query);
+  };
 
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const paginatedData = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card className={className}>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {columns.map((col) => (
+                  <TableHead key={col.key} style={{ width: col.width }}>
+                    {col.label}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {columns.map((col) => (
+                    <TableCell key={`${i}-${col.key}`}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Empty state
+  if (isEmpty || data.length === 0) {
+    return (
+      <Card className={className}>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Search className="h-12 w-12 text-muted-foreground/30 mb-4" />
+          <p className="text-muted-foreground font-medium mb-2">{emptyMessage}</p>
+          {emptyAction && <div className="mt-4">{emptyAction}</div>}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {searchable && (
-        <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+      {/* Search Bar */}
+      {onSearch && (
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="flex-1 h-9"
           />
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className="px-4 py-3 text-left font-semibold text-gray-900"
-                  style={{ width: col.width }}
-                >
-                  {col.label}
-                </th>
-              ))}
-              {actions && <th className="px-4 py-3 text-left font-semibold text-gray-900">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedData.map((row, idx) => (
-              <tr
-                key={idx}
-                className="border-b hover:bg-gray-50 cursor-pointer"
-                onClick={() => onRowClick?.(row)}
-              >
+      {/* Table */}
+      <Card className={className}>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-3 text-gray-700">
-                    {col.render
-                      ? col.render(row[col.key], row)
-                      : row[col.key]}
-                  </td>
+                  <TableHead key={col.key} style={{ width: col.width }} className="font-semibold">
+                    {col.label}
+                  </TableHead>
                 ))}
-                {actions && (
-                  <td className="px-4 py-3 flex gap-2">
-                    {actions.map((action, actionIdx) => (
-                      <Button
-                        key={actionIdx}
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          action.onClick(row);
-                        }}
-                      >
-                        {action.label}
-                      </Button>
-                    ))}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                {rowActions && <TableHead className="w-12">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((row, idx) => (
+                <TableRow key={idx} className="hover:bg-muted/50 transition-colors">
+                  {columns.map((col) => (
+                    <TableCell key={`${idx}-${col.key}`} className="py-3">
+                      {col.render ? col.render(row[col.key], row) : row[col.key]}
+                    </TableCell>
+                  ))}
+                  {rowActions && (
+                    <TableCell className="text-right pr-4">
+                      {rowActions(row)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(currentPage - 1)}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+      {/* Pagination */}
+      {pagination && pagination.total > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {(pagination.page - 1) * pagination.pageSize + 1} to{" "}
+            {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{" "}
+            {pagination.total} results
+          </p>
+          <div className="flex items-center gap-2">
             <Button
-              key={page}
-              variant={page === currentPage ? "default" : "outline"}
-              size="sm"
-              onClick={() => setCurrentPage(page)}
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() =>
+                pagination.onPageChange(
+                  Math.max(1, pagination.page - 1)
+                )
+              }
+              disabled={pagination.page === 1}
             >
-              {page}
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(currentPage + 1)}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+            <span className="text-sm">
+              Page {pagination.page}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() =>
+                pagination.onPageChange(pagination.page + 1)
+              }
+              disabled={
+                pagination.page >=
+                Math.ceil(pagination.total / pagination.pageSize)
+              }
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

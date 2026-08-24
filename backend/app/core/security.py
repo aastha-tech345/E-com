@@ -23,11 +23,30 @@ def create_access_token(
     extra: dict[str, Any] | None = None,
 ) -> str:
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.access_token_expiry_minutes))
-    payload: dict[str, Any] = {"sub": subject, "exp": expire}
+    payload: dict[str, Any] = {"sub": subject, "exp": expire, "type": "access"}
     if extra:
         payload.update(extra)
     return jwt.encode(payload, settings.secret_key, algorithm="HS256")
 
 
+def create_refresh_token(
+    subject: str,
+    expires_delta: timedelta | None = None,
+) -> str:
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=7))
+    payload: dict[str, Any] = {"sub": subject, "exp": expire, "type": "refresh"}
+    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
+
+
 def decode_access_token(token: str) -> dict[str, Any]:
-    return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    decoded = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    if decoded.get("type") != "access":
+        raise ValueError("Invalid token type")
+    return decoded
+
+
+def decode_refresh_token(token: str) -> dict[str, Any]:
+    decoded = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    if decoded.get("type") != "refresh":
+        raise ValueError("Invalid token type")
+    return decoded

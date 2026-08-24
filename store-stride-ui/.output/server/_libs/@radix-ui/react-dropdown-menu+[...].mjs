@@ -1,10 +1,11 @@
 import { i as __toESM } from "../../_runtime.mjs";
 import { a as offset, c as useFloating, i as limitShift, n as flip, o as shift, r as hide, s as size, t as arrow, u as require_react } from "../@floating-ui/react-dom+[...].mjs";
-import { a as Primitive, c as useLayoutEffect2, d as createSlot, f as useComposedRefs, i as useSize, l as createContextScope, o as dispatchDiscreteCustomEvent, p as require_jsx_runtime, r as Presence, s as useControllableState } from "./react-checkbox+[...].mjs";
+import { a as Primitive, c as createContextScope, d as useComposedRefs, f as require_jsx_runtime, i as useCallbackRef, o as dispatchDiscreteCustomEvent, s as useLayoutEffect2, u as createSlot } from "./react-avatar+[...].mjs";
 import { t as composeEventHandlers } from "../radix-ui__primitive.mjs";
+import { a as useControllableState, i as useSize, r as Presence } from "./react-checkbox+[...].mjs";
 import { t as createCollection } from "../radix-ui__react-collection.mjs";
 import { t as useDirection } from "../radix-ui__react-direction.mjs";
-import { d as Portal$1, f as useId, g as useCallbackRef, h as DismissableLayer, l as ReactRemoveScroll, m as useFocusGuards, p as FocusScope, u as hideOthers } from "./react-dialog+[...].mjs";
+import { d as Portal$1, f as useId, h as DismissableLayer, l as ReactRemoveScroll, m as useFocusGuards, p as FocusScope, u as hideOthers } from "./react-dialog+[...].mjs";
 import { n as autoUpdate } from "../@floating-ui/dom+[...].mjs";
 //#region node_modules/@radix-ui/react-popper/dist/index.mjs
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);

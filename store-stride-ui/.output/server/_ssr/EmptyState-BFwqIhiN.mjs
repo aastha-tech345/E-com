@@ -1,6 +1,6 @@
-import { p as require_jsx_runtime } from "../_libs/@radix-ui/react-checkbox+[...].mjs";
+import { f as require_jsx_runtime } from "../_libs/@radix-ui/react-avatar+[...].mjs";
 import { t as Button } from "./button-DRsC1qZi.mjs";
-import { D as PackageOpen } from "../_libs/lucide-react.mjs";
+import { O as PackageOpen } from "../_libs/lucide-react.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/EmptyState-BFwqIhiN.js
 var import_jsx_runtime = require_jsx_runtime();
 function EmptyState({ icon: Icon = PackageOpen, title, description, action }) {

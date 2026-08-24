@@ -167,6 +167,9 @@ export interface ChatMessage {
   suggestions?: string[];
   conversationId?: string;
   intent?: string;
+  usedTools?: string[];
+  orchestrator?: string;
+  source?: "backend" | "fallback";
 }
 
 export interface AssistantProductResult {

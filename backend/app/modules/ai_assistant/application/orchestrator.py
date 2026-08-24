@@ -8,7 +8,7 @@ from app.modules.ai_assistant.application.graph import AssistantGraph
 from app.modules.ai_assistant.application.tool_registry import ToolRegistry
 from app.modules.ai_assistant.application.tools import (
     CartSnapshotTool,
-    CatalogSearchTool,
+    LangChainSemanticSearchTool,
     NotificationSummaryTool,
     OrderLookupTool,
     PopularSearchesTool,
@@ -24,7 +24,7 @@ from app.modules.ai_assistant.infrastructure.llm_client import get_llm_client
 def build_tool_registry() -> ToolRegistry:
     return ToolRegistry(
         tools=(
-            CatalogSearchTool(),
+            LangChainSemanticSearchTool(),  # Use LangChain semantic search
             SearchSuggestionsTool(),
             PopularSearchesTool(),
             RecommendationTool(),

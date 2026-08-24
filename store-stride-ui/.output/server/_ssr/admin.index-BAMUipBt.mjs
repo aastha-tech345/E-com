@@ -1,4 +1,4 @@
-import { p as require_jsx_runtime } from "../_libs/@radix-ui/react-checkbox+[...].mjs";
+import { f as require_jsx_runtime } from "../_libs/@radix-ui/react-avatar+[...].mjs";
 import { _ as Navigate } from "../_libs/@tanstack/react-router+[...].mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/admin.index-BAMUipBt.js
 var import_jsx_runtime = require_jsx_runtime();

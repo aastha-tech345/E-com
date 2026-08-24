@@ -1,24 +1,10 @@
 import { i as __toESM } from "../../_runtime.mjs";
 import { l as require_react_dom, u as require_react } from "../@floating-ui/react-dom+[...].mjs";
-import { a as Primitive, c as useLayoutEffect2, d as createSlot, f as useComposedRefs, l as createContextScope, o as dispatchDiscreteCustomEvent, p as require_jsx_runtime, r as Presence, s as useControllableState } from "./react-checkbox+[...].mjs";
+import { a as Primitive, c as createContextScope, d as useComposedRefs, f as require_jsx_runtime, i as useCallbackRef$1, o as dispatchDiscreteCustomEvent, s as useLayoutEffect2, u as createSlot } from "./react-avatar+[...].mjs";
 import { t as composeEventHandlers } from "../radix-ui__primitive.mjs";
-//#region node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs
-var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
-var __defProp$6 = Object.defineProperty;
-var __name$6 = (target, value) => __defProp$6(target, "name", {
-	value,
-	configurable: true
-});
-function useCallbackRef$1(callback) {
-	const callbackRef = import_react.useRef(callback);
-	import_react.useEffect(() => {
-		callbackRef.current = callback;
-	});
-	return import_react.useMemo(() => ((...args) => callbackRef.current?.(...args)), []);
-}
-__name$6(useCallbackRef$1, "useCallbackRef");
-//#endregion
+import { a as useControllableState, r as Presence } from "./react-checkbox+[...].mjs";
 //#region node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs
+var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
 var __defProp$5 = Object.defineProperty;
 var __name$5 = (target, value) => __defProp$5(target, "name", {
@@ -1636,4 +1622,4 @@ function getState(open) {
 }
 __name(getState, "getState");
 //#endregion
-export { DialogOverlay as a, DialogTrigger as c, Portal as d, useId as f, useCallbackRef$1 as g, DismissableLayer as h, DialogDescription as i, ReactRemoveScroll as l, useFocusGuards as m, DialogClose as n, DialogPortal as o, FocusScope as p, DialogContent as r, DialogTitle as s, Dialog as t, hideOthers as u };
+export { DialogOverlay as a, DialogTrigger as c, Portal as d, useId as f, DismissableLayer as h, DialogDescription as i, ReactRemoveScroll as l, useFocusGuards as m, DialogClose as n, DialogPortal as o, FocusScope as p, DialogContent as r, DialogTitle as s, Dialog as t, hideOthers as u };

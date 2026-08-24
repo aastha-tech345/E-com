@@ -1,15 +1,15 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Eye, Filter, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Price } from "@/components/common/Price";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { useShop } from "@/store/shop";
-import { orders } from "@/data/catalog";
 import { EmptyState } from "@/components/common/EmptyState";
+import { orderService } from "@/services";
+import type { Order } from "@/types";
 
 export const Route = createFileRoute("/orders/")({
   component: OrdersPage,
@@ -19,9 +19,41 @@ function OrdersPage() {
   const navigate = useNavigate();
   const { user } = useShop();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [userOrders, setUserOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock: use first customer's orders for demo
-  const userOrders = orders.slice(0, 8);
+  useEffect(() => {
+    let active = true;
+
+    async function loadOrders() {
+      if (!user) {
+        setUserOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const loadedOrders = await orderService.list();
+        if (active) setUserOrders(loadedOrders);
+      } catch (err) {
+        if (active) {
+          setUserOrders([]);
+          setError(err instanceof Error ? err.message : "Unable to load orders");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadOrders();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const filteredOrders = statusFilter
     ? userOrders.filter((o) => o.status === statusFilter)
     : userOrders;
@@ -34,7 +66,18 @@ function OrdersPage() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
         <p className="text-gray-600 mb-8">{filteredOrders.length} orders</p>
 
-        {filteredOrders.length > 0 ? (
+        {loading ? (
+          <div className="rounded-lg border p-8 text-center text-gray-600">Loading orders...</div>
+        ) : error ? (
+          <EmptyState
+            title="Unable to load orders"
+            description={error}
+            action={{
+              label: "Try Again",
+              onClick: () => window.location.reload(),
+            }}
+          />
+        ) : filteredOrders.length > 0 ? (
           <div className="space-y-4">
             {filteredOrders.map((order) => (
               <OrderCard

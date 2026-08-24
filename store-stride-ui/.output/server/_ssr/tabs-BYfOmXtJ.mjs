@@ -1,6 +1,6 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
-import { p as require_jsx_runtime } from "../_libs/@radix-ui/react-checkbox+[...].mjs";
+import { f as require_jsx_runtime } from "../_libs/@radix-ui/react-avatar+[...].mjs";
 import { n as cn } from "./button-DRsC1qZi.mjs";
 import { i as Trigger, n as List, r as Root2, t as Content } from "../_libs/radix-ui__react-tabs.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/tabs-BYfOmXtJ.js

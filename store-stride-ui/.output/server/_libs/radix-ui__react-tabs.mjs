@@ -1,7 +1,8 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "./@floating-ui/react-dom+[...].mjs";
-import { a as Primitive, l as createContextScope, p as require_jsx_runtime, r as Presence, s as useControllableState } from "./@radix-ui/react-checkbox+[...].mjs";
+import { a as Primitive, c as createContextScope, f as require_jsx_runtime } from "./@radix-ui/react-avatar+[...].mjs";
 import { t as composeEventHandlers } from "./radix-ui__primitive.mjs";
+import { a as useControllableState, r as Presence } from "./@radix-ui/react-checkbox+[...].mjs";
 import { t as useDirection } from "./radix-ui__react-direction.mjs";
 import { f as useId } from "./@radix-ui/react-dialog+[...].mjs";
 import { h as createRovingFocusGroupScope, m as Root, p as Item } from "./@radix-ui/react-dropdown-menu+[...].mjs";

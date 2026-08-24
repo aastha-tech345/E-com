@@ -1,6 +1,6 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "./@floating-ui/react-dom+[...].mjs";
-import { a as Primitive, p as require_jsx_runtime } from "./@radix-ui/react-checkbox+[...].mjs";
+import { a as Primitive, f as require_jsx_runtime } from "./@radix-ui/react-avatar+[...].mjs";
 //#region node_modules/@radix-ui/react-separator/dist/index.mjs
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();

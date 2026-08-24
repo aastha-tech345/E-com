@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop } from "@/store/shop";
+import { authService } from "@/services";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/login")({
@@ -11,7 +12,7 @@ export const Route = createFileRoute("/admin/login")({
 
 function AdminLogin() {
   const navigate = useNavigate();
-  const { adminLogin } = useShop();
+  const { setAdmin } = useShop();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,20 +22,34 @@ function AdminLogin() {
     setLoading(true);
 
     try {
-      // Mock authentication - in production, call backend API
-      if (email && password.length >= 4) {
-        adminLogin({
-          name: "Admin",
-          email,
-          role: "admin",
-        });
-        toast.success("Login successful");
-        navigate({ to: "/admin/dashboard" });
-      } else {
-        toast.error("Invalid email or password");
+      if (!email || !password) {
+        toast.error("Email and password are required");
+        setLoading(false);
+        return;
       }
+
+      const response = await authService.login(email, password);
+
+      // Check if user has admin or seller role
+      const hasAdminAccess = response.user.roles.some(role => 
+        ["super_admin", "admin", "admin_catalog", "admin_orders", "admin_payments", "admin_customers", "admin_marketing", "admin_support", "seller_owner"].includes(role)
+      );
+
+      if (!hasAdminAccess) {
+        authService.logout();
+        toast.error("Admin access denied. Your account does not have admin or seller privileges.");
+        setLoading(false);
+        return;
+      }
+
+      setAdmin(response.user, {
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+      navigate({ to: "/admin/dashboard" });
     } catch (err) {
-      toast.error("Login failed");
+      const message = err instanceof Error ? err.message : "Login failed";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -81,7 +96,7 @@ function AdminLogin() {
         </form>
 
         <p className="text-sm text-gray-600 text-center mt-6">
-          Demo: Use any email and password with 4+ characters
+          Demo: Use admin@example.com / password (see .env.example)
         </p>
       </div>
     </div>

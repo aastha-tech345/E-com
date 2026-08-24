@@ -12,8 +12,9 @@ import type { ChatMessage } from "@/types";
 
 const STARTERS = [
   "I need a wireless headphone under ₹3000",
-  "Find product ID WH1001",
   "Best rated running shoes",
+  "Track my latest order",
+  "My product arrived damaged",
 ];
 
 export function ShoppingAssistant() {
@@ -68,7 +69,7 @@ export function ShoppingAssistant() {
             <Bot size={18} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">AI Shopping Assistant</p>
-              <p className="text-[11px] opacity-80">Mock assistant · always online</p>
+              <p className="text-[11px] opacity-80">Backend AI · LangGraph flow</p>
             </div>
             <Button
               variant="ghost"
@@ -92,8 +93,8 @@ export function ShoppingAssistant() {
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="max-w-[85%] rounded-lg rounded-tl-none bg-muted px-3 py-2 text-sm">
-              Hi! I can help you find products, compare prices or look up an order. How can I
-              help?
+              Hi! I can search products, compare options, check orders, track shipping, and help
+              with damaged-item refund or replacement requests.
             </div>
             {chat.length === 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -178,6 +179,24 @@ function ChatBubble({
       <div className="max-w-[85%] rounded-lg rounded-tl-none bg-muted px-3 py-2 text-sm">
         {message.text}
       </div>
+      {(message.intent || message.orchestrator || message.source) && (
+        <div className="flex max-w-[85%] flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+          <span className="rounded-full border px-2 py-0.5">
+            {message.source === "fallback" ? "Local fallback" : "Backend AI"}
+          </span>
+          {message.orchestrator && (
+            <span className="rounded-full border px-2 py-0.5">
+              {message.orchestrator === "langgraph" ? "LangGraph" : message.orchestrator}
+            </span>
+          )}
+          {message.intent && <span className="rounded-full border px-2 py-0.5">{formatIntent(message.intent)}</span>}
+          {message.usedTools && message.usedTools.length > 0 && (
+            <span className="rounded-full border px-2 py-0.5">
+              {message.usedTools.length} tools used
+            </span>
+          )}
+        </div>
+      )}
       {backendItems.map((p) => {
         const canAddToLocalCart = Boolean(productService.byId(p.id));
         return (
@@ -248,4 +267,11 @@ function ChatBubble({
       )}
     </div>
   );
+}
+
+function formatIntent(intent: string) {
+  return intent
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
