@@ -94,6 +94,29 @@ function isChatMessage(value: unknown): value is ChatMessage {
   );
 }
 
+function normalizeChatMessage(message: ChatMessage): ChatMessage {
+  const value = message as unknown as Record<string, unknown>;
+  return {
+    id: message.id,
+    role: message.role,
+    text: message.text,
+    ...(typeof value["isAction"] === "boolean" ? { isAction: value["isAction"] } : {}),
+    ...(Array.isArray(value["products"]) ? { products: stringArray(value["products"]) } : {}),
+    ...(Array.isArray(value["productResults"]) ? { productResults: value["productResults"] as ChatMessage["productResults"] } : {}),
+    ...(Array.isArray(value["orderCards"]) ? { orderCards: value["orderCards"] as ChatMessage["orderCards"] } : {}),
+    ...(Array.isArray(value["returnActions"]) ? { returnActions: value["returnActions"] as ChatMessage["returnActions"] } : {}),
+    ...(Array.isArray(value["suggestions"]) ? { suggestions: stringArray(value["suggestions"]) } : {}),
+    ...(typeof value["conversationId"] === "string" ? { conversationId: value["conversationId"] } : {}),
+    ...(typeof value["intent"] === "string" ? { intent: value["intent"] } : {}),
+    ...(Array.isArray(value["usedTools"]) ? { usedTools: stringArray(value["usedTools"]) } : {}),
+    ...(typeof value["orchestrator"] === "string" ? { orchestrator: value["orchestrator"] } : {}),
+    ...(value["source"] === "backend" || value["source"] === "fallback" ? { source: value["source"] } : {}),
+    ...(isRecord(value["returnConfirmation"])
+      ? { returnConfirmation: value["returnConfirmation"] as ChatMessage["returnConfirmation"] }
+      : {}),
+  };
+}
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -127,7 +150,9 @@ function normalizeStoredState(value: unknown): ShopState {
     addresses: Array.isArray(value["addresses"])
       ? (value["addresses"] as Address[])
       : EMPTY.addresses,
-    chat: Array.isArray(value["chat"]) ? value["chat"].filter(isChatMessage) : EMPTY.chat,
+    chat: Array.isArray(value["chat"])
+      ? value["chat"].filter(isChatMessage).map(normalizeChatMessage)
+      : EMPTY.chat,
     coupon: typeof value["coupon"] === "string" ? value["coupon"] : EMPTY.coupon,
   };
 }
