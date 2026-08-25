@@ -529,7 +529,7 @@ async function authenticatedJsonRequest(path: string, init: RequestInit) {
 
 export const productService = {
   async adminList(): Promise<Product[]> {
-    const response = await fetch(`${API_BASE}/admin/products`, {
+    const response = await authenticatedFetch(`${API_BASE}/admin/products`, {
       headers: authHeaders(),
     });
     if (!response.ok) {
@@ -559,7 +559,7 @@ export const productService = {
         media_url: normalizeImageUrl(media.media_url),
       })),
     };
-    const response = await fetch(`${API_BASE}/${endpoint}/products`, {
+    const response = await authenticatedFetch(`${API_BASE}/${endpoint}/products`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -744,7 +744,7 @@ export const catalogService = {
       field: params.field ?? "all",
     });
     if (params.q) query.set("q", params.q);
-    const response = await fetch(`${API_BASE}/admin/products?${query.toString()}`, {
+    const response = await authenticatedFetch(`${API_BASE}/admin/products?${query.toString()}`, {
       headers: authHeaders(),
     });
     if (!response.ok) {
@@ -769,7 +769,9 @@ export const catalogService = {
     };
   },
   async adminProduct(id: string): Promise<Product> {
-    const response = await fetch(`${API_BASE}/admin/products/${id}`, { headers: authHeaders() });
+    const response = await authenticatedFetch(`${API_BASE}/admin/products/${id}`, {
+      headers: authHeaders(),
+    });
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
       throw new Error(detail?.detail || "Unable to load product.");
@@ -781,7 +783,7 @@ export const catalogService = {
   async uploadProductImage(file: File): Promise<string> {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch(`${API_BASE}/admin/product-images`, {
+    const response = await authenticatedFetch(`${API_BASE}/admin/product-images`, {
       method: "POST",
       headers: authHeaders(),
       body: formData,
@@ -941,7 +943,7 @@ async function adminCatalogListWithFallback<T>(
 }
 
 async function adminCatalogRequest<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await authenticatedFetch(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...authHeaders(), ...init.headers },
   });

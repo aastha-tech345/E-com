@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ function ProductThumbnail({ images, name }: { images?: string[]; name: string })
 
 function AdminProductsPage() {
   const navigate = useNavigate();
-  const { admin } = useShop();
+  const { admin, hydrated } = useShop();
   const [page, setPage] = useState(1);
   const [filterField, setFilterField] = useState<"name" | "sku" | "category" | "brand">("name");
   const [filterValue, setFilterValue] = useState("");
@@ -61,7 +61,7 @@ function AdminProductsPage() {
     { key: "brand", label: "Brand" },
   ] as const;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const result = await catalogService.adminProducts({
@@ -77,11 +77,19 @@ function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterField, filterValue, globalSearch, page]);
 
   useEffect(() => {
     void load();
-  }, [page, filterField, filterValue, globalSearch]);
+  }, [load]);
+
+  if (!hydrated) {
+    return (
+      <AdminLayout>
+        <p className="text-sm text-slate-600">Loading products...</p>
+      </AdminLayout>
+    );
+  }
 
   if (!admin) {
     return null;
