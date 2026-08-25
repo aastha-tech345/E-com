@@ -45,6 +45,7 @@ def run_assistant_orchestrator(
     prompt: str,
     user_id: str | None,
     conversation_id: str | None,
+    conversation_summary: str = "",
 ) -> AssistantGraphState:
     intent = classify_intent(prompt)
     cache_key = f"assistant:prompt:{user_id or 'anonymous'}:{prompt.strip().lower()}"
@@ -54,6 +55,7 @@ def run_assistant_orchestrator(
         state = AssistantGraphState(
             prompt=prompt,
             context=AssistantContext(user_id=user_id, conversation_id=conversation_id),
+            conversation_summary=conversation_summary,
         )
         state.intent = intent
         state.answer = str(cached["answer"])
@@ -71,6 +73,7 @@ def run_assistant_orchestrator(
     state = AssistantGraphState(
         prompt=prompt,
         context=AssistantContext(user_id=user_id, conversation_id=conversation_id),
+        conversation_summary=conversation_summary,
     )
     graph = AssistantGraph(tool_registry=build_tool_registry(), llm_client=get_llm_client())
     result = graph.run(db, state)

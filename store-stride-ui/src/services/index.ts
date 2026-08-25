@@ -1135,14 +1135,63 @@ export const returnService = {
     orderItemId: string,
     quantity: number,
     reason: string,
+    proof?: { proofUrl: string; proofType: string; issueReason?: string },
   ): Promise<ReturnRequest> {
     return authenticatedJsonRequest("/returns", {
       method: "POST",
-      body: JSON.stringify({ order_item_id: orderItemId, quantity, reason }),
+      body: JSON.stringify({
+        order_item_id: orderItemId,
+        quantity,
+        reason,
+        issue_reason: proof?.issueReason ?? "",
+        proof_url: proof?.proofUrl ?? "",
+        proof_type: proof?.proofType ?? "",
+      }),
     }) as Promise<ReturnRequest>;
   },
-  async requestReplacement(orderItemId: string, quantity: number) {
-    return this.requestReturn(orderItemId, quantity, "replacement");
+  async requestReplacement(
+    orderItemId: string,
+    quantity: number,
+    proof?: { proofUrl: string; proofType: string; issueReason?: string },
+  ) {
+    return this.requestReturn(orderItemId, quantity, "replacement", proof);
+  },
+  async uploadProof(file: File): Promise<{ proofUrl: string; proofType: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await authenticatedFetch(`${API_BASE}/returns/proof`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to upload proof.");
+    }
+    const payload = (await response.json()) as { proof_url: string; proof_type: string };
+    return { proofUrl: payload.proof_url, proofType: payload.proof_type };
+  },
+};
+
+export const adminReturnService = {
+  async list(): Promise<ReturnRequest[]> {
+    const response = await fetch(`${API_BASE}/admin/returns`, { headers: authHeaders() });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load return requests.");
+    }
+    return response.json() as Promise<ReturnRequest[]>;
+  },
+  async decide(returnId: string, status: "approved" | "rejected") {
+    const response = await fetch(`${API_BASE}/returns/${returnId}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to update return request.");
+    }
+    return response.json() as Promise<{ return_id: string; status: string; refund_amount: string }>;
   },
 };
 
@@ -1152,6 +1201,9 @@ export interface ReturnRequest {
   order_item_id: string;
   quantity: number;
   reason: string;
+  issue_reason?: string;
+  proof_url?: string;
+  proof_type?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -1510,7 +1562,7 @@ export const chatbotService = {
         source: "backend",
         productResults: payload.products.map(toAssistantProductResult),
         orderCards: (payload.metadata?.order_cards ?? []).map(normalizeAssistantOrderCard),
-        returnActions: payload.metadata?.return_actions ?? [],
+        returnActions: (payload.metadata?.return_actions ?? []).map(normalizeAssistantReturnAction),
         suggestions:
           payload.metadata?.quick_replies ??
           payload.metadata?.suggestions ??
@@ -1638,6 +1690,23 @@ function normalizeAssistantOrderCard(order: AssistantOrderCard): AssistantOrderC
       ...item,
       image: normalizeImageUrl(item.image),
     })),
+  };
+}
+
+function normalizeAssistantReturnAction(
+  action: AssistantReturnAction & {
+    order_item_id?: string;
+    product_name?: string;
+    proof_required?: boolean;
+    issue_reason?: string;
+  },
+): AssistantReturnAction {
+  return {
+    ...action,
+    orderItemId: action.orderItemId ?? action.order_item_id,
+    productName: action.productName ?? action.product_name,
+    proofRequired: action.proofRequired ?? action.proof_required,
+    issueReason: action.issueReason ?? action.issue_reason,
   };
 }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TypedDict
 
@@ -12,8 +13,18 @@ from app.modules.ai_assistant.application.types import AssistantGraphState, Tool
 from app.modules.ai_assistant.infrastructure.llm_client import BaseLLMClient
 
 
+ORDER_ID_PATTERN = r"\bORD-[A-Z0-9-]+\b"
+ORDER_ITEM_ID_PATTERN = r"\bITM-[A-Z0-9-]+\b"
+RETURN_CONTEXT_TOKENS = ("return", "refund", "exchange", "replace", "replacement", "damage", "damaged", "broken")
+
+
 def classify_intent(prompt: str) -> str:
     normalized = prompt.lower()
+    upper_prompt = prompt.upper()
+    if re.search(ORDER_ITEM_ID_PATTERN, upper_prompt):
+        return "return_support"
+    if re.search(ORDER_ID_PATTERN, upper_prompt):
+        return "order_support"
     if any(token in normalized for token in ("policy", "how does")):
         return "policy_help"
     if any(token in normalized for token in ("return", "refund", "exchange", "replace", "damage", "damaged", "broken")):
@@ -67,6 +78,10 @@ class AssistantGraph:
     def _classify_intent_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
         state = payload["state"]
         state.intent = classify_intent(state.prompt)
+        if state.intent == "order_support":
+            summary = state.conversation_summary.lower()
+            if any(token in summary for token in RETURN_CONTEXT_TOKENS):
+                state.intent = "return_support"
         state.tool_records.append(
             ToolCallRecord(
                 tool_name="langgraph.classify_intent",
@@ -218,6 +233,7 @@ class AssistantGraph:
         order = workflow.get("order") if isinstance(workflow.get("order"), dict) else {}
         order_number = order.get("order_number") or order.get("id") or "this order"
         eligible = bool(workflow.get("eligible"))
+        needs_item_choice = bool(workflow.get("needs_item_choice"))
         replacement_available = bool(workflow.get("replacement_available"))
         similar_product_count = int(workflow.get("similar_product_count") or 0)
         items = workflow.get("items", [])
@@ -230,10 +246,15 @@ class AssistantGraph:
         existing_returns = workflow.get("existing_returns", [])
 
         if not eligible:
+            status_text = str(order.get("status") or "").replace("_", " ").strip()
+            prefix = (
+                f"Your order {order_number} is {status_text} right now."
+                if status_text
+                else f"I found order {order_number}."
+            )
             return (
-                f"I found order {order_number} for {item_summary}. "
-                "A refund or replacement usually starts after delivery. "
-                "For now, I can help you track it, explain the return policy, or connect you with support."
+                f"{prefix} I can see it includes {item_summary}. "
+                "Here is what is needed before a damage replacement or refund can start."
             )
 
         if isinstance(existing_returns, list) and existing_returns:
@@ -243,6 +264,12 @@ class AssistantGraph:
                 f"I found order {order_number} for {item_summary}. "
                 f"A return request is already open for this order. Current status: {status}. "
                 "I can still show similar products or explain the refund and replacement policy."
+            )
+
+        if needs_item_choice:
+            return (
+                f"I found order {order_number} with these items: {item_summary}. "
+                "Please choose which item arrived damaged, then select the reason that best matches the issue."
             )
 
         if not replacement_available and similar_product_count > 0:
@@ -262,6 +289,5 @@ class AssistantGraph:
 
         return (
             f"I found order {order_number} for {item_summary}. "
-            "This order is eligible for help. You can replace the item, request a refund, "
-            "view similar products, or contact support if the damage needs review."
+            "This order is eligible for help. Choose the damage reason first, then you can replace the item, request a refund, or view similar products."
         )

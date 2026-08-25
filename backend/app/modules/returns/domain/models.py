@@ -16,6 +16,9 @@ class ReturnRequest(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     quantity: Mapped[int] = mapped_column(Integer)
     reason: Mapped[str] = mapped_column(String(120))
+    issue_reason: Mapped[str] = mapped_column(String(160), default="")
+    proof_url: Mapped[str] = mapped_column(String(500), default="")
+    proof_type: Mapped[str] = mapped_column(String(40), default="")
     status: Mapped[str] = mapped_column(String(40), default="requested", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

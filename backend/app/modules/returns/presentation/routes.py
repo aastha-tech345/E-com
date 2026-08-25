@@ -1,6 +1,8 @@
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db_session
@@ -27,16 +29,48 @@ def request_return(
     db: Session = Depends(get_db_session),
 ) -> ReturnRequest:
     try:
-        return create_return_request(
+        request = create_return_request(
             db,
             user_id=current_user.id,
             order_item_id=payload.order_item_id,
             quantity=payload.quantity,
             reason=payload.reason,
+            issue_reason=payload.issue_reason,
+            proof_url=payload.proof_url,
+            proof_type=payload.proof_type,
         )
+        db.commit()
+        db.refresh(request)
+        return request
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/proof")
+async def upload_return_proof(
+    request: Request,
+    file: UploadFile = File(...),
+    _: UserProfileResponse = Depends(get_current_user),
+) -> dict[str, str]:
+    content_type = file.content_type or ""
+    if not (content_type.startswith("image/") or content_type.startswith("video/")):
+        raise HTTPException(status_code=400, detail="Please upload an image or video proof file.")
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".mov", ".webm"}:
+        raise HTTPException(status_code=400, detail="Supported proof formats: JPG, PNG, WEBP, GIF, MP4, MOV, WEBM.")
+
+    upload_dir = Path(__file__).resolve().parents[4] / "uploads" / "return_proofs"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4().hex}{suffix}"
+    path = upload_dir / filename
+    contents = await file.read()
+    path.write_bytes(contents)
+    return {
+        "proof_url": f"{str(request.base_url).rstrip('/')}/uploads/return_proofs/{filename}",
+        "proof_type": "video" if content_type.startswith("video/") else "image",
+    }
 
 
 @router.get("", response_model=list[ReturnResponse])

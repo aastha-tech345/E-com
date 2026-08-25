@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Sparkles,
   Truck,
+  UploadCloud,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -23,10 +24,11 @@ import { Input } from "@/components/ui/input";
 import { Price } from "@/components/common/Price";
 import { Rating } from "@/components/common/Rating";
 import { SiteLogo } from "@/components/common/SiteLogo";
-import { chatbotService, productService } from "@/services";
+import { chatbotService, productService, returnService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
 import type { AssistantOrderCard, AssistantReturnAction, ChatMessage, Product } from "@/types";
+import { toast } from "sonner";
 
 const STARTERS = [
   {
@@ -67,7 +69,7 @@ const INTENT_SUGGESTIONS: Record<string, string[]> = {
   product_recommendation: ["Show best deals", "Suggest a gift", "Show trending products"],
   product_search: ["Show similar products", "Filter by price", "Show only in-stock items"],
   return_support: ["Choose a similar product", "Request a refund", "Check return policy"],
-  shipping_support: ["Track my latest order", "Where is my package?", "Show delivery status"],
+  shipping_support: ["I received a damaged item"],
 };
 
 export function ShoppingAssistant() {
@@ -76,6 +78,9 @@ export function ShoppingAssistant() {
   const [full, setFull] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [returnProof, setReturnProof] = useState<{ proofUrl: string; proofType: string; fileName: string } | null>(null);
+  const [returnIssueReason, setReturnIssueReason] = useState("");
+  const [uploadingProof, setUploadingProof] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const autoSuggestions = getAutoSuggestions(chat, input);
 
@@ -92,6 +97,126 @@ export function ShoppingAssistant() {
     const reply = await chatbotService.reply(value);
     setTyping(false);
     pushChat(reply);
+  };
+
+  const handleReturnAction = async (action: AssistantReturnAction) => {
+    if (action.action === "reason") {
+      const reason = action.issueReason || action.label;
+      setReturnIssueReason(reason);
+      toast.success("Damage reason selected.");
+      pushChat({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: `Got it. Reason selected: ${reason}. Please upload image or video proof, then choose replacement or refund.`,
+        intent: "return_support",
+        source: "backend",
+        suggestions: ["Contact support", "Check return policy"],
+      });
+      return;
+    }
+
+    if ((action.action === "replacement" || action.action === "refund") && action.orderItemId) {
+      if (action.proofRequired && !returnIssueReason) {
+        toast.error("Please select a damage reason first.");
+        pushChat({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "Please select the damage reason first, then upload proof and submit the request.",
+          intent: "return_support",
+          source: "backend",
+          suggestions: ["Contact support", "Check return policy"],
+        });
+        return;
+      }
+      if (action.proofRequired && !returnProof) {
+        toast.error("Please upload image or video proof first.");
+        pushChat({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "Please upload a clear image or video proof before I submit this request.",
+          intent: "return_support",
+          source: "backend",
+          suggestions: ["Contact support", "Check return policy"],
+        });
+        return;
+      }
+      try {
+        setTyping(true);
+        let request;
+        if (action.action === "replacement") {
+          request = await returnService.requestReplacement(
+            action.orderItemId,
+            action.quantity ?? 1,
+            returnProof
+              ? { proofUrl: returnProof.proofUrl, proofType: returnProof.proofType, issueReason: returnIssueReason }
+              : undefined,
+          );
+        } else {
+          request = await returnService.requestReturn(
+            action.orderItemId,
+            action.quantity ?? 1,
+            "damaged item",
+            returnProof
+              ? { proofUrl: returnProof.proofUrl, proofType: returnProof.proofType, issueReason: returnIssueReason }
+              : undefined,
+          );
+        }
+        setTyping(false);
+        toast.success(action.action === "replacement" ? "Replacement request submitted." : "Refund request submitted.");
+        setReturnProof(null);
+        setReturnIssueReason("");
+        pushChat({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "Done. Your request has been created and sent for review.",
+          intent: "return_support",
+          source: "backend",
+          returnConfirmation: {
+            referenceId: formatRequestReference(request.id),
+            status: formatStatus(request.status),
+            title: action.action === "replacement" ? "Replacement request created" : "Refund request created",
+            productName: action.productName,
+          },
+          suggestions: ["Track my latest order", "Check return policy"],
+        });
+      } catch (error) {
+        setTyping(false);
+        const message = error instanceof Error ? error.message : "Unable to submit replacement request.";
+        toast.error(message);
+        pushChat({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: message,
+          intent: "return_support",
+          source: "backend",
+          suggestions: ["Check return policy", "Contact support", "Track my latest order"],
+        });
+      }
+      return;
+    }
+
+    onSendFromAction(action.label);
+  };
+
+  const handleProofUpload = async (file: File) => {
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      toast.error("Please upload an image or video proof file.");
+      return;
+    }
+    try {
+      setUploadingProof(true);
+      const uploaded = await returnService.uploadProof(file);
+      setReturnProof({ ...uploaded, fileName: file.name });
+      toast.success("Proof uploaded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to upload proof.");
+    } finally {
+      setUploadingProof(false);
+    }
+  };
+
+  const onSendFromAction = (text: string) => {
+    void send(text);
   };
 
   if (!hydrated) return null;
@@ -184,7 +309,16 @@ export function ShoppingAssistant() {
             )}
 
             {chat.map((m) => (
-              <ChatBubble key={m.id} message={m} onAdd={addToCart} onSend={(text) => void send(text)} />
+              <ChatBubble
+                key={m.id}
+                message={m}
+                onAdd={addToCart}
+                onReturnAction={(action) => void handleReturnAction(action)}
+                returnProof={returnProof}
+                issueReason={returnIssueReason}
+                uploadingProof={uploadingProof}
+                onProofUpload={(file) => void handleProofUpload(file)}
+              />
             ))}
 
             {typing && (
@@ -258,6 +392,15 @@ function getAutoSuggestions(chat: ChatMessage[], input: string) {
   }
 
   const latestAssistant = [...chat].reverse().find((message) => message.role === "assistant");
+  if (latestAssistant?.intent === "shipping_support") {
+    return uniqueSuggestions([
+      ...(latestAssistant.suggestions ?? []),
+      ...INTENT_SUGGESTIONS.shipping_support,
+    ]).slice(0, 1);
+  }
+  if (latestAssistant?.intent === "return_support" && latestAssistant.suggestions?.length) {
+    return uniqueSuggestions(latestAssistant.suggestions).slice(0, 3);
+  }
   const sourceSuggestions = [
     ...(latestAssistant?.suggestions ?? []),
     ...(latestAssistant?.intent ? INTENT_SUGGESTIONS[latestAssistant.intent] ?? [] : []),
@@ -293,11 +436,19 @@ function normalizeSuggestion(suggestion: string) {
 function ChatBubble({
   message,
   onAdd,
-  onSend,
+  onReturnAction,
+  returnProof,
+  issueReason,
+  uploadingProof,
+  onProofUpload,
 }: {
   message: ChatMessage;
   onAdd: (id: string, quantity?: number, opts?: { product?: Product }) => void;
-  onSend: (text: string) => void;
+  onReturnAction: (action: AssistantReturnAction) => void;
+  returnProof: { proofUrl: string; proofType: string; fileName: string } | null;
+  issueReason: string;
+  uploadingProof: boolean;
+  onProofUpload: (file: File) => void;
 }) {
   const mockItems = message.products ? productService.byIds(message.products) : [];
   const backendItems = message.productResults ?? [];
@@ -313,12 +464,22 @@ function ChatBubble({
       <div className="max-w-[90%] rounded-2xl rounded-tl-md border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 px-3.5 py-2.5 text-sm leading-5 text-zinc-700 shadow-sm shadow-black/10">
         {message.text}
       </div>
+      {message.returnConfirmation ? (
+        <ReturnConfirmationCard confirmation={message.returnConfirmation} />
+      ) : null}
       {message.intent && <SupportContext intent={message.intent} />}
       {message.orderCards?.map((order) => (
         <OrderStatusCard key={order.id} order={order} />
       ))}
       {message.returnActions && message.returnActions.length > 0 ? (
-        <ReturnActions actions={message.returnActions} onSend={onSend} />
+        <ReturnActions
+          actions={message.returnActions}
+          onAction={onReturnAction}
+          proof={returnProof}
+          issueReason={issueReason}
+          uploadingProof={uploadingProof}
+          onProofUpload={onProofUpload}
+        />
       ) : null}
       {message.intent === "return_support" && backendItems.length > 0 ? (
         <p className="max-w-[94%] px-1 text-xs font-semibold text-slate-600">
@@ -454,25 +615,133 @@ function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
   );
 }
 
-function ReturnActions({ actions, onSend }: { actions: AssistantReturnAction[]; onSend: (text: string) => void }) {
+function ReturnConfirmationCard({
+  confirmation,
+}: {
+  confirmation: NonNullable<ChatMessage["returnConfirmation"]>;
+}) {
+  return (
+    <div className="max-w-[94%] rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm shadow-emerald-950/10">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-slate-950">{confirmation.title}</p>
+          {confirmation.productName ? (
+            <p className="mt-0.5 text-xs text-slate-600">{confirmation.productName}</p>
+          ) : null}
+        </div>
+        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-700">
+          {confirmation.status}
+        </span>
+      </div>
+      <div className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase text-slate-500">Reference ID</p>
+        <p className="mt-0.5 text-base font-extrabold tracking-wide text-slate-950">
+          {confirmation.referenceId}
+        </p>
+      </div>
+      <p className="mt-2 text-xs leading-4 text-slate-600">
+        Keep this ID for support. You can check updates from your returns page.
+      </p>
+    </div>
+  );
+}
+
+function ReturnActions({
+  actions,
+  onAction,
+  proof,
+  issueReason,
+  uploadingProof,
+  onProofUpload,
+}: {
+  actions: AssistantReturnAction[];
+  onAction: (action: AssistantReturnAction) => void;
+  proof: { proofUrl: string; proofType: string; fileName: string } | null;
+  issueReason: string;
+  uploadingProof: boolean;
+  onProofUpload: (file: File) => void;
+}) {
+  const needsProof = actions.some((action) => action.enabled && action.proofRequired);
   return (
     <div className="grid max-w-[94%] gap-2">
-      {actions.map((action) => (
-        <button
-          key={action.label}
-          type="button"
-          disabled={!action.enabled}
-          onClick={() => onSend(action.label)}
-          className="group rounded-xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm shadow-blue-950/10 transition enabled:hover:border-blue-400 enabled:hover:to-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <p className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-900">
-            {action.label}
-            <ArrowRight size={14} className="text-blue-500 transition group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:text-blue-700" />
+      {needsProof ? (
+        <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-3 text-left shadow-sm shadow-blue-950/10">
+          <p className="text-sm font-semibold text-slate-900">Before submitting</p>
+          <div className="mt-2 grid gap-1.5 text-xs">
+            <span className={cn("flex items-center gap-2", issueReason ? "text-emerald-700" : "text-slate-500")}>
+              <CheckCircle2 size={13} />
+              {issueReason ? `Reason selected: ${issueReason}` : "Select a damage reason"}
+            </span>
+            <span className={cn("flex items-center gap-2", proof ? "text-emerald-700" : "text-slate-500")}>
+              <CheckCircle2 size={13} />
+              {proof ? `Proof uploaded: ${proof.fileName}` : "Upload image or video proof"}
+            </span>
+          </div>
+          <label className="mt-3 block">
+            <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <UploadCloud size={16} className="text-blue-600" />
+              Upload damage proof *
+            </span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              disabled={uploadingProof}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) onProofUpload(file);
+                event.currentTarget.value = "";
+              }}
+              className="mt-2 block w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-blue-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700 hover:file:bg-blue-200"
+            />
+          </label>
+          <p className="mt-2 text-xs font-medium text-slate-600">
+            {uploadingProof ? "Uploading proof..." : proof && issueReason ? "Ready to submit replacement or refund." : "Complete both steps to submit."}
           </p>
-          <p className="mt-1 text-xs leading-4 text-slate-500">{action.description}</p>
-        </button>
+        </div>
+      ) : null}
+      {actions.map((action) => (
+        <ReturnActionButton
+          key={action.label}
+          action={action}
+          proof={proof}
+          issueReason={issueReason}
+          onAction={onAction}
+        />
       ))}
     </div>
+  );
+}
+
+function ReturnActionButton({
+  action,
+  proof,
+  issueReason,
+  onAction,
+}: {
+  action: AssistantReturnAction;
+  proof: { proofUrl: string; proofType: string; fileName: string } | null;
+  issueReason: string;
+  onAction: (action: AssistantReturnAction) => void;
+}) {
+  const missingRequiredInfo = Boolean(action.proofRequired && (!proof || !issueReason));
+  const disabled = !action.enabled || missingRequiredInfo;
+  const description = missingRequiredInfo
+    ? "Select a reason and upload proof first."
+    : action.description;
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onAction(action)}
+      className="group rounded-xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm shadow-blue-950/10 transition enabled:hover:border-blue-400 enabled:hover:to-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:from-slate-50 disabled:to-slate-50 disabled:opacity-70"
+    >
+      <p className={cn("flex items-center justify-between gap-2 text-sm font-semibold", disabled ? "text-slate-500" : "text-slate-900")}>
+        {action.label}
+        <ArrowRight size={14} className={cn("transition", disabled ? "text-slate-300" : "text-blue-500 group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:text-blue-700")} />
+      </p>
+      <p className={cn("mt-1 text-xs leading-4", disabled ? "text-slate-400" : "text-slate-500")}>{description}</p>
+    </button>
   );
 }
 
@@ -492,6 +761,10 @@ function formatStatus(status: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatRequestReference(id: string) {
+  return `RET-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
 function formatIntent(intent: string) {

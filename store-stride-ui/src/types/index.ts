@@ -188,6 +188,12 @@ export interface ChatMessage {
   usedTools?: string[];
   orchestrator?: string;
   source?: "backend" | "fallback";
+  returnConfirmation?: {
+    referenceId: string;
+    status: string;
+    title: string;
+    productName?: string;
+  };
 }
 
 export interface AssistantProductResult {
@@ -230,4 +236,10 @@ export interface AssistantReturnAction {
   label: string;
   description: string;
   enabled: boolean;
+  action?: "replacement" | "refund" | "message" | "reason";
+  orderItemId?: string;
+  quantity?: number;
+  productName?: string;
+  proofRequired?: boolean;
+  issueReason?: string;
 }

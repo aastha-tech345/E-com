@@ -96,8 +96,19 @@ export function AdminSidebar() {
       {
         label: "Orders",
         icon: ShoppingCart,
-        href: "/admin/orders",
-        roles: ["super_admin", "admin_orders", "seller_owner"],
+        roles: ["super_admin", "admin_orders", "admin_support", "seller_owner"],
+        submenu: [
+          {
+            label: "Orders",
+            href: "/admin/orders",
+            roles: ["super_admin", "admin_orders", "seller_owner"],
+          },
+          {
+            label: "Returns & Replacements",
+            href: "/admin/returns",
+            roles: ["super_admin", "admin_orders", "admin_support"],
+          },
+        ],
       },
       {
         label: "Customers",

@@ -41,12 +41,16 @@ def answer_prompt(
         conversation = AIConversation(user_id=user_id, title=_build_conversation_title(prompt))
         db.add(conversation)
         db.flush()
+    context = db.scalar(
+        select(AIConversationContext).where(AIConversationContext.conversation_id == conversation.id)
+    )
 
     state = run_assistant_orchestrator(
         db,
         prompt=prompt,
         user_id=user_id,
         conversation_id=conversation.id,
+        conversation_summary=context.summary if context is not None else "",
     )
     matches = state.products
     if not matches and isinstance(state.metadata.get("cached_product_ids"), list):

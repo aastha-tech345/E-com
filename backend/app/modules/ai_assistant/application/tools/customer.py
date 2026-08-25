@@ -12,7 +12,7 @@ from app.modules.cart.application.service import build_cart_response, get_cart
 from app.modules.catalog.application.service import hydrate_product_read_model, list_products
 from app.modules.catalog.domain.models import Product
 from app.modules.notifications.application.service import list_notifications, unread_notification_count
-from app.modules.orders.domain.models import Order
+from app.modules.orders.domain.models import Order, OrderItem
 from app.modules.orders.application.service import list_orders_for_user
 from app.modules.returns.application.service import list_returns_for_user
 from app.modules.shipping.application.service import get_shipment_for_user
@@ -51,6 +51,7 @@ def _order_card(db: Session, order: Order, shipment: object | None = None) -> di
         "items": [
             {
                 "order_item_id": item.id,
+                "item_number": item.item_number,
                 "product_id": item.product_id,
                 "product_name": item.product_name,
                 "variant_name": item.variant_name,
@@ -103,7 +104,8 @@ class OrderLookupTool(AssistantTool):
             state.metadata["auth_required"] = True
             return state
         orders = list_orders_for_user(db, user_id=state.context.user_id)
-        order_cards = [_order_card(db, order) for order in orders[:3]]
+        limit = 1 if state.intent == "shipping_support" else 3
+        order_cards = [_order_card(db, order) for order in orders[:limit]]
         state.metadata["orders"] = [
             {
                 "id": order.id,
@@ -112,11 +114,13 @@ class OrderLookupTool(AssistantTool):
                 "subtotal": str(order.subtotal),
                 "created_at": order.created_at.isoformat(),
             }
-            for order in orders[:3]
+            for order in orders[:limit]
         ]
         state.metadata["order_cards"] = order_cards
+        if state.intent == "shipping_support":
+            state.metadata["quick_replies"] = ["I received a damaged item"]
         state.tool_records.append(
-            ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(orders[:3])} recent orders.")
+            ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(orders[:limit])} recent orders.")
         )
         return state
 
@@ -224,6 +228,8 @@ class ReturnWorkflowTool(AssistantTool):
             if request.order_id == order.id
         ]
         eligible = order.status in {"delivered", "returned", "partially_returned"}
+        target_item = self._match_order_item(state.prompt, order)
+        needs_item_choice = target_item is None and len(order.items) > 1
         items = [
             {
                 "order_item_id": item.id,
@@ -236,27 +242,53 @@ class ReturnWorkflowTool(AssistantTool):
             for item in order.items
         ]
 
-        replacement_available = self._same_product_replacement_available(db, order)
-        similar_products = self._similar_products(db, order)
+        candidate_items = [target_item] if target_item is not None else list(order.items)
+        replacement_items = [
+            item for item in candidate_items if self._order_item_replacement_available(db, item.product_id)
+        ]
+        replacement_available = bool(replacement_items)
+        similar_products = (
+            self._similar_products(db, target_item)
+            if target_item is not None and not replacement_available
+            else []
+        )
         if similar_products and not state.products:
             state.products = similar_products
 
         if eligible:
             next_actions = ["Request a refund", "Contact support"]
             if replacement_available:
-                next_actions.insert(0, "Replace this item")
-            if similar_products:
-                similar_label = "Choose a similar product" if not replacement_available else "Show similar products"
-                insert_at = 1 if replacement_available else 0
-                next_actions.insert(insert_at, similar_label)
+                next_actions.insert(0, "Replace this item" if target_item is not None else "Choose item to replace")
+            elif similar_products:
+                next_actions.insert(0, "Choose a similar product")
         else:
             next_actions = ["Track delivery", "Contact support", "Check return policy"]
 
         state.metadata["return_workflow"] = {
             "status": "verified",
             "eligible": eligible,
+            "damage_intake": {
+                "available": eligible,
+                "requires_delivery": not eligible,
+                "required_details": [
+                    "damaged item name",
+                    "damage reason",
+                    "clear photo or video proof",
+                    "packaging condition",
+                ],
+            },
+            "needs_item_choice": needs_item_choice,
             "replacement_available": replacement_available,
             "similar_product_count": len(similar_products),
+            "target_item": (
+                {
+                    "order_item_id": target_item.id,
+                    "product_id": target_item.product_id,
+                    "product_name": target_item.product_name,
+                }
+                if target_item is not None
+                else None
+            ),
             "order": {
                 "id": order.id,
                 "order_number": order.order_number,
@@ -276,33 +308,93 @@ class ReturnWorkflowTool(AssistantTool):
             ],
             "next_actions": next_actions,
         }
-        state.metadata["order_cards"] = [_order_card(db, order)]
         return_actions = []
-        if replacement_available:
+        if eligible:
+            return_actions.extend(
+                [
+                    {
+                        "label": "Item is broken or cracked",
+                        "description": "Choose this reason if the product has visible physical damage.",
+                        "enabled": True,
+                        "action": "reason",
+                        "issue_reason": "Item is broken or cracked",
+                    },
+                    {
+                        "label": "Product is not working",
+                        "description": "Choose this reason if the item powers on poorly or does not work.",
+                        "enabled": True,
+                        "action": "reason",
+                        "issue_reason": "Product is not working",
+                    },
+                    {
+                        "label": "Package arrived damaged",
+                        "description": "Choose this reason if the box or outer packaging was damaged.",
+                        "enabled": True,
+                        "action": "reason",
+                        "issue_reason": "Package arrived damaged",
+                    },
+                ]
+            )
+            for item in replacement_items[:3]:
+                return_actions.append(
+                    {
+                        "label": f"Replace {item.product_name}",
+                        "description": "Choose this if you want the same item sent again.",
+                        "enabled": True,
+                        "action": "replacement",
+                        "order_item_id": item.id,
+                        "quantity": 1,
+                        "product_name": item.product_name,
+                        "proof_required": True,
+                    }
+                )
+            if similar_products:
+                return_actions.append(
+                    {
+                        "label": "Choose a similar product",
+                        "description": "Pick from similar in-stock products shown below.",
+                        "enabled": True,
+                    }
+                )
             return_actions.append(
                 {
-                    "label": "Replace this item",
-                    "description": "Choose this if you want the same item sent again.",
-                    "enabled": eligible,
+                    "label": "Request a refund",
+                    "description": "Choose this if you prefer money back according to the return policy.",
+                    "enabled": True,
+                    "action": "refund",
+                    "order_item_id": target_item.id if target_item is not None else (order.items[0].id if order.items else None),
+                    "quantity": 1,
+                    "proof_required": True,
                 }
             )
-        if similar_products:
-            return_actions.append(
-                {
-                    "label": "Choose a similar product" if not replacement_available else "Show similar products",
-                    "description": "Pick from similar in-stock products shown below.",
-                    "enabled": eligible,
-                }
+        else:
+            return_actions.extend(
+                [
+                    {
+                        "label": "Order not delivered yet",
+                        "description": "Damage replacement or refund starts after delivery is completed.",
+                        "enabled": False,
+                    },
+                    {
+                        "label": "Keep photo or video proof",
+                        "description": "After delivery, keep clear proof of the item and packaging.",
+                        "enabled": False,
+                    },
+                    {
+                        "label": "Track delivery",
+                        "description": "Check the current delivery status for this order.",
+                        "enabled": True,
+                        "action": "message",
+                    },
+                ]
             )
-        return_actions.append(
-            {
-                "label": "Request a refund",
-                "description": "Choose this if you prefer money back according to the return policy.",
-                "enabled": eligible,
-            }
-        )
+        state.metadata["order_cards"] = [_order_card(db, order)]
         state.metadata["return_actions"] = return_actions
-        state.metadata["quick_replies"] = state.metadata["return_workflow"]["next_actions"]
+        state.metadata["quick_replies"] = (
+            ["Contact support", "Check return policy"]
+            if eligible
+            else state.metadata["return_workflow"]["next_actions"]
+        )
         state.confirmation_required = eligible
         state.tool_records.append(
             ToolCallRecord(
@@ -318,6 +410,10 @@ class ReturnWorkflowTool(AssistantTool):
         for order in orders:
             if order.order_number.upper() in candidates or order.id.upper() in candidates:
                 return order
+            for item in order.items:
+                item_number = (item.item_number or "").upper()
+                if item.id.upper() in candidates or (item_number and item_number in candidates):
+                    return order
 
         uuid_match = re.search(
             r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
@@ -330,25 +426,47 @@ class ReturnWorkflowTool(AssistantTool):
             if matched is not None:
                 return matched
 
-        if len(orders) == 1 and any(token in prompt.lower() for token in ("latest", "last", "recent", "this order")):
+        prompt_lower = prompt.lower()
+        if orders and any(token in prompt_lower for token in ("damage", "damaged", "broken", "defective", "received")):
+            return orders[0]
+        if len(orders) == 1 and any(token in prompt_lower for token in ("latest", "last", "recent", "this order")):
             return orders[0]
         return None
 
-    def _same_product_replacement_available(self, db: Session, order: Order) -> bool:
+    def _match_order_item(self, prompt: str, order: Order) -> OrderItem | None:
+        candidates = set(re.findall(r"[A-Z0-9][A-Z0-9-]{5,}", prompt.upper()))
         for item in order.items:
-            product = db.get(Product, item.product_id)
-            if product is None or not product.is_published or product.is_deleted:
-                continue
-            hydrated = hydrate_product_read_model(db, product)
-            if self._available_units(hydrated) >= item.quantity:
-                return True
-        return False
+            item_number = (item.item_number or "").upper()
+            if item.id.upper() in candidates or (item_number and item_number in candidates):
+                return item
 
-    def _similar_products(self, db: Session, order: Order) -> list[Product]:
-        first_item = order.items[0] if order.items else None
-        if first_item is None:
-            return []
-        source = db.get(Product, first_item.product_id)
+        prompt_terms = {
+            term
+            for term in re.findall(r"[a-z0-9]+", prompt.lower())
+            if len(term) > 2 and term not in {"item", "product", "replace", "return", "refund", "damaged", "damage", "broken", "received"}
+        }
+        if not prompt_terms:
+            return order.items[0] if len(order.items) == 1 else None
+
+        best_item: OrderItem | None = None
+        best_score = 0
+        for item in order.items:
+            item_terms = set(re.findall(r"[a-z0-9]+", item.product_name.lower()))
+            score = len(prompt_terms & item_terms)
+            if score > best_score:
+                best_item = item
+                best_score = score
+        return best_item if best_score > 0 else (order.items[0] if len(order.items) == 1 else None)
+
+    def _order_item_replacement_available(self, db: Session, product_id: str) -> bool:
+        product = db.get(Product, product_id)
+        if product is None or not product.is_published or product.is_deleted:
+            return False
+        hydrated = hydrate_product_read_model(db, product)
+        return self._available_units(hydrated) > 0
+
+    def _similar_products(self, db: Session, item: OrderItem) -> list[Product]:
+        source = db.get(Product, item.product_id)
         if source is None:
             return []
         products = list_products(

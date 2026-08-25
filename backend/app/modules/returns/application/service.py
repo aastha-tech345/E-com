@@ -18,6 +18,9 @@ def create_return_request(
     order_item_id: str,
     quantity: int,
     reason: str,
+    issue_reason: str = "",
+    proof_url: str = "",
+    proof_type: str = "",
 ) -> ReturnRequest:
     item = db.scalar(select(OrderItem).join(Order).where(OrderItem.id == order_item_id, Order.user_id == user_id))
     if item is None:
@@ -34,6 +37,9 @@ def create_return_request(
         user_id=user_id,
         quantity=quantity,
         reason=reason,
+        issue_reason=issue_reason,
+        proof_url=proof_url,
+        proof_type=proof_type,
         status="requested",
     )
     db.add(request)
@@ -52,6 +58,7 @@ def create_return_request(
         message=f"Your {'replacement' if reason.strip().lower() == 'replacement' else 'return'} request for {item.product_name} was submitted.",
     )
     enqueue_job(db, job_type="analytics.refresh_summary")
+    db.flush()
     return request
 
 
