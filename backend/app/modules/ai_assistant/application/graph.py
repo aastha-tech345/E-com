@@ -13,21 +13,36 @@ from app.modules.ai_assistant.application.types import AssistantGraphState, Tool
 from app.modules.ai_assistant.infrastructure.llm_client import BaseLLMClient
 
 
-ORDER_ID_PATTERN = r"\bORD-[A-Z0-9-]+\b"
+ORDER_ID_PATTERN = r"\b(?:ORD|WORD)-[A-Z0-9-]+\b"
 ORDER_ITEM_ID_PATTERN = r"\bITM-[A-Z0-9-]+\b"
-RETURN_CONTEXT_TOKENS = ("return", "refund", "exchange", "replace", "replacement", "damage", "damaged", "broken")
+UUID_PATTERN = r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+RETURN_CONTEXT_TOKENS = (
+    "return",
+    "retuen",
+    "retrun",
+    "refund",
+    "exchange",
+    "replace",
+    "replacement",
+    "damage",
+    "damaged",
+    "broken",
+)
 
 
 def classify_intent(prompt: str) -> str:
     normalized = prompt.lower()
     upper_prompt = prompt.upper()
+    has_return_context = any(token in normalized for token in RETURN_CONTEXT_TOKENS)
     if re.search(ORDER_ITEM_ID_PATTERN, upper_prompt):
+        return "return_support"
+    if has_return_context and (re.search(ORDER_ID_PATTERN, upper_prompt) or re.search(UUID_PATTERN, prompt)):
         return "return_support"
     if re.search(ORDER_ID_PATTERN, upper_prompt):
         return "order_support"
     if any(token in normalized for token in ("policy", "how does")):
         return "policy_help"
-    if any(token in normalized for token in ("return", "refund", "exchange", "replace", "damage", "damaged", "broken")):
+    if has_return_context:
         return "return_support"
     if any(token in normalized for token in ("track", "shipment", "delivery", "delivered", "courier")):
         return "shipping_support"
@@ -147,7 +162,7 @@ class AssistantGraph:
             cart = state.metadata.get("cart")
             notifications = state.metadata.get("notifications")
             return_workflow = state.metadata.get("return_workflow")
-            fragments: list[str] = [completion.content]
+            fragments: list[str] = []
             if isinstance(return_workflow, dict):
                 state.answer = self._format_return_workflow_answer(return_workflow)
                 state.metadata["llm_provider"] = completion.provider
@@ -163,10 +178,17 @@ class AssistantGraph:
                     cart_summary
                 )
             if isinstance(orders, list) and orders:
-                latest_order = orders[0]
-                fragments.append(
-                    f"Your latest order {latest_order['order_number']} is {latest_order['status']} right now."
-                )
+                if len(orders) == 1:
+                    latest_order = orders[0]
+                    fragments.append(
+                        f"Your order {latest_order['order_number']} is {latest_order['status']} right now."
+                    )
+                else:
+                    order_lines = ", ".join(
+                        f"{order['order_number']} ({str(order['status']).replace('_', ' ')})"
+                        for order in orders[:5]
+                    )
+                    fragments.append(f"I found {len(orders)} matching orders: {order_lines}.")
             if isinstance(shipment, dict):
                 shipment_summary = (
                     f"Delivery status is {shipment.get('status', 'pending')}. "
@@ -183,6 +205,8 @@ class AssistantGraph:
                 fragments.append(
                     "For a damaged item, I can help you check replacement, refund, or similar product options once I verify the order."
                 )
+            if not fragments:
+                fragments.append(completion.content)
             state.answer = " ".join(fragment for fragment in fragments if fragment).strip()
             state.metadata["llm_provider"] = completion.provider
             state.metadata["llm_model"] = completion.model

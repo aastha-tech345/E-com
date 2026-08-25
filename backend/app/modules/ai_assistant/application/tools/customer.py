@@ -104,8 +104,10 @@ class OrderLookupTool(AssistantTool):
             state.metadata["auth_required"] = True
             return state
         orders = list_orders_for_user(db, user_id=state.context.user_id)
-        limit = 1 if state.intent == "shipping_support" else 3
-        order_cards = [_order_card(db, order) for order in orders[:limit]]
+        filtered_orders = self._filter_orders(state.prompt, orders)
+        limit = self._requested_limit(state.prompt, default=1 if state.intent == "shipping_support" else 3)
+        selected_orders = filtered_orders[:limit]
+        order_cards = [_order_card(db, order) for order in selected_orders]
         state.metadata["orders"] = [
             {
                 "id": order.id,
@@ -114,15 +116,74 @@ class OrderLookupTool(AssistantTool):
                 "subtotal": str(order.subtotal),
                 "created_at": order.created_at.isoformat(),
             }
-            for order in orders[:limit]
+            for order in selected_orders
         ]
         state.metadata["order_cards"] = order_cards
+        state.metadata["order_lookup"] = {
+            "requested_limit": limit,
+            "returned_count": len(selected_orders),
+            "status_filter": self._requested_status(state.prompt),
+        }
         if state.intent == "shipping_support":
-            state.metadata["quick_replies"] = ["I received a damaged item"]
+            state.metadata["quick_replies"] = ["I received a damaged item", "Show my recent orders"]
         state.tool_records.append(
-            ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(orders[:limit])} recent orders.")
+            ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(selected_orders)} matching orders.")
         )
         return state
+
+    def _requested_limit(self, prompt: str, *, default: int) -> int:
+        normalized = prompt.lower()
+        words = {
+            "one": 1,
+            "two": 2,
+            "three": 3,
+            "four": 4,
+            "five": 5,
+        }
+        digit_match = re.search(r"\b(?:last|latest|recent|show|get|my)?\s*(\d{1,2})\b", normalized)
+        if digit_match:
+            return max(1, min(10, int(digit_match.group(1))))
+        for word, value in words.items():
+            if re.search(rf"\b{word}\b", normalized):
+                return value
+        if any(token in normalized for token in ("orders", "recent orders", "all orders")):
+            return max(default, 3)
+        return default
+
+    def _requested_status(self, prompt: str) -> str | None:
+        normalized = prompt.lower().replace("-", " ")
+        status_terms = {
+            "delivered": "delivered",
+            "shipped": "shipped",
+            "packed": "packed",
+            "processing": "processing",
+            "confirmed": "confirmed",
+            "pending": "pending",
+            "cancelled": "cancelled",
+            "canceled": "cancelled",
+            "out for delivery": "out_for_delivery",
+        }
+        for term, status in status_terms.items():
+            if term in normalized:
+                return status
+        return None
+
+    def _filter_orders(self, prompt: str, orders: list[Order]) -> list[Order]:
+        status = self._requested_status(prompt)
+        if status is None:
+            return orders
+        if status == "delivered":
+            return [
+                order
+                for order in orders
+                if order.status in {"delivered", "partially_delivered"}
+                or any(item.status == "delivered" for item in order.items)
+            ]
+        return [
+            order
+            for order in orders
+            if order.status == status or any(item.status == status for item in order.items)
+        ]
 
 
 class ShipmentStatusTool(AssistantTool):
@@ -131,6 +192,12 @@ class ShipmentStatusTool(AssistantTool):
 
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
         orders = state.metadata.get("orders", [])
+        lookup = state.metadata.get("order_lookup", {})
+        if isinstance(lookup, dict) and int(lookup.get("returned_count") or 0) > 1:
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="Multiple orders requested.")
+            )
+            return state
         if state.context.user_id is None or not isinstance(orders, list) or not orders:
             state.tool_records.append(
                 ToolCallRecord(tool_name=self.name, status="skipped", detail="No order context available.")
@@ -422,13 +489,17 @@ class ReturnWorkflowTool(AssistantTool):
         return state
 
     def _match_order(self, db: Session, prompt: str, orders: list[Order]) -> Order | None:
-        candidates = set(re.findall(r"[A-Z0-9][A-Z0-9-]{5,}", prompt.upper()))
+        candidates = self._id_candidates(prompt)
         for order in orders:
             if order.order_number.upper() in candidates or order.id.upper() in candidates:
                 return order
             for item in order.items:
                 item_number = (item.item_number or "").upper()
-                if item.id.upper() in candidates or (item_number and item_number in candidates):
+                if (
+                    item.id.upper() in candidates
+                    or item.product_id.upper() in candidates
+                    or (item_number and item_number in candidates)
+                ):
                     return order
 
         uuid_match = re.search(
@@ -436,11 +507,10 @@ class ReturnWorkflowTool(AssistantTool):
             prompt,
         )
         if uuid_match:
-            matched = db.scalar(
-                select(Order).where(Order.id == uuid_match.group(0), Order.user_id == orders[0].user_id)
-            ) if orders else None
-            if matched is not None:
-                return matched
+            matched_id = uuid_match.group(0)
+            for order in orders:
+                if order.id == matched_id or any(item.id == matched_id or item.product_id == matched_id for item in order.items):
+                    return order
 
         prompt_lower = prompt.lower()
         if orders and any(token in prompt_lower for token in ("damage", "damaged", "broken", "defective", "received")):
@@ -458,11 +528,25 @@ class ReturnWorkflowTool(AssistantTool):
         return None
 
     def _match_order_item(self, prompt: str, order: Order) -> OrderItem | None:
-        candidates = set(re.findall(r"[A-Z0-9][A-Z0-9-]{5,}", prompt.upper()))
+        candidates = self._id_candidates(prompt)
         for item in order.items:
             item_number = (item.item_number or "").upper()
-            if item.id.upper() in candidates or (item_number and item_number in candidates):
+            if (
+                item.id.upper() in candidates
+                or item.product_id.upper() in candidates
+                or (item_number and item_number in candidates)
+            ):
                 return item
+
+        uuid_match = re.search(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            prompt,
+        )
+        if uuid_match:
+            matched_id = uuid_match.group(0)
+            for item in order.items:
+                if item.id == matched_id or item.product_id == matched_id:
+                    return item
 
         prompt_terms = {
             term
@@ -481,6 +565,14 @@ class ReturnWorkflowTool(AssistantTool):
                 best_item = item
                 best_score = score
         return best_item if best_score > 0 else (order.items[0] if len(order.items) == 1 else None)
+
+    def _id_candidates(self, prompt: str) -> set[str]:
+        candidates = set(re.findall(r"[A-Z0-9][A-Z0-9-]{5,}", prompt.upper()))
+        return candidates | {
+            f"ORD-{candidate[5:]}"
+            for candidate in candidates
+            if candidate.startswith("WORD-") and len(candidate) > 5
+        }
 
     def _order_item_replacement_available(self, db: Session, product_id: str) -> bool:
         product = db.get(Product, product_id)

@@ -1743,7 +1743,8 @@ function sanitizeAssistantAnswer(answer: string, productCount = 0) {
 }
 
 function classifyLocalAssistantIntent(message: string) {
-  if (/(return|refund|policy|exchange|replace|replacement)/i.test(message)) return "policy_help";
+  if (/(policy)/i.test(message)) return "policy_help";
+  if (/(return|retuen|retrun|refund|exchange|replace|replacement)/i.test(message)) return "return_support";
   if (/(damage|damaged|broken|defective)/i.test(message)) return "return_support";
   if (/(order|track|delivery|shipment|courier)/i.test(message)) return "order_support";
   return "product_search";
