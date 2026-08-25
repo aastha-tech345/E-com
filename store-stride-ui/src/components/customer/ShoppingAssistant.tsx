@@ -61,6 +61,8 @@ const DEFAULT_SUGGESTIONS = [
   "Show phones under ₹50000",
 ];
 
+const PRICE_FILTER_SUGGESTIONS = ["Under ₹500", "Under ₹1000", "Under ₹5000", "Under ₹50000"];
+
 const INTENT_SUGGESTIONS: Record<string, string[]> = {
   cart_help: ["Proceed to checkout", "Apply a coupon", "What is in my cart?"],
   checkout_help: [
@@ -94,11 +96,11 @@ export function ShoppingAssistant() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [chat.length, typing, open]);
 
-  const send = async (text: string) => {
+  const send = async (text: string, opts?: { displayText?: string; isAction?: boolean }) => {
     const value = text.trim();
     if (!value || typing) return;
     setInput("");
-    pushChat({ id: crypto.randomUUID(), role: "user", text: value });
+    pushChat({ id: crypto.randomUUID(), role: "user", text: opts?.displayText ?? value, isAction: opts?.isAction });
     setTyping(true);
     const reply = await chatbotService.reply(value);
     setTyping(false);
@@ -249,6 +251,41 @@ export function ShoppingAssistant() {
     addToCart(id, quantity, opts);
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    const latestAssistant = [...chat].reverse().find((message) => message.role === "assistant");
+    const action = normalizeSuggestion(suggestion);
+    const queryContext = getProductQueryContext(latestAssistant);
+
+    if (action === "filter by price") {
+      pushChat({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: "Choose a price range and I’ll filter the products for you.",
+        intent: "product_search",
+        source: "backend",
+        suggestions: PRICE_FILTER_SUGGESTIONS,
+      });
+      return;
+    }
+
+    if (PRICE_FILTER_SUGGESTIONS.includes(suggestion)) {
+      void send(`${queryContext} ${suggestion}`, { displayText: suggestion, isAction: true });
+      return;
+    }
+
+    if (action === "show similar products") {
+      void send(queryContext, { displayText: suggestion, isAction: true });
+      return;
+    }
+
+    if (action === "show only in stock items") {
+      void send(`${queryContext} in stock`, { displayText: suggestion, isAction: true });
+      return;
+    }
+
+    void send(suggestion, { isAction: true });
+  };
+
   if (!hydrated) return null;
 
   return (
@@ -378,7 +415,7 @@ export function ShoppingAssistant() {
                   <button
                     key={suggestion}
                     type="button"
-                    onClick={() => void send(suggestion)}
+                    onClick={() => handleSuggestionClick(suggestion)}
                     className="shrink-0 rounded-full border border-blue-200 bg-gradient-to-b from-white to-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm shadow-blue-950/5 transition hover:border-blue-400 hover:to-blue-100"
                   >
                     {suggestion}
@@ -470,6 +507,17 @@ function uniqueSuggestions(suggestions: string[]) {
   });
 }
 
+function getProductQueryContext(message?: ChatMessage) {
+  const sourceProduct = message?.productResults?.[0];
+  if (sourceProduct?.category && sourceProduct.category !== "Uncategorized") {
+    return `Show more ${sourceProduct.category} products`;
+  }
+  if (sourceProduct?.name) {
+    return `Show products like ${sourceProduct.name}`;
+  }
+  return "Show products";
+}
+
 function normalizeSuggestion(suggestion: string) {
   return suggestion
     .toLowerCase()
@@ -504,7 +552,14 @@ function ChatBubble({
   const backendItems = message.productResults ?? [];
   if (message.role === "user") {
     return (
-      <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-md border border-zinc-300 bg-gradient-to-br from-zinc-100 to-zinc-200 px-3.5 py-2.5 text-sm font-medium leading-5 text-zinc-950 shadow-sm shadow-black/10">
+      <div
+        className={cn(
+          "ml-auto max-w-[85%] rounded-2xl rounded-tr-md px-3.5 py-2.5 text-sm font-medium leading-5 shadow-sm",
+          message.isAction
+            ? "border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 text-blue-800 shadow-blue-950/10"
+            : "border border-zinc-300 bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-950 shadow-black/10",
+        )}
+      >
         {message.text}
       </div>
     );

@@ -178,6 +178,7 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
+  isAction?: boolean;
   products?: string[];
   productResults?: AssistantProductResult[];
   orderCards?: AssistantOrderCard[];

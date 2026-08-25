@@ -24,16 +24,20 @@ SEARCH_STOP_WORDS = {
     "give",
     "i",
     "in",
+    "in-stock",
     "item",
     "items",
     "me",
+    "more",
     "need",
+    "only",
     "please",
     "product",
     "products",
     "search",
     "show",
     "some",
+    "stock",
     "suggest",
     "to",
     "want",
@@ -64,7 +68,14 @@ class CatalogSearchTool(AssistantTool):
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
         query = _clean_query(state.prompt)
         max_price = _extract_max_price(state.prompt)
-        products = _search_products(db, state.prompt, query=query, max_price=max_price)
+        in_stock_only = _extract_in_stock_only(state.prompt)
+        products = _search_products(
+            db,
+            state.prompt,
+            query=query,
+            max_price=max_price,
+            in_stock_only=in_stock_only,
+        )
         matches = [hydrate_product_read_model(db, product) for product in products[:6]]
 
         if matches or not state.products:
@@ -73,6 +84,8 @@ class CatalogSearchTool(AssistantTool):
             state.metadata["normalized_query"] = query
             if max_price is not None:
                 state.metadata["max_price"] = str(max_price)
+            if in_stock_only:
+                state.metadata["in_stock_only"] = True
 
         state.tool_records.append(
             ToolCallRecord(
@@ -84,16 +97,27 @@ class CatalogSearchTool(AssistantTool):
         return state
 
 
-def _search_products(db: Session, raw_prompt: str, *, query: str, max_price: Decimal | None) -> list[Product]:
+def _search_products(
+    db: Session,
+    raw_prompt: str,
+    *,
+    query: str,
+    max_price: Decimal | None,
+    in_stock_only: bool,
+) -> list[Product]:
     exact_matches = list_products(db, query=query or raw_prompt, published_only=True, max_price=max_price)
+    if in_stock_only:
+        exact_matches = [product for product in exact_matches if _has_available_stock(product)]
     if exact_matches:
         return exact_matches
 
     tokens = _query_tokens(query or raw_prompt)
-    if not tokens:
-        return []
-
     candidates = list_products(db, published_only=True, max_price=max_price)
+    if in_stock_only:
+        candidates = [product for product in candidates if _has_available_stock(product)]
+    if not tokens:
+        return candidates
+
     scored = [
         (product, _score_product(product, tokens))
         for product in candidates
@@ -106,6 +130,7 @@ def _search_products(db: Session, raw_prompt: str, *, query: str, max_price: Dec
 def _clean_query(prompt: str) -> str:
     lowered = prompt.lower()
     lowered = re.sub(r"\b(under|below|less than|upto|up to)\s*(rs\.?|inr|₹)?\s*\d+(?:,\d+)*(?:\.\d+)?", " ", lowered)
+    lowered = re.sub(r"\b(in stock|in-stock|available|only in stock|show only in-stock items)\b", " ", lowered)
     lowered = re.sub(r"[^\w\s-]", " ", lowered)
     tokens = []
     for token in lowered.split():
@@ -127,6 +152,15 @@ def _extract_max_price(prompt: str) -> Decimal | None:
     match = re.search(r"\b(?:under|below|less than|upto|up to)\s*(?:rs\.?|inr|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)", prompt.lower())
     if not match:
         return None
+
+
+def _extract_in_stock_only(prompt: str) -> bool:
+    normalized = prompt.lower()
+    return any(token in normalized for token in ("in stock", "in-stock", "available", "only in stock"))
+
+
+def _has_available_stock(product: Product) -> bool:
+    return any(variant.quantity_available > 0 for variant in product.variants)
     try:
         return Decimal(match.group(1).replace(",", ""))
     except Exception:
