@@ -24,10 +24,11 @@ import { Input } from "@/components/ui/input";
 import { Price } from "@/components/common/Price";
 import { Rating } from "@/components/common/Rating";
 import { SiteLogo } from "@/components/common/SiteLogo";
+import { LoginRequiredDialog } from "@/components/customer/LoginRequiredDialog";
 import { chatbotService, productService, returnService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
-import type { AssistantOrderCard, AssistantReturnAction, ChatMessage, Product } from "@/types";
+import type { AssistantOrderCard, AssistantProductResult, AssistantReturnAction, ChatMessage, Product } from "@/types";
 import { toast } from "sonner";
 
 const STARTERS = [
@@ -77,16 +78,13 @@ const INTENT_SUGGESTIONS: Record<string, string[]> = {
 };
 
 export function ShoppingAssistant() {
-  const { chat, pushChat, resetChat, addToCart, hydrated } = useShop();
+  const { chat, pushChat, resetChat, addToCart, hydrated, user } = useShop();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const [returnProof, setReturnProof] = useState<{
-    proofUrl: string;
-    proofType: string;
-    fileName: string;
-  } | null>(null);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+  const [returnProof, setReturnProof] = useState<{ proofUrl: string; proofType: string; fileName: string } | null>(null);
   const [returnIssueReason, setReturnIssueReason] = useState("");
   const [uploadingProof, setUploadingProof] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -243,6 +241,14 @@ export function ShoppingAssistant() {
     void send(text);
   };
 
+  const handleAddToCart = (id: string, quantity?: number, opts?: { product?: Product }) => {
+    if (!user) {
+      setLoginPromptOpen(true);
+      return;
+    }
+    addToCart(id, quantity, opts);
+  };
+
   if (!hydrated) return null;
 
   return (
@@ -342,7 +348,7 @@ export function ShoppingAssistant() {
               <ChatBubble
                 key={m.id}
                 message={m}
-                onAdd={addToCart}
+                onAdd={handleAddToCart}
                 onReturnAction={(action) => void handleReturnAction(action)}
                 returnProof={returnProof}
                 issueReason={returnIssueReason}
@@ -422,6 +428,7 @@ export function ShoppingAssistant() {
           </form>
         </section>
       )}
+      <LoginRequiredDialog open={loginPromptOpen} onOpenChange={setLoginPromptOpen} />
     </>
   );
 }
@@ -530,7 +537,7 @@ function ChatBubble({
         </p>
       ) : null}
       {backendItems.map((p) => {
-        const canAddToLocalCart = Boolean(productService.byId(p.id));
+        const product = productService.byId(p.id) ?? assistantProductToProduct(p);
         return (
           <div
             key={p.id}
@@ -555,23 +562,17 @@ function ChatBubble({
                 {p.stock > 0 ? "In stock" : "Currently unavailable"}
               </p>
               <div className="flex gap-1.5 pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
-                  asChild
-                >
-                  <Link to="/products/$id" params={{ id: p.id }}>
+                <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100" asChild>
+                  <Link to="/products/$id" params={{ id: p.id }} onClick={() => productService.remember(product)}>
                     View Product
                   </Link>
                 </Button>
                 <Button
                   size="sm"
                   className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
-                  disabled={!canAddToLocalCart || p.stock <= 0}
+                  disabled={p.stock <= 0}
                   onClick={() => {
-                    const product = productService.byId(p.id);
-                    onAdd(p.id, 1, product ? { product } : undefined);
+                    onAdd(p.id, 1, { product });
                   }}
                 >
                   Add to Cart
@@ -621,115 +622,40 @@ function ChatBubble({
   );
 }
 
-function ChatMessageContent({ text }: { text: string }) {
-  const lines = normalizeChatMarkdown(text).split("\n");
-  const blocks: JSX.Element[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index].trim();
-    if (!line) {
-      index += 1;
-      continue;
-    }
-
-    const heading = line.match(/^(#{1,3})\s+(.+)$/);
-    if (heading) {
-      const level = heading[1].length;
-      const className =
-        level === 1 ? "text-base font-bold text-slate-950" : "text-sm font-bold text-slate-900";
-      blocks.push(
-        <p key={`heading-${index}`} className={className}>
-          <InlineMarkdown text={heading[2]} />
-        </p>,
-      );
-      index += 1;
-      continue;
-    }
-
-    if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
-        index += 1;
-      }
-      blocks.push(
-        <ul key={`list-${index}`} className="list-disc space-y-1 pl-5 marker:text-slate-500">
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>
-              <InlineMarkdown text={item} />
-            </li>
-          ))}
-        </ul>,
-      );
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
-        index += 1;
-      }
-      blocks.push(
-        <ol
-          key={`ordered-list-${index}`}
-          className="list-decimal space-y-1 pl-5 marker:font-semibold marker:text-slate-600"
-        >
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>
-              <InlineMarkdown text={item} />
-            </li>
-          ))}
-        </ol>,
-      );
-      continue;
-    }
-
-    const paragraph: string[] = [];
-    while (index < lines.length) {
-      const current = lines[index].trim();
-      if (!current) {
-        index += 1;
-        break;
-      }
-      if (
-        paragraph.length > 0 &&
-        (/^(#{1,3})\s+/.test(current) || /^[-*]\s+/.test(current) || /^\d+\.\s+/.test(current))
-      )
-        break;
-      paragraph.push(current);
-      index += 1;
-    }
-    blocks.push(
-      <p key={`paragraph-${index}`} className="text-left">
-        <InlineMarkdown text={paragraph.join(" ")} />
-      </p>,
-    );
-  }
-
-  return <div className="space-y-2.5 break-words text-left">{blocks}</div>;
-}
-
-function InlineMarkdown({ text }: { text: string }) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={`${part}-${index}`} className="font-semibold text-slate-900">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return part;
-  });
-}
-
-function normalizeChatMarkdown(text: string) {
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+(#{1,3}\s+)/g, "\n\n$1")
-    .replace(/\s+([-*]\s+)/g, "\n$1")
-    .replace(/\s+(\d+\.\s+)/g, "\n$1");
+function assistantProductToProduct(product: AssistantProductResult): Product {
+  const images = product.images?.length ? product.images : product.image ? [product.image] : [];
+  return {
+    id: product.id,
+    defaultVariantId: product.defaultVariantId,
+    sku: product.sku || product.slug || product.id,
+    name: product.name,
+    slug: product.slug,
+    brand: product.brand || "Unbranded",
+    category: product.category || "Uncategorized",
+    categorySlug: product.categorySlug || "uncategorized",
+    subcategory: "",
+    description: product.description,
+    shortDescription: product.shortDescription || product.description,
+    images,
+    mrp: product.price,
+    price: product.price,
+    costPrice: 0,
+    rating: product.rating ?? 0,
+    reviewCount: product.reviewCount ?? 0,
+    stock: product.stock,
+    reserved: 0,
+    minStock: 0,
+    colors: [],
+    sizes: [],
+    specifications: [],
+    tags: [],
+    status: "active",
+    createdAt: "",
+    featured: false,
+    trending: false,
+    bestSeller: false,
+    deal: false,
+  };
 }
 
 function OrderStatusCard({ order }: { order: AssistantOrderCard }) {

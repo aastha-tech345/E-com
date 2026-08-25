@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.orm import Session
 
 from app.modules.ai_assistant.application.tool_registry import AssistantTool
@@ -81,11 +83,10 @@ class LangChainSemanticSearchTool(AssistantTool):
             # Query expansion - add synonyms and related terms
             expanded_query = self._expand_query(state.prompt)
 
-            # Get embeddings for expanded query
-            query_embedding = self.embeddings.embed_query(expanded_query)
+            query_terms = self._tokenize(expanded_query)
 
             # Score and rank chunks
-            ranked_chunks = self._score_chunks(chunks, query_embedding)
+            ranked_chunks = self._score_chunks(chunks, query_terms)
 
             # Get unique products from top chunks, limiting to 6
             unique_products = []
@@ -101,10 +102,11 @@ class LangChainSemanticSearchTool(AssistantTool):
                 for product, _ in unique_products
             ]
 
-            state.products = matches
-            state.metadata["search_method"] = "semantic"
-            state.metadata["expanded_query"] = expanded_query
-            state.metadata["search_scores"] = [score for _, score in unique_products]
+            if matches:
+                state.products = matches
+                state.metadata["search_method"] = "semantic"
+                state.metadata["expanded_query"] = expanded_query
+                state.metadata["search_scores"] = [score for _, score in unique_products]
 
             state.tool_records.append(
                 ToolCallRecord(
@@ -190,19 +192,74 @@ class LangChainSemanticSearchTool(AssistantTool):
     def _score_chunks(
         self,
         chunks: list[tuple[Product, str]],
-        query_embedding: list[float],
+        query_terms: set[str],
     ) -> list[tuple[Product, str, float]]:
-        """Score chunks based on semantic similarity."""
+        """Score chunks based on deterministic query-token overlap."""
         scored = []
+        if not query_terms:
+            return scored
 
         for product, chunk in chunks:
-            chunk_embedding = self.embeddings.embed_query(chunk)
-            score = self._cosine_similarity(query_embedding, chunk_embedding)
-            scored.append((product, chunk, score))
+            chunk_terms = self._tokenize(chunk)
+            overlap = query_terms & chunk_terms
+            if not overlap:
+                continue
+            score = len(overlap) / max(1, len(query_terms))
+            exact_boost = sum(0.15 for term in query_terms if term in chunk.lower())
+            scored.append((product, chunk, score + exact_boost))
 
         # Sort by score descending
         scored.sort(key=lambda x: x[2], reverse=True)
         return scored
+
+    def _tokenize(self, text: str) -> set[str]:
+        stop_words = {
+            "a",
+            "about",
+            "all",
+            "and",
+            "any",
+            "best",
+            "buy",
+            "find",
+            "for",
+            "give",
+            "i",
+            "in",
+            "item",
+            "items",
+            "me",
+            "need",
+            "please",
+            "product",
+            "products",
+            "search",
+            "show",
+            "some",
+            "suggest",
+            "to",
+            "want",
+            "with",
+        }
+        synonyms = {
+            "camers": "camera",
+            "cameras": "camera",
+            "dslr": "camera",
+            "mobile": "phone",
+            "mobiles": "phone",
+            "smartphone": "phone",
+            "smartphones": "phone",
+            "headphone": "headset",
+            "headphones": "headset",
+            "earphone": "earbuds",
+            "earphones": "earbuds",
+            "watches": "watch",
+        }
+        return {
+            synonyms.get(token, token)
+            for token in re.findall(r"[a-z0-9]+", text.lower())
+            if token not in stop_words and len(token) > 1
+        }
 
     def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """Calculate cosine similarity between two vectors."""

@@ -1670,10 +1670,19 @@ interface BackendAssistantProduct {
   slug: string;
   short_description: string;
   description: string;
+  is_published?: boolean;
+  category_name?: string | null;
+  category_slug?: string | null;
+  brand_name?: string | null;
+  average_rating?: number;
+  review_count?: number;
   variants: Array<{
+    id?: string;
+    sku?: string;
     price: string | number;
     currency: string;
     quantity_available: number;
+    inventory_reserved?: number;
     is_default: boolean;
   }>;
   media: Array<{
@@ -1683,17 +1692,39 @@ interface BackendAssistantProduct {
 }
 
 function toAssistantProductResult(product: BackendAssistantProduct): AssistantProductResult {
-  const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
-  const media = [...product.media].sort((a, b) => a.sort_order - b.sort_order)[0];
+  const mapped = productService.remember(
+    mapApiProduct({
+      ...product,
+      is_published: product.is_published ?? true,
+      variants: product.variants.map((variant) => ({
+        id: variant.id ?? "",
+        sku: variant.sku ?? product.slug,
+        price: variant.price,
+        quantity_available: variant.quantity_available,
+        inventory_reserved: variant.inventory_reserved ?? 0,
+        is_default: variant.is_default,
+      })),
+    }),
+  );
+
   return {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    description: product.short_description || product.description,
-    image: normalizeImageUrl(media?.media_url),
-    price: Number(variant?.price ?? 0),
-    currency: variant?.currency ?? "INR",
-    stock: variant?.quantity_available ?? 0,
+    id: mapped.id,
+    defaultVariantId: mapped.defaultVariantId,
+    sku: mapped.sku,
+    name: mapped.name,
+    slug: mapped.slug,
+    brand: mapped.brand,
+    category: mapped.category,
+    categorySlug: mapped.categorySlug,
+    description: mapped.shortDescription || mapped.description,
+    shortDescription: mapped.shortDescription,
+    image: mapped.images[0],
+    images: mapped.images,
+    price: mapped.price,
+    currency: product.variants.find((item) => item.is_default)?.currency ?? product.variants[0]?.currency ?? "INR",
+    stock: mapped.stock,
+    rating: mapped.rating,
+    reviewCount: mapped.reviewCount,
   };
 }
 
