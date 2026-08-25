@@ -747,7 +747,7 @@ function ChatMessageContent({ text }: { text: string }) {
   let index = 0;
 
   while (index < lines.length) {
-    const line = lines[index].trim();
+    const line = lines[index]?.trim() ?? "";
     if (!line) {
       index += 1;
       continue;
@@ -757,7 +757,7 @@ function ChatMessageContent({ text }: { text: string }) {
     if (heading) {
       blocks.push(
         <p key={`heading-${index}`} className="mt-2 font-semibold text-slate-950 first:mt-0">
-          <InlineMessageContent text={heading[2]} />
+          <InlineMessageContent text={heading[2] ?? ""} />
         </p>,
       );
       index += 1;
@@ -766,8 +766,8 @@ function ChatMessageContent({ text }: { text: string }) {
 
     if (/^[-*]\s+/.test(line)) {
       const items: string[] = [];
-      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
+      while (index < lines.length && /^[-*]\s+/.test(lines[index]?.trim() ?? "")) {
+        items.push((lines[index] ?? "").trim().replace(/^[-*]\s+/, ""));
         index += 1;
       }
       blocks.push(
@@ -784,8 +784,8 @@ function ChatMessageContent({ text }: { text: string }) {
 
     if (/^\d+\.\s+/.test(line)) {
       const items: string[] = [];
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index]?.trim() ?? "")) {
+        items.push((lines[index] ?? "").trim().replace(/^\d+\.\s+/, ""));
         index += 1;
       }
       blocks.push(
