@@ -30,7 +30,7 @@ class RuleBasedLLMClient(BaseLLMClient):
         elif any(token in normalized for token in ("gift", "recommend", "suggest")):
             content = "I reviewed the current catalog and selected products that best match your request."
         else:
-            content = "I searched the marketplace catalog and found the most relevant products for your request."
+            content = "Here are the closest products I found for you."
         return LLMCompletion(content=content, provider=self.provider_name, model=settings.ai_model)
 
 

@@ -1556,7 +1556,7 @@ export const chatbotService = {
       return {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: payload.answer,
+        text: sanitizeAssistantAnswer(payload.answer, payload.products.length),
         conversationId: payload.conversation_id,
         intent: payload.intent,
         usedTools: payload.used_tools ?? [],
@@ -1644,6 +1644,21 @@ export const chatbotService = {
     };
   },
 };
+
+function sanitizeAssistantAnswer(answer: string, productCount = 0) {
+  const cleaned = answer
+    .replace(
+      /I searched the marketplace catalog and found the most relevant products for your request\.\s*/gi,
+      productCount > 0 ? "Here are the closest products I found for you. " : "",
+    )
+    .replace(
+      /I could not find an exact match\. Try a broader category, brand, budget, or product use\./gi,
+      "I could not find matching products right now. Try a category, brand, budget, or product name.",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || (productCount > 0 ? "Here are the closest products I found for you." : "I could not find matching products right now.");
+}
 
 function classifyLocalAssistantIntent(message: string) {
   if (/(return|refund|policy|exchange|replace|replacement)/i.test(message)) return "policy_help";

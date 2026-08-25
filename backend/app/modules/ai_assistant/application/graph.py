@@ -198,13 +198,12 @@ class AssistantGraph:
             suggestions = state.metadata.get("suggestions", [])
             if suggestions:
                 state.answer = (
-                    f"{completion.content} I could not find an exact match. "
-                    f"You can also try: {', '.join(suggestions[:3])}."
+                    "I could not find products for that exact search. "
+                    f"Try one of these: {', '.join(suggestions[:3])}."
                 )
             else:
                 state.answer = (
-                    f"{completion.content} I could not find an exact match. "
-                    "Try a broader category, brand, budget, or product use."
+                    "I could not find matching products right now. Try a category, brand, budget, or product name."
                 )
         state.metadata["llm_provider"] = completion.provider
         state.metadata["llm_model"] = completion.model
