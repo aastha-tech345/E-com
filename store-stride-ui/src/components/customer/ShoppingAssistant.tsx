@@ -482,7 +482,7 @@ function getAutoSuggestions(chat: ChatMessage[], input: string) {
   if (latestAssistant?.intent === "shipping_support") {
     return uniqueSuggestions([
       ...(latestAssistant.suggestions ?? []),
-      ...INTENT_SUGGESTIONS.shipping_support,
+      ...(INTENT_SUGGESTIONS.shipping_support ?? []),
     ]).slice(0, 1);
   }
   if (latestAssistant?.intent === "return_support" && latestAssistant.suggestions?.length) {
@@ -548,8 +548,12 @@ function ChatBubble({
   uploadingProof: boolean;
   onProofUpload: (file: File) => void;
 }) {
-  const mockItems = message.products ? productService.byIds(message.products) : [];
-  const backendItems = message.productResults ?? [];
+  const mockItems = Array.isArray(message.products) ? productService.byIds(message.products) : [];
+  const backendItems = Array.isArray(message.productResults) ? message.productResults : [];
+  const orderCards = Array.isArray(message.orderCards)
+    ? message.orderCards.filter((order) => order && Array.isArray(order.items))
+    : [];
+  const returnActions = Array.isArray(message.returnActions) ? message.returnActions : [];
   if (message.role === "user") {
     return (
       <div
@@ -573,12 +577,12 @@ function ChatBubble({
         <ReturnConfirmationCard confirmation={message.returnConfirmation} />
       ) : null}
       {message.intent && <SupportContext intent={message.intent} />}
-      {message.orderCards?.map((order) => (
+      {orderCards.map((order) => (
         <OrderStatusCard key={order.id} order={order} />
       ))}
-      {message.returnActions && message.returnActions.length > 0 ? (
+      {returnActions.length > 0 ? (
         <ReturnActions
-          actions={message.returnActions}
+          actions={returnActions}
           onAction={onReturnAction}
           proof={returnProof}
           issueReason={issueReason}
@@ -711,6 +715,23 @@ function assistantProductToProduct(product: AssistantProductResult): Product {
     bestSeller: false,
     deal: false,
   };
+}
+
+function ChatMessageContent({ text }: { text: string }) {
+  const parts = text.split(/(RET-[A-Z0-9]+|ORD-[A-Z0-9-]+|ITM-[A-Z0-9-]+)/g);
+  return (
+    <>
+      {parts.map((part, index) =>
+        /^(RET-[A-Z0-9]+|ORD-[A-Z0-9-]+|ITM-[A-Z0-9-]+)$/.test(part) ? (
+          <strong key={`${part}-${index}`} className="font-extrabold text-slate-950">
+            {part}
+          </strong>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
