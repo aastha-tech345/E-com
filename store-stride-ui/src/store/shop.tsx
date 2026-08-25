@@ -150,9 +150,7 @@ function normalizeStoredState(value: unknown): ShopState {
     addresses: Array.isArray(value["addresses"])
       ? (value["addresses"] as Address[])
       : EMPTY.addresses,
-    chat: Array.isArray(value["chat"])
-      ? value["chat"].filter(isChatMessage).map(normalizeChatMessage)
-      : EMPTY.chat,
+    chat: EMPTY.chat,
     coupon: typeof value["coupon"] === "string" ? value["coupon"] : EMPTY.coupon,
   };
 }
@@ -204,7 +202,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     // Keep customer-specific data out of the shared browser session state.
-    localStorage.setItem(KEY, JSON.stringify({ ...state, cart: [], wishlist: [], addresses: EMPTY.addresses }));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ ...state, cart: [], wishlist: [], addresses: EMPTY.addresses, chat: [] }),
+    );
     if (state.user) {
       localStorage.setItem(
         customerStateKey(state.user.id),

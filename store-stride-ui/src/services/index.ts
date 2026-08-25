@@ -1593,6 +1593,10 @@ export const authService = {
 // ============================================================================
 
 export const chatbotService = {
+  resetConversation() {
+    assistantConversationId = undefined;
+  },
+
   async reply(message: string): Promise<ChatMessage> {
     try {
       const response = await fetch(`${API_BASE}/assistant`, {

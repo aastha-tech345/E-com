@@ -219,6 +219,14 @@ export function ShoppingAssistant() {
       return;
     }
 
+    if (action.action === "message" && action.orderItemId) {
+      void send(`I received damaged item ${action.orderItemId}`, {
+        displayText: action.label,
+        isAction: true,
+      });
+      return;
+    }
+
     onSendFromAction(action.label);
   };
 
@@ -241,6 +249,13 @@ export function ShoppingAssistant() {
 
   const onSendFromAction = (text: string) => {
     void send(text);
+  };
+
+  const handleResetChat = () => {
+    chatbotService.resetConversation();
+    resetChat();
+    setReturnProof(null);
+    setReturnIssueReason("");
   };
 
   const handleAddToCart = (id: string, quantity?: number, opts?: { product?: Product }) => {
@@ -437,7 +452,7 @@ export function ShoppingAssistant() {
               variant="ghost"
               size="icon"
               className="shrink-0 rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
-              onClick={resetChat}
+              onClick={handleResetChat}
               aria-label="Reset chat"
             >
               <RotateCcw size={15} />

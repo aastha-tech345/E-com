@@ -256,19 +256,20 @@ class AssistantGraph:
                 "Here is what is needed before a damage replacement or refund can start."
             )
 
+        if needs_item_choice:
+            return (
+                f"I found your latest delivered order {order_number}. "
+                f"It has multiple items: {item_summary}. "
+                "Please tap the product that arrived damaged. I will use the item ID automatically."
+            )
+
         if isinstance(existing_returns, list) and existing_returns:
             latest = existing_returns[0]
             status = latest.get("status", "requested") if isinstance(latest, dict) else "requested"
             return (
                 f"I found order {order_number} for {item_summary}. "
-                f"A return request is already open for this order. Current status: {status}. "
+                f"A return request is already open for this item. Current status: {status}. "
                 "I can still show similar products or explain the refund and replacement policy."
-            )
-
-        if needs_item_choice:
-            return (
-                f"I found order {order_number} with these items: {item_summary}. "
-                "Please choose which item arrived damaged, then select the reason that best matches the issue."
             )
 
         if not replacement_available and similar_product_count > 0:

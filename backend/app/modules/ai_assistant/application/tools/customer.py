@@ -222,14 +222,16 @@ class ReturnWorkflowTool(AssistantTool):
             )
             return state
 
+        eligible = order.status in {"delivered", "returned", "partially_returned"}
+        target_item = self._match_order_item(state.prompt, order)
+        needs_item_choice = target_item is None and len(order.items) > 1
         existing_returns = [
             request
             for request in list_returns_for_user(db, user_id=state.context.user_id)
             if request.order_id == order.id
+            and target_item is not None
+            and request.order_item_id == target_item.id
         ]
-        eligible = order.status in {"delivered", "returned", "partially_returned"}
-        target_item = self._match_order_item(state.prompt, order)
-        needs_item_choice = target_item is None and len(order.items) > 1
         items = [
             {
                 "order_item_id": item.id,
@@ -309,7 +311,21 @@ class ReturnWorkflowTool(AssistantTool):
             "next_actions": next_actions,
         }
         return_actions = []
-        if eligible:
+        if eligible and needs_item_choice:
+            return_actions.extend(
+                [
+                    {
+                        "label": f"Select {item.product_name}",
+                        "description": "Choose this product if it arrived damaged.",
+                        "enabled": True,
+                        "action": "message",
+                        "order_item_id": item.id,
+                        "product_name": item.product_name,
+                    }
+                    for item in order.items
+                ]
+            )
+        elif eligible:
             return_actions.extend(
                 [
                     {
@@ -428,6 +444,14 @@ class ReturnWorkflowTool(AssistantTool):
 
         prompt_lower = prompt.lower()
         if orders and any(token in prompt_lower for token in ("damage", "damaged", "broken", "defective", "received")):
+            delivered_orders = [
+                order
+                for order in orders
+                if order.status in {"delivered", "returned", "partially_returned"}
+                or any(item.status == "delivered" for item in order.items)
+            ]
+            if delivered_orders:
+                return delivered_orders[0]
             return orders[0]
         if len(orders) == 1 and any(token in prompt_lower for token in ("latest", "last", "recent", "this order")):
             return orders[0]
