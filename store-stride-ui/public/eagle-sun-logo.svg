@@ -1,0 +1,29 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="56" fill="#151A20"/>
+  <circle cx="128" cy="69" r="42" fill="url(#sun)" filter="url(#glow)"/>
+  <path d="M122 121C93 95 58 77 20 71C37 93 59 113 92 130C66 125 41 129 17 141C50 153 83 153 112 140C91 158 74 178 62 202C91 190 111 172 128 146C145 172 165 190 194 202C182 178 165 158 144 140C173 153 206 153 239 141C215 129 190 125 164 130C197 113 219 93 236 71C198 77 163 95 134 121C132 113 124 113 122 121Z" fill="url(#wing)"/>
+  <path d="M128 112C117 112 108 121 108 134V163C108 176 117 186 128 186C139 186 148 176 148 163V134C148 121 139 112 128 112Z" fill="#121417"/>
+  <path d="M113 137C121 132 135 132 143 137C141 126 135 120 128 120C121 120 115 126 113 137Z" fill="#F3F4F6"/>
+  <path d="M128 134C119 144 109 154 94 166C108 163 119 158 128 149C137 158 148 163 162 166C147 154 137 144 128 134Z" fill="#D99845"/>
+  <path d="M112 184C116 207 122 226 128 238C134 226 140 207 144 184C138 191 118 191 112 184Z" fill="url(#tail)"/>
+  <path d="M109 92C96 78 81 68 62 62C68 75 78 89 96 102" stroke="#D99845" stroke-width="7" stroke-linecap="round"/>
+  <path d="M147 92C160 78 175 68 194 62C188 75 178 89 160 102" stroke="#D99845" stroke-width="7" stroke-linecap="round"/>
+  <defs>
+    <filter id="glow" x="56" y="-3" width="144" height="144" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#D99845" flood-opacity="0.65"/>
+    </filter>
+    <linearGradient id="sun" x1="92" y1="31" x2="164" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF5C7"/>
+      <stop offset="1" stop-color="#D99845"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="20" y1="71" x2="236" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#050608"/>
+      <stop offset="0.55" stop-color="#171A1E"/>
+      <stop offset="1" stop-color="#D99845"/>
+    </linearGradient>
+    <linearGradient id="tail" x1="112" y1="184" x2="144" y2="238" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111418"/>
+      <stop offset="1" stop-color="#F0B35A"/>
+    </linearGradient>
+  </defs>
+</svg>

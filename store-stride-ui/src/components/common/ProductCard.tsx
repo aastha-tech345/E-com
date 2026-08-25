@@ -31,7 +31,7 @@ export function ProductCard({
   return (
     <article
       className={cn(
-        "group relative flex overflow-hidden rounded-2xl border border-stone-200 bg-card shadow-[0_10px_25px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-1 hover:border-stone-300 hover:shadow-[0_18px_35px_rgba(15,23,42,0.09)]",
+        "group relative flex overflow-hidden rounded-xl border border-[#ddc8aa] bg-[#f7ead8] shadow-sm shadow-[#7c4a24]/10 transition duration-300 hover:-translate-y-1 hover:border-[#c79f72] hover:shadow-xl hover:shadow-[#7c4a24]/15",
         layout === "grid" ? "flex-col" : "flex-col sm:flex-row",
         className,
       )}
@@ -41,7 +41,7 @@ export function ProductCard({
         params={{ id: product.id }}
         onClick={() => onProductClick?.(product)}
         className={cn(
-          "relative block shrink-0 overflow-hidden bg-stone-100",
+          "relative block shrink-0 overflow-hidden bg-gradient-to-br from-[#e9d6bd] to-[#f7ead8]",
           layout === "grid" ? "aspect-[4/5] w-full" : "aspect-square w-full sm:w-52",
         )}
       >
@@ -54,7 +54,7 @@ export function ProductCard({
             onError={() => setImageFailed(true)}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-stone-400">
+          <div className="flex h-full w-full items-center justify-center text-[#b78a5d]">
             <PackageSearch size={30} />
           </div>
         )}
@@ -71,7 +71,7 @@ export function ProductCard({
           variant="secondary"
           aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
           aria-pressed={wished}
-          className="h-8 w-8 rounded-full shadow-sm"
+          className="h-8 w-8 rounded-full border border-[#ddc8aa] bg-white/90 shadow-sm hover:bg-[#f3e1ca]"
           onClick={() => toggleWishlist(product.id)}
         >
           <Heart size={15} className={wished ? "fill-destructive text-destructive" : ""} />
@@ -81,7 +81,7 @@ export function ProductCard({
             size="icon"
             variant="secondary"
             aria-label="Quick view"
-            className="h-8 w-8 rounded-full opacity-0 shadow-sm transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+            className="h-8 w-8 rounded-full border border-[#ddc8aa] bg-white/90 opacity-0 shadow-sm transition-opacity hover:bg-[#f3e1ca] focus-visible:opacity-100 group-hover:opacity-100"
             onClick={() => onQuickView(product)}
           >
             <Eye size={15} />
@@ -106,7 +106,7 @@ export function ProductCard({
           <p className="line-clamp-2 text-sm text-muted-foreground">{product.shortDescription}</p>
         )}
         <Button
-          className="mt-auto w-full"
+          className="mt-auto w-full rounded-full bg-[#a7622d] shadow-sm shadow-[#7c4a24]/15 hover:bg-[#8d5228]"
           size="sm"
           variant={out ? "secondary" : "default"}
           disabled={out}
