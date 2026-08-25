@@ -1106,6 +1106,18 @@ export const paymentService = {
 
     return (await response.json()) as { session_id: string; checkout_url: string };
   },
+
+  async confirmStripeCheckout(sessionId: string) {
+    const response = await authenticatedFetch(
+      `${API_BASE}/payments/stripe/checkout-session/${encodeURIComponent(sessionId)}/confirm`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to confirm the Stripe payment.");
+    }
+    return response.json() as Promise<{ status: string }>;
+  },
 };
 
 export const checkoutService = {
@@ -1763,6 +1775,8 @@ interface BackendOrder {
   postal_code: string;
   created_at: string;
   items: BackendOrderItem[];
+  payment_status: string;
+  payment_method: string;
 }
 
 function toOrder(order: BackendOrder): Order {
@@ -1779,7 +1793,9 @@ function toOrder(order: BackendOrder): Order {
     status: normalizeOrderStatus(item.status),
     trackingNumber: item.tracking_number || "",
     shippingPartner: item.shipping_partner || "",
-    estimatedDelivery: item.estimated_delivery || undefined,
+    estimatedDelivery:
+      item.estimated_delivery ||
+      new Date(new Date(order.created_at).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     deliveredAt: item.delivered_at || undefined,
   }));
   const normalizedStatus = normalizeOrderStatus(order.status);
@@ -1798,8 +1814,8 @@ function toOrder(order: BackendOrder): Order {
     total: subtotal,
     status: normalizedStatus,
     payment: {
-      method: "Stripe",
-      status: normalizedStatus === "pending" ? "pending" : "paid",
+      method: order.payment_method === "card" ? "Stripe" : order.payment_method,
+      status: order.payment_status === "captured" ? "paid" : "pending",
     },
     address: {
       name: order.shipping_name,

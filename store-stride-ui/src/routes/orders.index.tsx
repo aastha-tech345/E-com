@@ -1,14 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Circle,
+  CircleDollarSign,
   Clipboard,
   Clock3,
   Copy,
-  Eye,
   Headphones,
   Heart,
   Home,
@@ -16,7 +15,7 @@ import {
   MapPin,
   Menu,
   Package,
-  ReceiptText,
+  PackageCheck,
   RotateCcw,
   Search,
   Settings,
@@ -78,23 +77,6 @@ function itemMatchesSearch(item: OrderItem, search: string) {
   );
 }
 
-function deliveryLabel(order: Order) {
-  const dates = order.items
-    .map((item) => item.estimatedDelivery)
-    .filter((date): date is string => Boolean(date))
-    .map((date) => new Date(date))
-    .sort((a, b) => a.getTime() - b.getTime());
-  if (!dates.length) return "Delivery date will be updated";
-  const formatter = new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return dates.length === 1
-    ? `Estimated delivery: ${formatter.format(dates[0])}`
-    : `Estimated delivery: ${formatter.format(dates[0])} - ${formatter.format(dates[dates.length - 1])}`;
-}
-
 function CopyId({ value, label }: { value: string; label: string }) {
   return (
     <button
@@ -104,7 +86,7 @@ function CopyId({ value, label }: { value: string; label: string }) {
       onClick={() =>
         void navigator.clipboard
           .writeText(value)
-          .then(() => toast.success(`${label} copied`))
+          .then(() => toast.success("Copied successfully"))
           .catch(() => toast.error("Unable to copy"))
       }
       className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -149,7 +131,6 @@ function OrdersPage() {
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [summaryOrder, setSummaryOrder] = useState<Order | null>(null);
-  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
   const [returnItem, setReturnItem] = useState<{
     item: OrderItem;
     action: "return" | "replace";
@@ -168,8 +149,10 @@ function OrdersPage() {
       try {
         const loadedOrders = await orderService.list();
         if (active) {
-          setUserOrders(loadedOrders);
-          setExpandedOrderIds(new Set(loadedOrders.slice(0, 1).map((order) => order.id)));
+          const newestFirst = [...loadedOrders].sort(
+            (first, second) => new Date(second.date).getTime() - new Date(first.date).getTime(),
+          );
+          setUserOrders(newestFirst);
         }
       } catch (loadError) {
         if (active) {
@@ -212,21 +195,33 @@ function OrdersPage() {
   }, [trackingItemId]);
 
   const query = search.trim().toLowerCase();
-  const filteredOrders = userOrders.filter((order) => {
+  const productOrders = userOrders.flatMap((order) =>
+    order.items.map((item) => ({
+      ...order,
+      items: [item],
+      subtotal: item.price * item.quantity,
+      total: item.price * item.quantity,
+    })),
+  );
+  const filteredOrders = productOrders.filter((order) => {
+    const item = order.items[0];
     const matchesStatus = statusFilter === "all" || orderStatus(order) === statusFilter;
     const matchesSearch =
       !query ||
-      [
-        order.order_number,
-        ...order.items.flatMap((item) => [item.itemNumber, item.name, item.trackingNumber]),
-      ].some((value) => value?.toLowerCase().includes(query));
+      [order.order_number, item?.itemNumber, item?.name, item?.trackingNumber].some((value) =>
+        value?.toLowerCase().includes(query),
+      );
     return matchesStatus && matchesSearch;
   });
+  const paidOrders = productOrders.filter((order) => order.payment.status === "paid");
+  const pendingOrders = productOrders.filter((order) => orderStatus(order) === "pending");
+  const deliveredOrders = productOrders.filter((order) => orderStatus(order) === "delivered");
+  const totalSpent = paidOrders.reduce((total, order) => total + order.total, 0);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#fbf8f3]">
       <Header />
-      <main className="mx-auto max-w-[1440px] px-4 py-6 lg:px-7 lg:py-8">
+      <main className="mx-auto max-w-[1320px] px-4 py-6 lg:px-6 lg:py-7">
         <div className="mb-5 lg:hidden">
           <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-semibold text-slate-900">
@@ -239,29 +234,29 @@ function OrdersPage() {
           </details>
         </div>
         <div className="flex items-start gap-6 xl:gap-7">
-          <aside className="sticky top-5 hidden w-60 shrink-0 lg:block">
+          <aside className="sticky top-28 hidden w-[216px] shrink-0 lg:block">
             <AccountNavigation
               onNavigate={(path) => navigate({ to: path })}
               onLogout={logoutAndNavigate}
             />
           </aside>
           <section className="min-w-0 flex-1">
-            <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
-              <Home className="h-4 w-4" /> Home <ChevronRight className="h-4 w-4" />{" "}
+            <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+              <Home className="h-3.5 w-3.5" /> Home <ChevronRight className="h-3.5 w-3.5" />{" "}
               <span className="font-medium text-slate-900">My Orders</span>
             </div>
-            <div className="mb-7 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+            <div className="mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
               <div>
-                <h1 className="text-3xl font-bold text-slate-900">My Orders</h1>
-                <p className="mt-2 text-slate-500">
-                  {userOrders.length} {userOrders.length === 1 ? "order" : "orders"}
+                <h1 className="text-2xl font-bold tracking-tight text-slate-950">My Orders</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  {productOrders.length} {productOrders.length === 1 ? "order" : "orders"}
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className="h-11 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700"
+                  className="h-10 min-w-44 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-[#b56f29]"
                 >
                   <option value="all">All Orders</option>
                   <option value="pending">Pending</option>
@@ -280,12 +275,21 @@ function OrdersPage() {
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search order, item or tracking..."
-                    className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-orange-400 sm:w-80"
+                    placeholder="Search order ID, item or tracking..."
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none shadow-sm focus:border-[#b56f29] sm:w-72"
                   />
                 </div>
               </div>
             </div>
+            {!loading && !error && productOrders.length > 0 && (
+              <OrderOverview
+                totalOrders={productOrders.length}
+                totalSpent={totalSpent}
+                paymentMethods={new Set(productOrders.map((order) => order.payment.method)).size}
+                pendingOrders={pendingOrders.length}
+                deliveredOrders={deliveredOrders.length}
+              />
+            )}
             {loading ? (
               <OrderSkeletons />
             ) : error ? (
@@ -295,10 +299,10 @@ function OrdersPage() {
                 action={{ label: "Try Again", onClick: () => window.location.reload() }}
               />
             ) : filteredOrders.length ? (
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {filteredOrders.map((order) => (
                   <OrderCard
-                    key={order.id}
+                    key={order.items[0]?.id ?? order.items[0]?.itemNumber ?? order.id}
                     order={order}
                     query={query}
                     onTrackItem={setTrackingItemId}
@@ -307,16 +311,7 @@ function OrdersPage() {
                     onViewItem={(productId) =>
                       navigate({ to: "/products/$id", params: { id: productId } })
                     }
-                    expanded={expandedOrderIds.has(order.id)}
                     onRequestReturn={(item, action) => setReturnItem({ item, action })}
-                    onToggle={() =>
-                      setExpandedOrderIds((current) => {
-                        const next = new Set(current);
-                        if (next.has(order.id)) next.delete(order.id);
-                        else next.add(order.id);
-                        return next;
-                      })
-                    }
                   />
                 ))}
               </div>
@@ -368,6 +363,83 @@ function OrdersPage() {
   );
 }
 
+function OrderOverview({
+  totalOrders,
+  totalSpent,
+  paymentMethods,
+  pendingOrders,
+  deliveredOrders,
+}: {
+  totalOrders: number;
+  totalSpent: number;
+  paymentMethods: number;
+  pendingOrders: number;
+  deliveredOrders: number;
+}) {
+  const metrics = [
+    {
+      label: "Total Orders",
+      value: totalOrders,
+      caption: "All time",
+      icon: Clipboard,
+      tone: "bg-slate-100 text-slate-600",
+    },
+    {
+      label: "Total Spent",
+      value: `₹${totalSpent.toLocaleString("en-IN")}`,
+      caption: "All time",
+      icon: CircleDollarSign,
+      tone: "bg-blue-50 text-blue-700",
+    },
+    {
+      label: "Payment Methods",
+      value: paymentMethods,
+      caption: "Cards & others",
+      icon: WalletCards,
+      tone: "bg-sky-50 text-sky-700",
+    },
+    {
+      label: "Pending Orders",
+      value: pendingOrders,
+      caption: "Awaiting update",
+      icon: Clock3,
+      tone: "bg-orange-50 text-orange-700",
+    },
+    {
+      label: "Delivered Orders",
+      value: deliveredOrders,
+      caption: "Completed",
+      icon: PackageCheck,
+      tone: "bg-emerald-50 text-emerald-700",
+    },
+  ];
+
+  return (
+    <section className="mb-3 grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_22px_-20px_rgba(15,23,42,0.5)] sm:grid-cols-2 lg:grid-cols-5">
+      {metrics.map((metric) => {
+        const Icon = metric.icon;
+        return (
+          <div
+            key={metric.label}
+            className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0 sm:even:border-l lg:border-b-0 lg:border-l lg:first:border-l-0"
+          >
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${metric.tone}`}
+            >
+              <Icon className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-[11px] font-medium text-slate-500">{metric.label}</p>
+              <p className="mt-0.5 text-sm font-bold text-slate-900">{metric.value}</p>
+              <p className="text-[10px] text-slate-400">{metric.caption}</p>
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 function OrderCard({
   order,
   query,
@@ -375,8 +447,6 @@ function OrderCard({
   onTrackOrder,
   onViewOrder,
   onViewItem,
-  expanded,
-  onToggle,
   onRequestReturn,
 }: {
   order: Order;
@@ -385,23 +455,32 @@ function OrderCard({
   onTrackOrder: () => void;
   onViewOrder: () => void;
   onViewItem: (id: string) => void;
-  expanded: boolean;
-  onToggle: () => void;
   onRequestReturn: (item: OrderItem, action: "return" | "replace") => void;
 }) {
   const aggregateStatus = orderStatus(order);
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_-20px_rgba(15,23,42,0.45)]">
-      <header className="grid gap-4 border-b border-slate-100 px-5 py-5 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.15fr_1fr_1fr_0.8fr_auto] lg:items-center lg:gap-5">
-        <OrderMeta label="Order ID">
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_24px_-22px_rgba(15,23,42,0.55)]">
+      <header className="grid gap-3 border-b border-slate-200 px-4 py-3.5 sm:grid-cols-2 lg:grid-cols-[1.2fr_1.15fr_0.9fr_1fr_0.8fr_auto] lg:items-center lg:gap-4">
+        <OrderMeta label="Product order ID">
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-950">{order.order_number || order.id}</span>
-            <CopyId value={order.order_number || order.id} label="Order ID" />
+            <span className="font-semibold text-slate-950">
+              {order.items[0]?.itemNumber || order.order_number || order.id}
+            </span>
+            <CopyId
+              value={order.items[0]?.itemNumber || order.order_number || order.id}
+              label="Product order ID"
+            />
           </div>
         </OrderMeta>
         <OrderMeta label="Placed on">
-          <span className="font-medium text-slate-800">
-            {new Date(order.date).toLocaleString()}
+          <span className="text-xs font-medium text-slate-800">
+            {new Intl.DateTimeFormat("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }).format(new Date(order.date))}
           </span>
         </OrderMeta>
         <OrderMeta label="Payment method">
@@ -420,67 +499,29 @@ function OrderCard({
           <Price value={order.total} className="text-base font-bold text-slate-950" />
         </OrderMeta>
         <div className="flex items-center gap-2 lg:justify-end">
-          <Button variant="outline" size="sm" onClick={onViewOrder}>
-            View Details <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
-          <button
-            type="button"
-            aria-label={expanded ? "Collapse order" : "Expand order"}
-            onClick={onToggle}
-            className="rounded-md p-2 text-slate-500 hover:bg-slate-100"
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-slate-300 px-3 text-xs"
+            onClick={onViewOrder}
           >
-            <ChevronRight
-              className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`}
-            />
-          </button>
+            View Details <ChevronRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
         </div>
       </header>
-      <div className="flex items-center justify-between gap-4 bg-slate-50/70 px-5 py-3 text-sm">
-        <span className="font-medium text-slate-700">
-          {order.items.length} {order.items.length === 1 ? "Item" : "Items"}
-        </span>
-        <span className="flex items-center gap-1.5 text-slate-500">
-          <CalendarDays className="h-4 w-4" />
-          {deliveryLabel(order)}
-        </span>
+      <div className="px-4">
+        {order.items.map((item) => (
+          <OrderItemCard
+            key={item.id ?? item.itemNumber}
+            item={item}
+            highlighted={itemMatchesSearch(item, query)}
+            onTrack={() => item.id && onTrackItem(item.id)}
+            onView={() => onViewItem(item.productId)}
+            onTrackOrder={onTrackOrder}
+            onRequestReturn={(action) => onRequestReturn(item, action)}
+          />
+        ))}
       </div>
-      <div
-        className={`grid transition-[grid-template-rows] duration-300 ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="divide-y divide-slate-100 px-5">
-            {order.items.map((item) => (
-              <OrderItemCard
-                key={item.id ?? item.itemNumber}
-                item={item}
-                highlighted={itemMatchesSearch(item, query)}
-                onTrack={() => item.id && onTrackItem(item.id)}
-                onView={() => onViewItem(item.productId)}
-                onRequestReturn={(action) => onRequestReturn(item, action)}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-      <footer className="flex flex-col gap-4 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="flex w-fit items-center gap-2 text-sm font-medium text-primary hover:underline"
-        >
-          <ReceiptText className="h-4 w-4" />
-          View Invoice
-        </button>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={onTrackOrder}>
-            <Truck className="mr-2 h-4 w-4" />
-            Track Order
-          </Button>
-          <Button onClick={onViewOrder}>
-            View Order Details <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
-        </div>
-      </footer>
     </article>
   );
 }
@@ -490,61 +531,47 @@ function OrderItemCard({
   highlighted,
   onTrack,
   onView,
+  onTrackOrder,
   onRequestReturn,
 }: {
   item: OrderItem;
   highlighted: boolean;
   onTrack: () => void;
   onView: () => void;
+  onTrackOrder: () => void;
   onRequestReturn: (action: "return" | "replace") => void;
 }) {
   const itemStatus = item.status ?? "pending";
   return (
-    <section
-      className={`py-5 transition-colors ${highlighted ? "-mx-3 bg-orange-50/50 px-3" : ""}`}
-    >
-      <div className="grid gap-4 lg:grid-cols-[minmax(280px,1.65fr)_0.9fr_0.9fr_0.9fr_1fr_auto] lg:items-center lg:gap-5">
-        {item.image ? (
-          <img
-            src={item.image}
-            alt={item.name}
-            className="h-24 w-24 shrink-0 rounded-lg border border-slate-100 object-cover"
-          />
-        ) : (
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-            <Package className="h-7 w-7" />
-          </div>
-        )}
-        <div className="min-w-0">
-          <div>
-            <div>
-              <p className="font-semibold text-slate-900">{item.name}</p>
-              {item.variant && <p className="mt-1 text-sm text-slate-500">{item.variant}</p>}
+    <section className={`py-3.5 transition-colors ${highlighted ? "-mx-2 bg-[#fff6ea] px-2" : ""}`}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(250px,1.55fr)_0.85fr_0.7fr_1.1fr_auto] lg:items-center lg:gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          {item.image ? (
+            <img
+              src={item.image}
+              alt={item.name}
+              className="h-20 w-20 shrink-0 rounded-lg border border-slate-200 bg-slate-50 object-cover"
+            />
+          ) : (
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+              <Package className="h-6 w-6" />
             </div>
-          </div>
+          )}
+          <button type="button" onClick={onView} className="min-w-0 text-left hover:text-[#9a5d25]">
+            <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+            {item.variant && <p className="mt-1 text-xs text-slate-500">{item.variant}</p>}
+          </button>
         </div>
         <ItemMeta label="Item ID">
-          <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-800">
+          <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-700">
             {item.itemNumber ?? item.id}
             <CopyId value={item.itemNumber ?? item.id ?? ""} label="Item ID" />
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Price <Price value={item.price} className="font-semibold text-slate-900" />
-          </p>
         </ItemMeta>
-        <ItemMeta label="Status">
-          <span
-            className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusStyles[itemStatus] ?? "bg-slate-100 text-slate-700 ring-slate-200"}`}
-          >
-            {statusLabel(itemStatus)}
-          </span>
-          <p className="mt-2 text-xs text-slate-500">
-            {item.deliveredAt
-              ? `Delivered on ${new Date(item.deliveredAt).toLocaleDateString()}`
-              : item.estimatedDelivery
-                ? `Expected ${new Date(item.estimatedDelivery).toLocaleDateString()}`
-                : "Awaiting dispatch"}
-          </p>
+        <ItemMeta label="Quantity">
+          <p className="text-sm font-semibold text-slate-900">{item.quantity}</p>
+          <p className="mt-2 text-[11px] text-slate-500">Price</p>
+          <Price value={item.price} className="text-sm font-bold text-slate-900" />
         </ItemMeta>
         <ItemMeta label="Tracking ID">
           {item.trackingNumber ? (
@@ -553,23 +580,55 @@ function OrderItemCard({
               <CopyId value={item.trackingNumber} label="Tracking ID" />
             </div>
           ) : (
-            <span className="text-sm text-slate-500">Not available</span>
+            <span className="text-xs text-slate-500">Not available</span>
           )}
+          <p className="mt-2 text-[11px] text-slate-500">Expected delivery</p>
+          <p className="text-xs font-medium text-slate-700">
+            {item.deliveredAt
+              ? `Delivered ${new Date(item.deliveredAt).toLocaleDateString("en-IN")}`
+              : item.estimatedDelivery
+                ? new Intl.DateTimeFormat("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }).format(new Date(item.estimatedDelivery))
+                : "Awaiting dispatch"}
+          </p>
         </ItemMeta>
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          <Button variant="outline" size="sm" disabled={!item.id} onClick={onTrack}>
-            <MapPin className="mr-2 h-4 w-4" />
-            Track Item
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-slate-300 px-3 text-xs"
+            disabled={!item.id}
+            onClick={onTrack}
+          >
+            <MapPin className="mr-1.5 h-3.5 w-3.5" />
+            Track Order
           </Button>
-          <Button variant="ghost" size="sm" onClick={onView}>
-            View item
+          <Button
+            size="sm"
+            className="h-8 bg-[#172230] px-3 text-xs hover:bg-[#26384c]"
+            onClick={onTrackOrder}
+          >
+            View Order Details <ChevronRight className="ml-1 h-3.5 w-3.5" />
           </Button>
           {itemStatus === "delivered" && (
             <>
-              <Button variant="ghost" size="sm" onClick={() => onRequestReturn("return")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => onRequestReturn("return")}
+              >
                 Return
               </Button>
-              <Button variant="outline" size="sm" onClick={() => onRequestReturn("replace")}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => onRequestReturn("replace")}
+              >
                 Replace
               </Button>
             </>

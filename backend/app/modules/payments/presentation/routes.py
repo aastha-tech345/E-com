@@ -4,6 +4,7 @@ import json
 import stripe
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -194,6 +195,65 @@ def create_stripe_checkout_session(
     return StripeCheckoutResponse(session_id=session.id, checkout_url=session.url)
 
 
+@router.post("/stripe/checkout-session/{session_id}/confirm", response_model=PaymentResponse)
+def confirm_stripe_checkout_session(
+    session_id: str,
+    current_user: UserProfileResponse = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> Payment:
+    """Verify the Stripe session after redirect, without trusting the browser's success URL."""
+    checkout_record = db.scalar(
+        select(StripeCheckoutSession).where(
+            StripeCheckoutSession.session_id == session_id,
+            StripeCheckoutSession.user_id == current_user.id,
+        )
+    )
+    if checkout_record is None:
+        raise HTTPException(status_code=404, detail="Checkout session not found.")
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=500, detail="Stripe secret key is not configured.")
+
+    stripe.api_key = settings.stripe_secret_key
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except stripe.StripeError as exc:
+        raise HTTPException(status_code=502, detail="Unable to verify the Stripe payment.") from exc
+
+    if (session.payment_status or "").lower() != "paid":
+        raise HTTPException(status_code=409, detail="Stripe payment is still pending.")
+
+    payment_intent_id = str(session.payment_intent or "")
+    amount_total = _from_smallest_currency_unit(session.amount_total)
+    currency = (session.currency or settings.stripe_currency).upper()
+    checkout_record = update_stripe_checkout_record_from_webhook(
+        db,
+        session_id=session.id,
+        payment_intent_id=payment_intent_id or None,
+        status=session.status or "complete",
+        payment_status=session.payment_status or "paid",
+        amount_total=amount_total,
+        currency=currency,
+        customer_email=session.customer_email,
+        metadata_json=json.dumps(dict(session.metadata or {})),
+    )
+    _capture_order_payment(
+        db,
+        checkout_record=checkout_record,
+        payment_intent_id=payment_intent_id,
+        amount_total=amount_total,
+    )
+    mark_active_cart_items_purchased(
+        db,
+        user_id=current_user.id,
+        checkout_session_id=session.id,
+        order_id=checkout_record.order_id,
+    )
+    payment = get_payment_for_order(db, order_id=checkout_record.order_id or "")
+    if payment is None:
+        raise HTTPException(status_code=404, detail="Payment not found.")
+    return payment
+
+
 @router.post("/stripe/webhook")
 async def stripe_webhook(
     request: Request,
@@ -249,6 +309,20 @@ async def stripe_webhook(
                 "currency": session.get("currency"),
             },
         )
+        if (session.get("payment_status") or "").lower() == "paid":
+            _capture_order_payment(
+                db,
+                checkout_record=checkout_record,
+                payment_intent_id=payment_intent_id,
+                amount_total=amount_total,
+            )
+            if user_id:
+                mark_active_cart_items_purchased(
+                    db,
+                    user_id=user_id,
+                    checkout_session_id=session_id,
+                    order_id=checkout_record.order_id,
+                )
 
     if event["type"] == "payment_intent.succeeded":
         payment_intent = event["data"]["object"]

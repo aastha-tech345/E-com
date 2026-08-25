@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -74,6 +75,7 @@ def place_order_from_cart(
     db.flush()
 
     created_items: list[OrderItem] = []
+    expected_delivery = datetime.now(timezone.utc) + timedelta(days=7)
     commission_rate = Decimal("0.1000")
     for item_index, cart_item in enumerate(cart.items, start=1):
         variant = cart_item.variant
@@ -99,6 +101,7 @@ def place_order_from_cart(
             seller_payout_amount=seller_payout_amount,
             item_number=f"ITM-{order.order_number.removeprefix('ORD-')}-{item_index:02d}",
             status="pending",
+            estimated_delivery=expected_delivery,
         )
         db.add(created_item)
         created_items.append(created_item)
@@ -170,6 +173,7 @@ def create_pending_order_from_cart(
     db.flush()
 
     subtotal = Decimal("0.00")
+    expected_delivery = datetime.now(timezone.utc) + timedelta(days=7)
     commission_rate = Decimal("0.1000")
     for item_index, cart_item in enumerate(active_items, start=1):
         variant = cart_item.variant
@@ -194,6 +198,7 @@ def create_pending_order_from_cart(
             seller_payout_amount=(line_total - commission_amount).quantize(Decimal("0.01")),
             item_number=f"ITM-{order.order_number.removeprefix('ORD-')}-{item_index:02d}",
             status="pending",
+            estimated_delivery=expected_delivery,
         )
         db.add(created_item)
         db.flush()

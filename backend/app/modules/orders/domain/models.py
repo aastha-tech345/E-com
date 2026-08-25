@@ -33,11 +33,20 @@ class Order(Base):
         onupdate=func.now(),
     )
 
+    @property
+    def payment_status(self) -> str:
+        return self.payments[0].status if self.payments else "pending"
+
+    @property
+    def payment_method(self) -> str:
+        return self.payments[0].method if self.payments else "card"
+
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
     status_history: Mapped[list["OrderStatusHistory"]] = relationship(
         back_populates="order",
         cascade="all, delete-orphan",
     )
+    payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")
 
 
 class OrderItem(Base):

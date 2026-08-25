@@ -44,6 +44,8 @@ class OrderResponse(BaseModel):
     postal_code: str
     created_at: datetime
     items: list[OrderItemResponse]
+    payment_status: str
+    payment_method: str
 
 
 class OrderItemTrackingEventResponse(BaseModel):

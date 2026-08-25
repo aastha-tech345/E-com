@@ -22,7 +22,6 @@ function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [userType, setUserType] = useState<"customer" | "seller">("customer");
 
   const validateForm = () => {
     if (!fullName.trim()) {
@@ -62,31 +61,14 @@ function RegisterPage() {
         return;
       }
 
-      let response;
-      if (userType === "seller") {
-        // For sellers, we'll call the register-seller endpoint
-        const apiUrl = import.meta.env["VITE_API_URL"] || "http://localhost:8000/api/v1";
-        const apiResponse = await fetch(`${apiUrl}/auth/register-seller`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, full_name: fullName, password }),
-        });
-        if (!apiResponse.ok) {
-          const data = await apiResponse.json();
-          throw new Error(data.detail || "Seller registration failed");
-        }
-        response = await apiResponse.json();
-      } else {
-        // For customers, use the regular register endpoint
-        response = await authService.register(email, fullName, password);
-      }
+      const response = await authService.register(email, fullName, password);
 
       setUser(response.user, {
         access_token: response.access_token,
         refresh_token: response.refresh_token,
       });
 
-      toast.success(`${userType === "seller" ? "Seller" : "Account"} created successfully!`);
+      toast.success("Account created successfully!");
       navigate({ to: "/" });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Registration failed";
@@ -97,19 +79,19 @@ function RegisterPage() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[#f4f7fb] p-3 sm:p-5">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 md:grid-cols-[.9fr_1.1fr]">
-        <aside className="relative hidden overflow-hidden bg-[#10233e] p-10 text-white md:flex md:flex-col md:justify-between">
+    <div className="flex h-[100dvh] items-center justify-center overflow-hidden bg-[#f8f1e6] p-3">
+      <div className="grid h-[min(500px,calc(100dvh-1.5rem))] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-[#dcc8aa] bg-[#fffaf2] shadow-2xl shadow-[#7c4a24]/15 md:grid-cols-[.9fr_1.1fr]">
+        <aside className="relative hidden overflow-hidden bg-[radial-gradient(circle_at_82%_15%,rgba(221,151,65,.45),transparent_28%),linear-gradient(145deg,#111827_0%,#1f2933_60%,#6b4b2a_100%)] p-8 text-white md:flex md:flex-col md:justify-between">
           <div>
             <SiteLogo size="lg" />
-            <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Join Store Stride</p>
-            <h2 className="mt-4 max-w-sm text-4xl font-bold leading-tight">A better storefront for every kind of ambition.</h2>
-            <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">Shop for what matters or open your own storefront with one secure account.</p>
+            <p className="mt-7 text-xs font-bold uppercase tracking-[0.28em] text-[#f0ad3d]">Join Store Stride</p>
+            <h2 className="mt-3 max-w-sm text-3xl font-bold leading-tight">A better storefront for every kind of ambition.</h2>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-300">Shop for what matters or open your own storefront with one secure account.</p>
           </div>
           <p className="text-xs text-slate-400">Your account keeps orders, favorites, and seller tools together.</p>
         </aside>
-        <div className="flex items-center justify-center overflow-hidden p-4 sm:p-6">
-          <div className="w-full max-w-md">
+        <div className="flex items-center justify-center overflow-hidden bg-[#fffdfa] p-4 sm:p-5">
+          <div className="w-full max-w-[360px]">
           {/* Logo */}
           <div className="mb-4 text-center">
             <SiteLogo size="sm" className="mb-2 md:hidden" />
@@ -119,60 +101,6 @@ function RegisterPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-2.5">
-            {/* User Type Selection */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-800">
-                I want to register as:
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <label
-                  className={`cursor-pointer rounded-lg border-2 p-2 transition ${
-                    userType === "customer"
-                      ? "border-blue-600 bg-blue-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="userType"
-                    value="customer"
-                    checked={userType === "customer"}
-                    onChange={(e) => setUserType(e.target.value as "customer" | "seller")}
-                    className="sr-only"
-                    disabled={loading}
-                  />
-                  <div className="text-center">
-                    <div className="mb-0.5 text-lg">Shop</div>
-                    <div className="text-sm font-medium text-gray-900">Customer</div>
-                    <div className="text-xs text-gray-600">Shop & buy</div>
-                  </div>
-                </label>
-
-                <label
-                  className={`cursor-pointer rounded-lg border-2 p-2 transition ${
-                    userType === "seller"
-                      ? "border-blue-600 bg-blue-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="userType"
-                    value="seller"
-                    checked={userType === "seller"}
-                    onChange={(e) => setUserType(e.target.value as "customer" | "seller")}
-                    className="sr-only"
-                    disabled={loading}
-                  />
-                  <div className="text-center">
-                    <div className="mb-0.5 text-lg">Sell</div>
-                    <div className="text-sm font-medium text-gray-900">Seller</div>
-                    <div className="text-xs text-gray-600">Sell products</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-800">Full Name</label>
               <Input
@@ -180,7 +108,7 @@ function RegisterPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="John Doe"
-                className="h-9"
+                className="h-9 rounded-lg border-[#ddc8aa] bg-white shadow-none focus-visible:ring-[#a7622d]"
                 disabled={loading}
                 required
               />
@@ -193,7 +121,7 @@ function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="h-9"
+                className="h-9 rounded-lg border-[#ddc8aa] bg-white shadow-none focus-visible:ring-[#a7622d]"
                 disabled={loading}
                 required
               />
@@ -207,7 +135,7 @@ function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="h-9 pr-14"
+                  className="h-9 rounded-lg border-[#ddc8aa] bg-white pr-14 shadow-none focus-visible:ring-[#a7622d]"
                   disabled={loading}
                   required
                 />
@@ -231,7 +159,7 @@ function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="h-9"
+                className="h-9 rounded-lg border-[#ddc8aa] bg-white shadow-none focus-visible:ring-[#a7622d]"
                 disabled={loading}
                 required
               />
@@ -259,7 +187,7 @@ function RegisterPage() {
 
             <Button
               type="submit"
-              className="h-10 w-full bg-[#10233e] font-semibold text-white hover:bg-[#1a365d]"
+              className="h-10 w-full rounded-lg bg-[#a7622d] font-semibold text-white shadow-sm shadow-[#7c4a24]/25 hover:bg-[#8d5228]"
               disabled={loading}
             >
               {loading ? "Creating account..." : "Create Account"}

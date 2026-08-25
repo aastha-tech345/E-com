@@ -62,7 +62,11 @@ const DEFAULT_SUGGESTIONS = [
 
 const INTENT_SUGGESTIONS: Record<string, string[]> = {
   cart_help: ["Proceed to checkout", "Apply a coupon", "What is in my cart?"],
-  checkout_help: ["Is checkout secure?", "What payment options are available?", "Track my latest order"],
+  checkout_help: [
+    "Is checkout secure?",
+    "What payment options are available?",
+    "Track my latest order",
+  ],
   order_support: ["Track my latest order", "Show my recent orders", "I received a damaged item"],
   policy_help: ["What is return policy?", "How do refunds work?", "My product arrived damaged"],
   product_compare: ["Compare these products", "Which one is better?", "Show similar products"],
@@ -78,7 +82,11 @@ export function ShoppingAssistant() {
   const [full, setFull] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const [returnProof, setReturnProof] = useState<{ proofUrl: string; proofType: string; fileName: string } | null>(null);
+  const [returnProof, setReturnProof] = useState<{
+    proofUrl: string;
+    proofType: string;
+    fileName: string;
+  } | null>(null);
   const [returnIssueReason, setReturnIssueReason] = useState("");
   const [uploadingProof, setUploadingProof] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -148,7 +156,11 @@ export function ShoppingAssistant() {
             action.orderItemId,
             action.quantity ?? 1,
             returnProof
-              ? { proofUrl: returnProof.proofUrl, proofType: returnProof.proofType, issueReason: returnIssueReason }
+              ? {
+                  proofUrl: returnProof.proofUrl,
+                  proofType: returnProof.proofType,
+                  issueReason: returnIssueReason,
+                }
               : undefined,
           );
         } else {
@@ -157,12 +169,20 @@ export function ShoppingAssistant() {
             action.quantity ?? 1,
             "damaged item",
             returnProof
-              ? { proofUrl: returnProof.proofUrl, proofType: returnProof.proofType, issueReason: returnIssueReason }
+              ? {
+                  proofUrl: returnProof.proofUrl,
+                  proofType: returnProof.proofType,
+                  issueReason: returnIssueReason,
+                }
               : undefined,
           );
         }
         setTyping(false);
-        toast.success(action.action === "replacement" ? "Replacement request submitted." : "Refund request submitted.");
+        toast.success(
+          action.action === "replacement"
+            ? "Replacement request submitted."
+            : "Refund request submitted.",
+        );
         setReturnProof(null);
         setReturnIssueReason("");
         pushChat({
@@ -174,14 +194,18 @@ export function ShoppingAssistant() {
           returnConfirmation: {
             referenceId: formatRequestReference(request.id),
             status: formatStatus(request.status),
-            title: action.action === "replacement" ? "Replacement request created" : "Refund request created",
+            title:
+              action.action === "replacement"
+                ? "Replacement request created"
+                : "Refund request created",
             productName: action.productName,
           },
           suggestions: ["Track my latest order", "Check return policy"],
         });
       } catch (error) {
         setTyping(false);
-        const message = error instanceof Error ? error.message : "Unable to submit replacement request.";
+        const message =
+          error instanceof Error ? error.message : "Unable to submit replacement request.";
         toast.error(message);
         pushChat({
           id: crypto.randomUUID(),
@@ -246,10 +270,15 @@ export function ShoppingAssistant() {
         >
           <header className="border-b border-zinc-800 bg-[radial-gradient(circle_at_92%_22%,rgba(255,255,255,0.12),transparent_34%),linear-gradient(135deg,#050505,#18181b_58%,#3f3f46)] px-5 py-4 text-white shadow-sm">
             <div className="flex items-center gap-3">
-              <SiteLogo size="lg" className="rounded-xl border border-white/15 shadow-md shadow-black/20 ring-0" />
+              <SiteLogo
+                size="lg"
+                className="rounded-xl border border-white/15 shadow-md shadow-black/20 ring-0"
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-base font-semibold tracking-wide">ShopNest Assistant</p>
-                <p className="mt-0.5 truncate text-xs text-slate-300">Products, orders, delivery, refunds and returns</p>
+                <p className="mt-0.5 truncate text-xs text-slate-300">
+                  Products, orders, delivery, refunds and returns
+                </p>
               </div>
               <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-100 sm:flex">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
@@ -285,7 +314,8 @@ export function ShoppingAssistant() {
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Hi, how can I help today?</p>
                   <p className="mt-1 text-sm leading-5 text-slate-600">
-                    I can help you find products, compare options, track orders, and sort out returns or refunds.
+                    I can help you find products, compare options, track orders, and sort out
+                    returns or refunds.
                   </p>
                 </div>
               </div>
@@ -359,7 +389,14 @@ export function ShoppingAssistant() {
               void send(input);
             }}
           >
-            <Button type="button" variant="ghost" size="icon" className="shrink-0 rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950" onClick={resetChat} aria-label="Reset chat">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0 rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
+              onClick={resetChat}
+              aria-label="Reset chat"
+            >
               <RotateCcw size={15} />
             </Button>
             <label htmlFor="assistant-input" className="sr-only">
@@ -373,7 +410,13 @@ export function ShoppingAssistant() {
               autoComplete="off"
               className="h-11 rounded-full border-zinc-200 bg-gradient-to-b from-white to-zinc-100 px-4 shadow-inner focus-visible:ring-zinc-300"
             />
-            <Button type="submit" size="icon" className="h-11 w-11 shrink-0 rounded-full bg-zinc-950 text-white shadow-md shadow-black/20 hover:bg-zinc-800" aria-label="Send message" disabled={!input.trim() || typing}>
+            <Button
+              type="submit"
+              size="icon"
+              className="h-11 w-11 shrink-0 rounded-full bg-zinc-950 text-white shadow-md shadow-black/20 hover:bg-zinc-800"
+              aria-label="Send message"
+              disabled={!input.trim() || typing}
+            >
               <Send size={16} />
             </Button>
           </form>
@@ -403,7 +446,7 @@ function getAutoSuggestions(chat: ChatMessage[], input: string) {
   }
   const sourceSuggestions = [
     ...(latestAssistant?.suggestions ?? []),
-    ...(latestAssistant?.intent ? INTENT_SUGGESTIONS[latestAssistant.intent] ?? [] : []),
+    ...(latestAssistant?.intent ? (INTENT_SUGGESTIONS[latestAssistant.intent] ?? []) : []),
     ...DEFAULT_SUGGESTIONS,
   ];
 
@@ -462,7 +505,7 @@ function ChatBubble({
   return (
     <div className="space-y-2">
       <div className="max-w-[90%] rounded-2xl rounded-tl-md border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 px-3.5 py-2.5 text-sm leading-5 text-zinc-700 shadow-sm shadow-black/10">
-        {message.text}
+        <ChatMessageContent text={message.text} />
       </div>
       {message.returnConfirmation ? (
         <ReturnConfirmationCard confirmation={message.returnConfirmation} />
@@ -489,9 +532,16 @@ function ChatBubble({
       {backendItems.map((p) => {
         const canAddToLocalCart = Boolean(productService.byId(p.id));
         return (
-          <div key={p.id} className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10">
+          <div
+            key={p.id}
+            className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10"
+          >
             {p.image ? (
-              <img src={p.image} alt="" className="h-20 w-20 shrink-0 rounded-lg bg-slate-100 object-cover" />
+              <img
+                src={p.image}
+                alt=""
+                className="h-20 w-20 shrink-0 rounded-lg bg-slate-100 object-cover"
+              />
             ) : (
               <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
                 <PackageSearch size={22} />
@@ -505,7 +555,12 @@ function ChatBubble({
                 {p.stock > 0 ? "In stock" : "Currently unavailable"}
               </p>
               <div className="flex gap-1.5 pt-1">
-                <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100" asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
+                  asChild
+                >
                   <Link to="/products/$id" params={{ id: p.id }}>
                     View Product
                   </Link>
@@ -527,7 +582,10 @@ function ChatBubble({
         );
       })}
       {mockItems.map((p) => (
-        <div key={p.id} className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10">
+        <div
+          key={p.id}
+          className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10"
+        >
           <img src={p.images[0]} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
@@ -537,7 +595,12 @@ function ChatBubble({
               {p.stock > 0 ? "In stock" : "Currently unavailable"}
             </p>
             <div className="flex gap-1.5 pt-1">
-              <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100" asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
+                asChild
+              >
                 <Link to="/products/$id" params={{ id: p.id }}>
                   View Product
                 </Link>
@@ -558,6 +621,117 @@ function ChatBubble({
   );
 }
 
+function ChatMessageContent({ text }: { text: string }) {
+  const lines = normalizeChatMarkdown(text).split("\n");
+  const blocks: JSX.Element[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const className =
+        level === 1 ? "text-base font-bold text-slate-950" : "text-sm font-bold text-slate-900";
+      blocks.push(
+        <p key={`heading-${index}`} className={className}>
+          <InlineMarkdown text={heading[2]} />
+        </p>,
+      );
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ul key={`list-${index}`} className="list-disc space-y-1 pl-5 marker:text-slate-500">
+          {items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>
+              <InlineMarkdown text={item} />
+            </li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ol
+          key={`ordered-list-${index}`}
+          className="list-decimal space-y-1 pl-5 marker:font-semibold marker:text-slate-600"
+        >
+          {items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>
+              <InlineMarkdown text={item} />
+            </li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+
+    const paragraph: string[] = [];
+    while (index < lines.length) {
+      const current = lines[index].trim();
+      if (!current) {
+        index += 1;
+        break;
+      }
+      if (
+        paragraph.length > 0 &&
+        (/^(#{1,3})\s+/.test(current) || /^[-*]\s+/.test(current) || /^\d+\.\s+/.test(current))
+      )
+        break;
+      paragraph.push(current);
+      index += 1;
+    }
+    blocks.push(
+      <p key={`paragraph-${index}`} className="text-left">
+        <InlineMarkdown text={paragraph.join(" ")} />
+      </p>,
+    );
+  }
+
+  return <div className="space-y-2.5 break-words text-left">{blocks}</div>;
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={`${part}-${index}`} className="font-semibold text-slate-900">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+function normalizeChatMarkdown(text: string) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\s+(#{1,3}\s+)/g, "\n\n$1")
+    .replace(/\s+([-*]\s+)/g, "\n$1")
+    .replace(/\s+(\d+\.\s+)/g, "\n$1");
+}
+
 function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
   const [imageFailed, setImageFailed] = useState(false);
   const firstItem = order.items[0];
@@ -570,7 +744,9 @@ function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
     <div className="max-w-[94%] rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-3 shadow-sm shadow-black/10">
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
         <div>
-          <p className="text-xs font-semibold uppercase text-slate-500">Order {order.order_number}</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">
+            Order {order.order_number}
+          </p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{formatStatus(order.status)}</p>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
@@ -592,12 +768,17 @@ function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900">{firstItem?.product_name || "Order item"}</p>
+          <p className="truncate text-sm font-semibold text-slate-900">
+            {firstItem?.product_name || "Order item"}
+          </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            {itemCount} item{itemCount === 1 ? "" : "s"} • {order.currency} {Number(order.subtotal).toLocaleString("en-IN")}
+            {itemCount} item{itemCount === 1 ? "" : "s"} • {order.currency}{" "}
+            {Number(order.subtotal).toLocaleString("en-IN")}
           </p>
           {order.shipment?.tracking_number ? (
-            <p className="mt-1 text-xs text-slate-500">Tracking: {order.shipment.tracking_number}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Tracking: {order.shipment.tracking_number}
+            </p>
           ) : null}
         </div>
       </div>
@@ -668,11 +849,21 @@ function ReturnActions({
         <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-3 text-left shadow-sm shadow-blue-950/10">
           <p className="text-sm font-semibold text-slate-900">Before submitting</p>
           <div className="mt-2 grid gap-1.5 text-xs">
-            <span className={cn("flex items-center gap-2", issueReason ? "text-emerald-700" : "text-slate-500")}>
+            <span
+              className={cn(
+                "flex items-center gap-2",
+                issueReason ? "text-emerald-700" : "text-slate-500",
+              )}
+            >
               <CheckCircle2 size={13} />
               {issueReason ? `Reason selected: ${issueReason}` : "Select a damage reason"}
             </span>
-            <span className={cn("flex items-center gap-2", proof ? "text-emerald-700" : "text-slate-500")}>
+            <span
+              className={cn(
+                "flex items-center gap-2",
+                proof ? "text-emerald-700" : "text-slate-500",
+              )}
+            >
               <CheckCircle2 size={13} />
               {proof ? `Proof uploaded: ${proof.fileName}` : "Upload image or video proof"}
             </span>
@@ -695,7 +886,11 @@ function ReturnActions({
             />
           </label>
           <p className="mt-2 text-xs font-medium text-slate-600">
-            {uploadingProof ? "Uploading proof..." : proof && issueReason ? "Ready to submit replacement or refund." : "Complete both steps to submit."}
+            {uploadingProof
+              ? "Uploading proof..."
+              : proof && issueReason
+                ? "Ready to submit replacement or refund."
+                : "Complete both steps to submit."}
           </p>
         </div>
       ) : null}
@@ -736,11 +931,26 @@ function ReturnActionButton({
       onClick={() => onAction(action)}
       className="group rounded-xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm shadow-blue-950/10 transition enabled:hover:border-blue-400 enabled:hover:to-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:from-slate-50 disabled:to-slate-50 disabled:opacity-70"
     >
-      <p className={cn("flex items-center justify-between gap-2 text-sm font-semibold", disabled ? "text-slate-500" : "text-slate-900")}>
+      <p
+        className={cn(
+          "flex items-center justify-between gap-2 text-sm font-semibold",
+          disabled ? "text-slate-500" : "text-slate-900",
+        )}
+      >
         {action.label}
-        <ArrowRight size={14} className={cn("transition", disabled ? "text-slate-300" : "text-blue-500 group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:text-blue-700")} />
+        <ArrowRight
+          size={14}
+          className={cn(
+            "transition",
+            disabled
+              ? "text-slate-300"
+              : "text-blue-500 group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:text-blue-700",
+          )}
+        />
       </p>
-      <p className={cn("mt-1 text-xs leading-4", disabled ? "text-slate-400" : "text-slate-500")}>{description}</p>
+      <p className={cn("mt-1 text-xs leading-4", disabled ? "text-slate-400" : "text-slate-500")}>
+        {description}
+      </p>
     </button>
   );
 }

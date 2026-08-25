@@ -84,7 +84,11 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
           className="h-10 rounded-full border-[#d8c2a2] bg-gradient-to-b from-white to-[#f8efe3] pl-9 pr-20 shadow-sm focus-visible:ring-[#d1a06d]"
           autoComplete="off"
         />
-        <Button type="submit" size="sm" className="absolute right-1 top-1 h-8 rounded-full bg-[#a7622d] px-4 hover:bg-[#8d5228]">
+        <Button
+          type="submit"
+          size="sm"
+          className="absolute right-1 top-1 h-8 rounded-full bg-[#a7622d] px-4 hover:bg-[#8d5228]"
+        >
           Search
         </Button>
       </form>
@@ -260,7 +264,10 @@ export function Header() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="hidden shrink-0 rounded-full hover:bg-[#f3e1ca] lg:inline-flex">
+            <Button
+              variant="ghost"
+              className="hidden shrink-0 rounded-full hover:bg-[#f3e1ca] lg:inline-flex"
+            >
               Categories <ChevronDown size={15} />
             </Button>
           </DropdownMenuTrigger>
@@ -275,12 +282,18 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="hidden flex-1 md:block">
+        <div className="hidden w-full max-w-[560px] md:block">
           <SearchBox />
         </div>
 
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon" asChild aria-label="Wishlist" className="relative rounded-full hover:bg-[#f3e1ca]">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label="Wishlist"
+            className="relative rounded-full hover:bg-[#f3e1ca]"
+          >
             <Link to="/wishlist">
               <Heart size={19} />
               {wishlist.length > 0 && (
@@ -290,7 +303,13 @@ export function Header() {
               )}
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild aria-label="Cart" className="relative rounded-full hover:bg-[#f3e1ca]">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label="Cart"
+            className="relative rounded-full hover:bg-[#f3e1ca]"
+          >
             <Link to="/cart">
               <ShoppingCart size={19} />
               {cartCount > 0 && (
@@ -302,7 +321,12 @@ export function Header() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Account" className="rounded-full hover:bg-[#f3e1ca]">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Account"
+                className="rounded-full hover:bg-[#f3e1ca]"
+              >
                 <User size={19} />
               </Button>
             </DropdownMenuTrigger>

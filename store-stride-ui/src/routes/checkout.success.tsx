@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
+import { paymentService } from "@/services";
 import { useShop } from "@/store/shop";
 import { useEffect, useRef, useState } from "react";
 
@@ -23,17 +24,29 @@ function CheckoutSuccessPage() {
   const cleared = useRef(false);
   const [confirmOpen, setConfirmOpen] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<"confirming" | "paid" | "pending">(
+    "confirming",
+  );
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || paymentStatus !== "paid") return;
     if (cleared.current) return;
     cleared.current = true;
     clearCart({ syncBackend: false });
-  }, [clearCart, hydrated]);
+  }, [clearCart, hydrated, paymentStatus]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setSessionId(params.get("session_id"));
+    const checkoutSessionId = params.get("session_id");
+    setSessionId(checkoutSessionId);
+    if (!checkoutSessionId) {
+      setPaymentStatus("pending");
+      return;
+    }
+    void paymentService
+      .confirmStripeCheckout(checkoutSessionId)
+      .then(() => setPaymentStatus("paid"))
+      .catch(() => setPaymentStatus("pending"));
   }, []);
 
   return (
@@ -42,10 +55,13 @@ function CheckoutSuccessPage() {
       <main className="flex flex-1 items-center justify-center px-4 py-16">
         <div className="max-w-md text-center">
           <CheckCircle className="mx-auto mb-4 h-14 w-14 text-green-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Payment successful</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {paymentStatus === "paid" ? "Payment successful" : "Confirming payment"}
+          </h1>
           <p className="mt-2 text-sm text-gray-600">
-            Stripe confirmed your checkout. Your order flow can now be connected to backend order
-            creation.
+            {paymentStatus === "paid"
+              ? "Stripe confirmed your payment and your order is ready to process."
+              : "We are verifying the payment directly with Stripe before updating your order."}
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <Button asChild>
@@ -66,9 +82,13 @@ function CheckoutSuccessPage() {
             <CheckCircle className="h-10 w-10 text-green-600" />
           </div>
           <DialogHeader className="text-center">
-            <DialogTitle className="text-xl">Payment confirmed</DialogTitle>
+            <DialogTitle className="text-xl">
+              {paymentStatus === "paid" ? "Payment confirmed" : "Confirming payment"}
+            </DialogTitle>
             <DialogDescription>
-              Your Stripe payment was received successfully. Your cart has been updated.
+              {paymentStatus === "paid"
+                ? "Your Stripe payment was received successfully. Your cart has been updated."
+                : "Your order will show Payment successful as soon as Stripe confirms it."}
             </DialogDescription>
           </DialogHeader>
           {sessionId && (

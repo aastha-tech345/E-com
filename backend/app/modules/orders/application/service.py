@@ -13,6 +13,7 @@ def list_orders_for_user(db: Session, *, user_id: str) -> list[Order]:
             .options(
                 selectinload(Order.items).selectinload(OrderItem.product),
                 selectinload(Order.items).selectinload(OrderItem.status_history),
+                selectinload(Order.payments),
             )
             .where(Order.user_id == user_id)
             .order_by(Order.created_at.desc())
@@ -27,6 +28,7 @@ def get_order_for_user(db: Session, *, user_id: str, order_id: str) -> Order:
             .options(
                 selectinload(Order.items).selectinload(OrderItem.product),
                 selectinload(Order.items).selectinload(OrderItem.status_history),
+                selectinload(Order.payments),
         )
         .where(Order.id == order_id, Order.user_id == user_id)
     )

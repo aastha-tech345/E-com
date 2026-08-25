@@ -49,19 +49,19 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[#f4f7fb] p-3 sm:p-5">
-      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 md:grid-cols-[1.05fr_.95fr]">
-        <aside className="relative hidden overflow-hidden bg-[#10233e] p-10 text-white md:flex md:flex-col md:justify-between">
+    <div className="flex h-[100dvh] items-center justify-center overflow-hidden bg-[#f8f1e6] p-3">
+      <div className="grid h-[min(500px,calc(100dvh-1.5rem))] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-[#dcc8aa] bg-[#fffaf2] shadow-2xl shadow-[#7c4a24]/15 md:grid-cols-[.9fr_1.1fr]">
+        <aside className="relative hidden overflow-hidden bg-[radial-gradient(circle_at_82%_15%,rgba(221,151,65,.45),transparent_28%),linear-gradient(145deg,#111827_0%,#1f2933_60%,#6b4b2a_100%)] p-8 text-white md:flex md:flex-col md:justify-between">
           <div>
             <SiteLogo size="lg" />
-            <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Store Stride</p>
-            <h2 className="mt-4 max-w-sm text-4xl font-bold leading-tight">Everything you love, in one thoughtful place.</h2>
-            <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">Discover trusted products, simple ordering, and a better way to shop every day.</p>
+            <p className="mt-7 text-xs font-bold uppercase tracking-[0.28em] text-[#f0ad3d]">Welcome Back</p>
+            <h2 className="mt-3 max-w-sm text-3xl font-bold leading-tight">Everything you love, in one thoughtful place.</h2>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-300">Discover trusted products, simple ordering, and a better way to shop every day.</p>
           </div>
           <p className="text-xs text-slate-400">Secure account access for Store Stride customers.</p>
         </aside>
-        <div className="flex items-center justify-center p-5 sm:p-8">
-          <div className="w-full max-w-sm">
+        <div className="flex items-center justify-center bg-[#fffdfa] p-4 sm:p-5">
+          <div className="w-full max-w-[360px]">
           {/* Logo */}
           <div className="mb-6 text-center">
             <SiteLogo size="md" className="mb-3 md:hidden" />
@@ -78,7 +78,7 @@ function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="h-10"
+                className="h-10 rounded-lg border-[#ddc8aa] bg-white shadow-none focus-visible:ring-[#a7622d]"
                 disabled={loading}
                 required
               />
@@ -92,7 +92,7 @@ function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="h-10 pr-14"
+                  className="h-10 rounded-lg border-[#ddc8aa] bg-white pr-14 shadow-none focus-visible:ring-[#a7622d]"
                   disabled={loading}
                   required
                 />
@@ -119,7 +119,7 @@ function LoginPage() {
 
             <Button
               type="submit"
-              className="h-10 w-full bg-[#10233e] font-semibold text-white hover:bg-[#1a365d]"
+              className="h-10 w-full rounded-lg bg-[#a7622d] font-semibold text-white shadow-sm shadow-[#7c4a24]/25 hover:bg-[#8d5228]"
               disabled={loading}
             >
               {loading ? "Signing in..." : "Sign In"}
