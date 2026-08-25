@@ -6,7 +6,7 @@
  * API base: http://localhost:8000/api/v1
  */
 
-import type { AssistantProductResult, ChatMessage, Order, Product } from "@/types";
+import type { AssistantOrderCard, AssistantProductResult, AssistantReturnAction, ChatMessage, Order, Product } from "@/types";
 import {
   adminUsers,
   banners,
@@ -162,6 +162,25 @@ function rememberProducts(items: Product[]) {
   }
 }
 
+function normalizeImageUrl(value?: string | null): string {
+  const raw = value?.trim();
+  if (!raw) return "";
+
+  try {
+    const url = new URL(raw);
+    const googleImageUrl = url.searchParams.get("imgurl");
+    if (googleImageUrl) return decodeURIComponent(googleImageUrl);
+    const wrappedUrl = url.searchParams.get("url");
+    if (wrappedUrl && /\.(avif|gif|jpe?g|png|webp)(\?|$)/i.test(wrappedUrl)) {
+      return decodeURIComponent(wrappedUrl);
+    }
+  } catch {
+    return raw;
+  }
+
+  return raw;
+}
+
 function mapApiProduct(product: BackendProduct): Product {
   const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
   const price = Number(variant?.price ?? 0);
@@ -180,7 +199,8 @@ function mapApiProduct(product: BackendProduct): Product {
     shortDescription: product.short_description,
     images: [...product.media]
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((media) => media.media_url),
+      .map((media) => normalizeImageUrl(media.media_url))
+      .filter(Boolean),
     mrp: price,
     price,
     costPrice: 0,
@@ -378,13 +398,20 @@ export const productService = {
   },
 
   async create(payload: ProductCreatePayload, endpoint: "admin" | "seller" = "admin"): Promise<Product> {
+    const normalizedPayload: ProductCreatePayload = {
+      ...payload,
+      media: payload.media?.map((media) => ({
+        ...media,
+        media_url: normalizeImageUrl(media.media_url),
+      })),
+    };
     const response = await fetch(`${API_BASE}/${endpoint}/products`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...authHeaders(),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalizedPayload),
     });
 
     if (!response.ok) {
@@ -1188,6 +1215,8 @@ export const chatbotService = {
           popular_search_terms?: string[];
           quick_replies?: string[];
           orchestrator?: string;
+          order_cards?: AssistantOrderCard[];
+          return_actions?: AssistantReturnAction[];
         };
       };
 
@@ -1202,6 +1231,8 @@ export const chatbotService = {
         orchestrator: payload.metadata?.orchestrator,
         source: "backend",
         productResults: payload.products.map(toAssistantProductResult),
+        orderCards: (payload.metadata?.order_cards ?? []).map(normalizeAssistantOrderCard),
+        returnActions: payload.metadata?.return_actions ?? [],
         suggestions:
           payload.metadata?.quick_replies ??
           payload.metadata?.suggestions ??
@@ -1314,10 +1345,20 @@ function toAssistantProductResult(product: BackendAssistantProduct): AssistantPr
     name: product.name,
     slug: product.slug,
     description: product.short_description || product.description,
-    image: media?.media_url,
+    image: normalizeImageUrl(media?.media_url),
     price: Number(variant?.price ?? 0),
     currency: variant?.currency ?? "INR",
     stock: variant?.quantity_available ?? 0,
+  };
+}
+
+function normalizeAssistantOrderCard(order: AssistantOrderCard): AssistantOrderCard {
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      image: normalizeImageUrl(item.image),
+    })),
   };
 }
 

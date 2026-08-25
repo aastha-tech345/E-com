@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.modules.ai_assistant.application.rag import retrieve_knowledge
 from app.modules.ai_assistant.application.tool_registry import AssistantTool
@@ -16,6 +16,52 @@ from app.modules.orders.domain.models import Order
 from app.modules.orders.application.service import list_orders_for_user
 from app.modules.returns.application.service import list_returns_for_user
 from app.modules.shipping.application.service import get_shipment_for_user
+
+
+def _product_image(db: Session, product_id: str) -> str | None:
+    product = db.scalar(
+        select(Product)
+        .options(selectinload(Product.media))
+        .where(Product.id == product_id)
+    )
+    if product is None or not product.media:
+        return None
+    media = sorted(product.media, key=lambda item: item.sort_order)
+    return media[0].media_url if media else None
+
+
+def _order_card(db: Session, order: Order, shipment: object | None = None) -> dict[str, object]:
+    return {
+        "id": order.id,
+        "order_number": order.order_number,
+        "status": order.status,
+        "currency": order.currency,
+        "subtotal": str(order.subtotal),
+        "created_at": order.created_at.isoformat(),
+        "shipment": (
+            {
+                "status": getattr(shipment, "status", "pending"),
+                "carrier": getattr(shipment, "carrier", "internal"),
+                "tracking_number": getattr(shipment, "tracking_number", ""),
+                "events": [event.status for event in getattr(shipment, "events", [])[:5]],
+            }
+            if shipment is not None
+            else None
+        ),
+        "items": [
+            {
+                "order_item_id": item.id,
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "variant_name": item.variant_name,
+                "quantity": item.quantity,
+                "unit_price": str(item.unit_price),
+                "line_total": str(item.line_total),
+                "image": _product_image(db, item.product_id),
+            }
+            for item in order.items
+        ],
+    }
 
 
 class CartSnapshotTool(AssistantTool):
@@ -57,6 +103,7 @@ class OrderLookupTool(AssistantTool):
             state.metadata["auth_required"] = True
             return state
         orders = list_orders_for_user(db, user_id=state.context.user_id)
+        order_cards = [_order_card(db, order) for order in orders[:3]]
         state.metadata["orders"] = [
             {
                 "id": order.id,
@@ -67,6 +114,7 @@ class OrderLookupTool(AssistantTool):
             }
             for order in orders[:3]
         ]
+        state.metadata["order_cards"] = order_cards
         state.tool_records.append(
             ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(orders[:3])} recent orders.")
         )
@@ -96,6 +144,14 @@ class ShipmentStatusTool(AssistantTool):
             "tracking_number": shipment.tracking_number,
             "events": [event.status for event in shipment.events[:5]],
         }
+        order = db.get(Order, order_id)
+        if order is not None:
+            cards = state.metadata.get("order_cards", [])
+            updated_card = _order_card(db, order, shipment)
+            state.metadata["order_cards"] = [
+                updated_card if isinstance(card, dict) and card.get("id") == order.id else card
+                for card in cards
+            ] or [updated_card]
         state.tool_records.append(
             ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded shipment status {shipment.status}.")
         )
@@ -107,7 +163,8 @@ class ReturnPolicyTool(AssistantTool):
     intent_names = ("return_support", "policy_help")
 
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
-        docs = retrieve_knowledge(db, query=f"returns {state.prompt}", limit=2)
+        query = f"returns {state.prompt}" if state.intent == "return_support" else state.prompt
+        docs = retrieve_knowledge(db, query=query, limit=3)
         state.metadata["knowledge"] = [
             {"title": doc.title, "category": doc.category, "content": doc.content}
             for doc in docs
@@ -174,6 +231,7 @@ class ReturnWorkflowTool(AssistantTool):
                 "product_name": item.product_name,
                 "quantity": item.quantity,
                 "unit_price": str(item.unit_price),
+                "image": _product_image(db, item.product_id),
             }
             for item in order.items
         ]
@@ -208,6 +266,24 @@ class ReturnWorkflowTool(AssistantTool):
                 else ["Track delivery", "Contact support", "Review return policy"]
             ),
         }
+        state.metadata["order_cards"] = [_order_card(db, order)]
+        state.metadata["return_actions"] = [
+            {
+                "label": "Request replacement",
+                "description": "Use this when you want the same item again and stock is available.",
+                "enabled": eligible,
+            },
+            {
+                "label": "Request refund",
+                "description": "Use this when you prefer money back according to the return policy.",
+                "enabled": eligible,
+            },
+            {
+                "label": "Show similar products",
+                "description": "Compare available alternatives from the same category.",
+                "enabled": bool(similar_products),
+            },
+        ]
         state.metadata["quick_replies"] = state.metadata["return_workflow"]["next_actions"]
         state.confirmation_required = eligible
         state.tool_records.append(

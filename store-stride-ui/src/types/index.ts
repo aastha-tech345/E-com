@@ -161,6 +161,8 @@ export interface ChatMessage {
   text: string;
   products?: string[];
   productResults?: AssistantProductResult[];
+  orderCards?: AssistantOrderCard[];
+  returnActions?: AssistantReturnAction[];
   suggestions?: string[];
   conversationId?: string;
   intent?: string;
@@ -178,4 +180,35 @@ export interface AssistantProductResult {
   price: number;
   currency: string;
   stock: number;
+}
+
+export interface AssistantOrderCard {
+  id: string;
+  order_number: string;
+  status: string;
+  currency: string;
+  subtotal: string | number;
+  created_at: string;
+  shipment?: {
+    status: string;
+    carrier: string;
+    tracking_number?: string;
+    events?: string[];
+  } | null;
+  items: Array<{
+    order_item_id: string;
+    product_id: string;
+    product_name: string;
+    variant_name?: string;
+    quantity: number;
+    unit_price: string | number;
+    line_total: string | number;
+    image?: string | null;
+  }>;
+}
+
+export interface AssistantReturnAction {
+  label: string;
+  description: string;
+  enabled: boolean;
 }

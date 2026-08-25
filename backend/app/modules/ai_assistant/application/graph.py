@@ -14,6 +14,8 @@ from app.modules.ai_assistant.infrastructure.llm_client import BaseLLMClient
 
 def classify_intent(prompt: str) -> str:
     normalized = prompt.lower()
+    if any(token in normalized for token in ("policy", "how does")):
+        return "policy_help"
     if any(token in normalized for token in ("return", "refund", "exchange", "replace", "damage", "damaged", "broken")):
         return "return_support"
     if any(token in normalized for token in ("track", "shipment", "delivery", "delivered", "courier")):
@@ -22,7 +24,7 @@ def classify_intent(prompt: str) -> str:
         return "order_support"
     if any(token in normalized for token in ("cart", "checkout", "coupon")):
         return "cart_help"
-    if any(token in normalized for token in ("policy", "how does", "help", "support")):
+    if any(token in normalized for token in ("help", "support")):
         return "policy_help"
     if any(token in normalized for token in ("account", "notification", "alert")):
         return "account_help"

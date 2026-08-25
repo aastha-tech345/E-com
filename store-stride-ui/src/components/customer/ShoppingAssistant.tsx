@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import {
   Bot,
+  CheckCircle2,
   Maximize2,
+  Package,
   Minimize2,
   PackageSearch,
   RefreshCcw,
@@ -21,7 +23,7 @@ import { Rating } from "@/components/common/Rating";
 import { chatbotService, productService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
-import type { ChatMessage, Product } from "@/types";
+import type { AssistantOrderCard, AssistantReturnAction, ChatMessage, Product } from "@/types";
 
 const STARTERS = [
   {
@@ -233,6 +235,12 @@ function ChatBubble({
         {message.text}
       </div>
       {message.intent && <SupportContext intent={message.intent} />}
+      {message.orderCards?.map((order) => (
+        <OrderStatusCard key={order.id} order={order} />
+      ))}
+      {message.returnActions && message.returnActions.length > 0 ? (
+        <ReturnActions actions={message.returnActions} onSend={onSend} />
+      ) : null}
       {backendItems.map((p) => {
         const canAddToLocalCart = Boolean(productService.byId(p.id));
         return (
@@ -318,6 +326,82 @@ function ChatBubble({
   );
 }
 
+function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const firstItem = order.items[0];
+  const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
+  const shipmentStatus = order.shipment?.status || order.status;
+  const fallbackProduct = firstItem ? productService.byId(firstItem.product_id) : undefined;
+  const image = firstItem?.image || fallbackProduct?.images?.[0];
+
+  return (
+    <div className="max-w-[94%] rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+        <div>
+          <p className="text-xs font-semibold uppercase text-slate-500">Order {order.order_number}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{formatStatus(order.status)}</p>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
+          <Truck size={12} />
+          {formatStatus(shipmentStatus)}
+        </span>
+      </div>
+      <div className="mt-3 flex gap-3">
+        {image && !imageFailed ? (
+          <img
+            src={image}
+            alt=""
+            className="h-16 w-16 shrink-0 rounded-md bg-slate-100 object-cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400">
+            <Package size={20} />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900">{firstItem?.product_name || "Order item"}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {itemCount} item{itemCount === 1 ? "" : "s"} • {order.currency} {Number(order.subtotal).toLocaleString("en-IN")}
+          </p>
+          {order.shipment?.tracking_number ? (
+            <p className="mt-1 text-xs text-slate-500">Tracking: {order.shipment.tracking_number}</p>
+          ) : null}
+        </div>
+      </div>
+      {order.shipment?.events?.length ? (
+        <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2">
+          {order.shipment.events.slice(0, 3).map((event) => (
+            <div key={event} className="flex items-center gap-2 text-xs text-slate-600">
+              <CheckCircle2 size={13} className="text-emerald-600" />
+              {formatStatus(event)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReturnActions({ actions, onSend }: { actions: AssistantReturnAction[]; onSend: (text: string) => void }) {
+  return (
+    <div className="grid max-w-[94%] gap-2">
+      {actions.map((action) => (
+        <button
+          key={action.label}
+          type="button"
+          disabled={!action.enabled}
+          onClick={() => onSend(action.label)}
+          className="rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition enabled:hover:border-blue-300 enabled:hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <p className="text-sm font-semibold text-slate-900">{action.label}</p>
+          <p className="mt-1 text-xs leading-4 text-slate-500">{action.description}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SupportContext({ intent }: { intent: string }) {
   return (
     <div className="inline-flex max-w-[90%] items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700">
@@ -327,9 +411,27 @@ function SupportContext({ intent }: { intent: string }) {
   );
 }
 
-function formatIntent(intent: string) {
-  return intent
-    .split("_")
+function formatStatus(status: string) {
+  return status
+    .replace(/_/g, " ")
+    .split(" ")
+    .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatIntent(intent: string) {
+  const labels: Record<string, string> = {
+    account_help: "Account help",
+    cart_help: "Cart help",
+    checkout_help: "Checkout help",
+    order_support: "Order help",
+    policy_help: "Policy help",
+    product_compare: "Product comparison",
+    product_recommendation: "Product suggestions",
+    product_search: "Product search",
+    return_support: "Returns and replacements",
+    shipping_support: "Order tracking",
+  };
+  return labels[intent] ?? "Shopping help";
 }

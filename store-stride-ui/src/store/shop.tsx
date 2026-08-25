@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { customerDataService, productService } from "@/services";
+import { cartService, customerDataService, productService } from "@/services";
 import type { Address, CartLine, ChatMessage, Product } from "@/types";
 
 interface User {
