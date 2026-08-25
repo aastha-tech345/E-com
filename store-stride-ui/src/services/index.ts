@@ -1250,8 +1250,8 @@ export const chatbotService = {
         id: crypto.randomUUID(),
         role: "assistant",
         text:
-          "You can usually request a return or refund for eligible delivered items within the return window. For damaged products, keep the packaging and share your order ID so support can verify the item and offer refund, replacement, or similar-product options.",
-        suggestions: ["My product arrived damaged", "How do I request refund?", "Track my latest order"],
+          "Most eligible delivered items can be returned within the return window. If an item arrived damaged, please keep the packaging and share your order ID so we can check replacement, refund, or similar product options.",
+        suggestions: ["My product arrived damaged", "How do I request a refund?", "Track my latest order"],
         intent: "policy_help",
         source: "fallback",
       };
@@ -1261,7 +1261,7 @@ export const chatbotService = {
         id: crypto.randomUUID(),
         role: "assistant",
         text:
-          "I can help with a damaged product. Please share your order ID, then I can guide you through refund, replacement, or similar-product options based on policy.",
+          "I can help with that. Please share your order ID, then I can check whether replacement, refund, or similar product options are available.",
         suggestions: ["Where can I find my order ID?", "Request replacement", "Request refund"],
         intent: "return_support",
         source: "fallback",
@@ -1272,7 +1272,7 @@ export const chatbotService = {
         id: crypto.randomUUID(),
         role: "assistant",
         text:
-          "I can check order status when the backend is connected. Please make sure you are logged in and share the order ID.",
+          "I can check your order status after you sign in. Please share the order ID, or ask me to track your latest order.",
         suggestions: ["Track my latest order", "Show my recent orders", "Contact support"],
         intent: "order_support",
         source: "fallback",

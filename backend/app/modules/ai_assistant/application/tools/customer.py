@@ -236,13 +236,27 @@ class ReturnWorkflowTool(AssistantTool):
             for item in order.items
         ]
 
+        replacement_available = self._same_product_replacement_available(db, order)
         similar_products = self._similar_products(db, order)
         if similar_products and not state.products:
             state.products = similar_products
 
+        if eligible:
+            next_actions = ["Request a refund", "Contact support"]
+            if replacement_available:
+                next_actions.insert(0, "Replace this item")
+            if similar_products:
+                similar_label = "Choose a similar product" if not replacement_available else "Show similar products"
+                insert_at = 1 if replacement_available else 0
+                next_actions.insert(insert_at, similar_label)
+        else:
+            next_actions = ["Track delivery", "Contact support", "Check return policy"]
+
         state.metadata["return_workflow"] = {
             "status": "verified",
             "eligible": eligible,
+            "replacement_available": replacement_available,
+            "similar_product_count": len(similar_products),
             "order": {
                 "id": order.id,
                 "order_number": order.order_number,
@@ -260,30 +274,34 @@ class ReturnWorkflowTool(AssistantTool):
                 }
                 for request in existing_returns
             ],
-            "next_actions": (
-                ["Request replacement", "Request refund", "Show similar products", "Contact support"]
-                if eligible
-                else ["Track delivery", "Contact support", "Review return policy"]
-            ),
+            "next_actions": next_actions,
         }
         state.metadata["order_cards"] = [_order_card(db, order)]
-        state.metadata["return_actions"] = [
+        return_actions = []
+        if replacement_available:
+            return_actions.append(
+                {
+                    "label": "Replace this item",
+                    "description": "Choose this if you want the same item sent again.",
+                    "enabled": eligible,
+                }
+            )
+        if similar_products:
+            return_actions.append(
+                {
+                    "label": "Choose a similar product" if not replacement_available else "Show similar products",
+                    "description": "Pick from similar in-stock products shown below.",
+                    "enabled": eligible,
+                }
+            )
+        return_actions.append(
             {
-                "label": "Request replacement",
-                "description": "Use this when you want the same item again and stock is available.",
+                "label": "Request a refund",
+                "description": "Choose this if you prefer money back according to the return policy.",
                 "enabled": eligible,
-            },
-            {
-                "label": "Request refund",
-                "description": "Use this when you prefer money back according to the return policy.",
-                "enabled": eligible,
-            },
-            {
-                "label": "Show similar products",
-                "description": "Compare available alternatives from the same category.",
-                "enabled": bool(similar_products),
-            },
-        ]
+            }
+        )
+        state.metadata["return_actions"] = return_actions
         state.metadata["quick_replies"] = state.metadata["return_workflow"]["next_actions"]
         state.confirmation_required = eligible
         state.tool_records.append(
@@ -316,6 +334,16 @@ class ReturnWorkflowTool(AssistantTool):
             return orders[0]
         return None
 
+    def _same_product_replacement_available(self, db: Session, order: Order) -> bool:
+        for item in order.items:
+            product = db.get(Product, item.product_id)
+            if product is None or not product.is_published or product.is_deleted:
+                continue
+            hydrated = hydrate_product_read_model(db, product)
+            if self._available_units(hydrated) >= item.quantity:
+                return True
+        return False
+
     def _similar_products(self, db: Session, order: Order) -> list[Product]:
         first_item = order.items[0] if order.items else None
         if first_item is None:
@@ -328,11 +356,20 @@ class ReturnWorkflowTool(AssistantTool):
             published_only=True,
             category_slugs=[source.category.slug] if source.category else None,
         )
-        return [
-            hydrate_product_read_model(db, product)
-            for product in products
-            if product.id != source.id
-        ][:4]
+        similar: list[Product] = []
+        for product in products:
+            if product.id == source.id:
+                continue
+            hydrated = hydrate_product_read_model(db, product)
+            if self._available_units(hydrated) <= 0:
+                continue
+            similar.append(hydrated)
+            if len(similar) >= 4:
+                break
+        return similar
+
+    def _available_units(self, product: Product) -> int:
+        return sum(max(0, variant.quantity_available) for variant in product.variants)
 
 
 class NotificationSummaryTool(AssistantTool):

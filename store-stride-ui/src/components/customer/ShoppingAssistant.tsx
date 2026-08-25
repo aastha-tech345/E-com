@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import {
+  ArrowRight,
   Bot,
   CheckCircle2,
   Maximize2,
@@ -11,6 +12,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
   Truck,
   X,
@@ -27,26 +29,45 @@ import type { AssistantOrderCard, AssistantReturnAction, ChatMessage, Product } 
 
 const STARTERS = [
   {
-    label: "Find Products",
+    label: "Find products",
     prompt: "I need a wireless headphone under ₹3000",
     icon: Search,
   },
   {
-    label: "Track Order",
+    label: "Track order",
     prompt: "Track my latest order",
     icon: Truck,
   },
   {
-    label: "Damaged Item",
+    label: "Damaged item",
     prompt: "My product arrived damaged. Help me with refund or replacement.",
     icon: RefreshCcw,
   },
   {
-    label: "Policy Help",
+    label: "Return policy",
     prompt: "What is the return and refund policy?",
     icon: ShieldCheck,
   },
 ];
+
+const DEFAULT_SUGGESTIONS = [
+  "Track my latest order",
+  "What is the return policy?",
+  "My product arrived damaged",
+  "Show phones under ₹50000",
+];
+
+const INTENT_SUGGESTIONS: Record<string, string[]> = {
+  cart_help: ["Proceed to checkout", "Apply a coupon", "What is in my cart?"],
+  checkout_help: ["Is checkout secure?", "What payment options are available?", "Track my latest order"],
+  order_support: ["Track my latest order", "Show my recent orders", "I received a damaged item"],
+  policy_help: ["What is return policy?", "How do refunds work?", "My product arrived damaged"],
+  product_compare: ["Compare these products", "Which one is better?", "Show similar products"],
+  product_recommendation: ["Show best deals", "Suggest a gift", "Show trending products"],
+  product_search: ["Show similar products", "Filter by price", "Show only in-stock items"],
+  return_support: ["Choose a similar product", "Request a refund", "Check return policy"],
+  shipping_support: ["Track my latest order", "Where is my package?", "Show delivery status"],
+};
 
 export function ShoppingAssistant() {
   const { chat, pushChat, resetChat, addToCart, hydrated } = useShop();
@@ -55,6 +76,7 @@ export function ShoppingAssistant() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const autoSuggestions = getAutoSuggestions(chat, input);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -78,10 +100,10 @@ export function ShoppingAssistant() {
       {!open && (
         <Button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-50 h-12 gap-2 rounded-full px-5 shadow-lg"
+          className="fixed bottom-5 right-5 z-50 h-12 gap-2 rounded-full bg-gradient-to-r from-slate-900 to-blue-800 px-5 text-white shadow-xl shadow-blue-950/25 hover:from-slate-800 hover:to-blue-700"
           aria-label="Open AI shopping assistant"
         >
-          <Sparkles size={17} /> Ask AI
+          <ShoppingCart size={17} /> Ask AI
         </Button>
       )}
 
@@ -90,22 +112,22 @@ export function ShoppingAssistant() {
           role="dialog"
           aria-label="AI Shopping Assistant"
           className={cn(
-            "fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-card shadow-2xl",
+            "fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl shadow-blue-950/25 ring-1 ring-white/70",
             full
               ? "inset-2 sm:inset-6"
-              : "bottom-3 right-3 left-3 h-[70vh] sm:left-auto sm:h-[560px] sm:w-[400px]",
+              : "bottom-3 right-3 left-3 h-[76vh] sm:left-auto sm:h-[650px] sm:w-[450px]",
           )}
         >
-          <header className="border-b bg-slate-950 px-4 py-3 text-white">
+          <header className="border-b border-blue-900 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 px-5 py-4 text-white shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600">
-                <Bot size={19} />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-gradient-to-br from-blue-500 to-blue-700 shadow-md shadow-blue-950/25">
+                <ShoppingCart size={22} strokeWidth={2.4} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">ShopNest Assistant</p>
-                <p className="mt-0.5 text-[11px] text-slate-300">Product search, orders, delivery, refunds and policy help</p>
+                <p className="text-base font-semibold tracking-wide">ShopNest Assistant</p>
+                <p className="mt-0.5 truncate text-xs text-slate-300">Products, orders, delivery, refunds and returns</p>
               </div>
-              <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] text-emerald-100 sm:flex">
+              <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-100 sm:flex">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
                 Online
               </span>
@@ -130,16 +152,16 @@ export function ShoppingAssistant() {
             </div>
           </header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4">
-            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex-1 space-y-4 overflow-y-auto bg-gradient-to-b from-slate-50 via-blue-50/45 to-slate-50 p-4">
+            <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/70 p-3 shadow-sm shadow-blue-950/10">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
                   <Sparkles size={16} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">How can I help?</p>
+                  <p className="text-sm font-semibold text-slate-900">Hi, how can I help today?</p>
                   <p className="mt-1 text-sm leading-5 text-slate-600">
-                    I can search products, compare options, check your orders, track delivery, and guide damaged-item refund or replacement flows.
+                    I can help you find products, compare options, track orders, and sort out returns or refunds.
                   </p>
                 </div>
               </div>
@@ -152,9 +174,9 @@ export function ShoppingAssistant() {
                     <button
                       key={starter.label}
                       onClick={() => void send(starter.prompt)}
-                      className="flex min-h-20 flex-col items-start justify-between rounded-lg border border-slate-200 bg-white p-3 text-left text-xs shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
+                      className="flex min-h-20 flex-col items-start justify-between rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/60 p-3 text-left text-xs shadow-sm shadow-blue-950/10 transition hover:border-blue-300 hover:to-blue-100"
                     >
-                      <Icon size={17} className="text-blue-600" />
+                      <Icon size={17} className="text-blue-700" />
                       <span className="font-semibold text-slate-800">{starter.label}</span>
                     </button>
                   );
@@ -167,11 +189,11 @@ export function ShoppingAssistant() {
             ))}
 
             {typing && (
-              <div className="flex w-16 justify-center gap-1 rounded-lg bg-muted px-3 py-3">
+              <div className="flex w-16 justify-center gap-1 rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-50 px-3 py-3 shadow-sm shadow-blue-950/10">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground"
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400"
                     style={{ animationDelay: `${i * 120}ms` }}
                   />
                 ))}
@@ -180,14 +202,31 @@ export function ShoppingAssistant() {
             <div ref={endRef} />
           </div>
 
+          {!typing && autoSuggestions.length > 0 ? (
+            <div className="border-t border-blue-100 bg-gradient-to-b from-white to-blue-50/40 px-3 pt-3">
+              <div className="flex gap-2 overflow-x-auto pb-1.5">
+                {autoSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => void send(suggestion)}
+                    className="shrink-0 rounded-full border border-blue-200 bg-gradient-to-b from-white to-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm shadow-blue-950/5 transition hover:border-blue-400 hover:to-blue-100"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <form
-            className="flex items-center gap-2 border-t bg-white p-3"
+            className="flex items-center gap-2 bg-gradient-to-b from-blue-50/30 to-white p-3"
             onSubmit={(e) => {
               e.preventDefault();
               void send(input);
             }}
           >
-            <Button type="button" variant="ghost" size="icon" onClick={resetChat} aria-label="Reset chat">
+            <Button type="button" variant="ghost" size="icon" className="shrink-0 rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-700" onClick={resetChat} aria-label="Reset chat">
               <RotateCcw size={15} />
             </Button>
             <label htmlFor="assistant-input" className="sr-only">
@@ -197,11 +236,11 @@ export function ShoppingAssistant() {
               id="assistant-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about product, order ID, refund..."
+              placeholder="Ask about products, orders, returns..."
               autoComplete="off"
-              className="h-10"
+              className="h-11 rounded-full border-blue-100 bg-gradient-to-b from-white to-slate-50 px-4 shadow-inner focus-visible:ring-blue-200"
             />
-            <Button type="submit" size="icon" aria-label="Send message" disabled={!input.trim() || typing}>
+            <Button type="submit" size="icon" className="h-11 w-11 shrink-0 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-md shadow-blue-800/20 hover:from-blue-500 hover:to-blue-800" aria-label="Send message" disabled={!input.trim() || typing}>
               <Send size={16} />
             </Button>
           </form>
@@ -209,6 +248,47 @@ export function ShoppingAssistant() {
       )}
     </>
   );
+}
+
+function getAutoSuggestions(chat: ChatMessage[], input: string) {
+  if (input.trim().length > 0) {
+    const lowerInput = input.toLowerCase();
+    return uniqueSuggestions(
+      DEFAULT_SUGGESTIONS.filter((suggestion) => suggestion.toLowerCase().includes(lowerInput)),
+    ).slice(0, 3);
+  }
+
+  const latestAssistant = [...chat].reverse().find((message) => message.role === "assistant");
+  const sourceSuggestions = [
+    ...(latestAssistant?.suggestions ?? []),
+    ...(latestAssistant?.intent ? INTENT_SUGGESTIONS[latestAssistant.intent] ?? [] : []),
+    ...DEFAULT_SUGGESTIONS,
+  ];
+
+  return uniqueSuggestions(sourceSuggestions).slice(0, 4);
+}
+
+function uniqueSuggestions(suggestions: string[]) {
+  const seen = new Set<string>();
+  return suggestions.filter((suggestion) => {
+    const normalized = normalizeSuggestion(suggestion);
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+function normalizeSuggestion(suggestion: string) {
+  return suggestion
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(the|a|an|my|is|what|how|do|does)\b/g, " ")
+    .replace(/\breturn policy\b/g, "returns")
+    .replace(/\bdamaged item\b/g, "damage")
+    .replace(/\breceived damage\b/g, "damage")
+    .replace(/\bproduct arrived damaged\b/g, "damage")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function ChatBubble({
@@ -224,14 +304,14 @@ function ChatBubble({
   const backendItems = message.productResults ?? [];
   if (message.role === "user") {
     return (
-      <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-primary px-3 py-2 text-sm text-primary-foreground">
+      <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-md border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 px-3.5 py-2.5 text-sm font-medium leading-5 text-blue-900 shadow-sm shadow-blue-950/10">
         {message.text}
       </div>
     );
   }
   return (
     <div className="space-y-2">
-      <div className="max-w-[90%] rounded-lg rounded-tl-none border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-700 shadow-sm">
+      <div className="max-w-[90%] rounded-2xl rounded-tl-md border border-blue-100 bg-gradient-to-br from-white to-slate-50 px-3.5 py-2.5 text-sm leading-5 text-slate-700 shadow-sm shadow-blue-950/10">
         {message.text}
       </div>
       {message.intent && <SupportContext intent={message.intent} />}
@@ -241,14 +321,19 @@ function ChatBubble({
       {message.returnActions && message.returnActions.length > 0 ? (
         <ReturnActions actions={message.returnActions} onSend={onSend} />
       ) : null}
+      {message.intent === "return_support" && backendItems.length > 0 ? (
+        <p className="max-w-[94%] px-1 text-xs font-semibold text-slate-600">
+          Similar products available for replacement
+        </p>
+      ) : null}
       {backendItems.map((p) => {
         const canAddToLocalCart = Boolean(productService.byId(p.id));
         return (
-          <div key={p.id} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <div key={p.id} className="flex gap-3 rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/50 p-2.5 shadow-sm shadow-blue-950/10">
             {p.image ? (
-              <img src={p.image} alt="" className="h-20 w-20 rounded-md bg-slate-100 object-cover" />
+              <img src={p.image} alt="" className="h-20 w-20 shrink-0 rounded-lg bg-slate-100 object-cover" />
             ) : (
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
                 <PackageSearch size={22} />
               </div>
             )}
@@ -260,14 +345,14 @@ function ChatBubble({
                 {p.stock > 0 ? "In stock" : "Currently unavailable"}
               </p>
               <div className="flex gap-1.5 pt-1">
-                <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
+                <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 px-3 text-xs text-blue-700 hover:bg-blue-50" asChild>
                   <Link to="/products/$id" params={{ id: p.id }}>
                     View Product
                   </Link>
                 </Button>
                 <Button
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-8 rounded-full bg-blue-600 px-3 text-xs hover:bg-blue-700"
                   disabled={!canAddToLocalCart || p.stock <= 0}
                   onClick={() => {
                     const product = productService.byId(p.id);
@@ -282,8 +367,8 @@ function ChatBubble({
         );
       })}
       {mockItems.map((p) => (
-        <div key={p.id} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-          <img src={p.images[0]} alt="" className="h-20 w-20 rounded-md object-cover" />
+        <div key={p.id} className="flex gap-3 rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/50 p-2.5 shadow-sm shadow-blue-950/10">
+          <img src={p.images[0]} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
             <Rating value={p.rating} count={p.reviewCount} />
@@ -292,14 +377,14 @@ function ChatBubble({
               {p.stock > 0 ? "In stock" : "Currently unavailable"}
             </p>
             <div className="flex gap-1.5 pt-1">
-              <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
+              <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 px-3 text-xs text-blue-700 hover:bg-blue-50" asChild>
                 <Link to="/products/$id" params={{ id: p.id }}>
                   View Product
                 </Link>
               </Button>
               <Button
                 size="sm"
-                className="h-7 text-xs"
+                className="h-8 rounded-full bg-blue-600 px-3 text-xs hover:bg-blue-700"
                 disabled={p.stock <= 0}
                 onClick={() => onAdd(p.id, 1, { product: p })}
               >
@@ -309,19 +394,6 @@ function ChatBubble({
           </div>
         </div>
       ))}
-      {message.suggestions && (
-        <div className="flex flex-wrap gap-1.5">
-          {message.suggestions.map((s) => (
-            <button
-              key={s}
-              onClick={() => onSend(s)}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:border-blue-300 hover:bg-blue-50"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -335,13 +407,13 @@ function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
   const image = firstItem?.image || fallbackProduct?.images?.[0];
 
   return (
-    <div className="max-w-[94%] rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="max-w-[94%] rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/50 p-3 shadow-sm shadow-blue-950/10">
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
         <div>
           <p className="text-xs font-semibold uppercase text-slate-500">Order {order.order_number}</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{formatStatus(order.status)}</p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
           <Truck size={12} />
           {formatStatus(shipmentStatus)}
         </span>
@@ -351,11 +423,11 @@ function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
           <img
             src={image}
             alt=""
-            className="h-16 w-16 shrink-0 rounded-md bg-slate-100 object-cover"
+            className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover"
             onError={() => setImageFailed(true)}
           />
         ) : (
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
             <Package size={20} />
           </div>
         )}
@@ -392,9 +464,12 @@ function ReturnActions({ actions, onSend }: { actions: AssistantReturnAction[]; 
           type="button"
           disabled={!action.enabled}
           onClick={() => onSend(action.label)}
-          className="rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition enabled:hover:border-blue-300 enabled:hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="group rounded-xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm shadow-blue-950/10 transition enabled:hover:border-blue-400 enabled:hover:to-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <p className="text-sm font-semibold text-slate-900">{action.label}</p>
+          <p className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-900">
+            {action.label}
+            <ArrowRight size={14} className="text-blue-500 transition group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:text-blue-700" />
+          </p>
           <p className="mt-1 text-xs leading-4 text-slate-500">{action.description}</p>
         </button>
       ))}
@@ -404,7 +479,7 @@ function ReturnActions({ actions, onSend }: { actions: AssistantReturnAction[]; 
 
 function SupportContext({ intent }: { intent: string }) {
   return (
-    <div className="inline-flex max-w-[90%] items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700">
+    <div className="inline-flex max-w-[90%] items-center gap-1.5 rounded-full border border-blue-200 bg-gradient-to-b from-blue-50 to-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800 shadow-sm shadow-blue-950/5">
       <Sparkles size={12} />
       {formatIntent(intent)}
     </div>
