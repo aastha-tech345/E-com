@@ -101,6 +101,19 @@ function AdminLogin() {
           </Button>
         </form>
 
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-3 w-full"
+          disabled={loading}
+          onClick={() => {
+            setEmail("admin@example.com");
+            setPassword("Admin123!");
+          }}
+        >
+          Use Development Admin Credentials
+        </Button>
+
         <p className="text-sm text-gray-600 text-center mt-6">
           Development login: admin@example.com / Admin123!
         </p>

@@ -1,11 +1,18 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ChevronLeft, ImagePlus, Trash2 } from "lucide-react";
+import {
+  Boxes,
+  ChevronLeft,
+  CircleDollarSign,
+  ImagePlus,
+  Layers3,
+  Package,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { ConfirmationDialog } from "@/components/admin/ConfirmationDialog";
 import { useShop } from "@/store/shop";
 import { toast } from "sonner";
 import type { Product, ProductStatus } from "@/types";
@@ -18,7 +25,7 @@ export const Route = createFileRoute("/admin/products/$id/edit")({
 function EditProductPage() {
   const navigate = useNavigate();
   const { id } = useParams({ from: "/admin/products/$id/edit" });
-  const { admin } = useShop();
+  const { admin, hydrated } = useShop();
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
   const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
@@ -37,7 +44,6 @@ function EditProductPage() {
     stock: 0,
     status: "active" as ProductStatus,
   });
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -79,6 +85,14 @@ function EditProductPage() {
       active = false;
     };
   }, [id]);
+
+  if (!hydrated) {
+    return (
+      <AdminLayout>
+        <p className="text-sm text-slate-600">Loading product...</p>
+      </AdminLayout>
+    );
+  }
 
   if (!admin) {
     return null;
@@ -138,9 +152,8 @@ function EditProductPage() {
     }
   };
 
-  const uploadImages = async (files: FileList | null) => {
-    if (!files?.length) return;
-    const selectedFiles = Array.from(files);
+  const uploadImages = async (selectedFiles: File[]) => {
+    if (!selectedFiles.length) return;
     if (selectedFiles.some((file) => !file.type.startsWith("image/"))) {
       toast.error("Please select image files only.");
       return;
@@ -164,27 +177,55 @@ function EditProductPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-5">
-        <div className="border-b border-slate-200 pb-4">
-          <h1 className="text-2xl font-bold text-slate-900">Edit Product</h1>
-          <p className="mt-1 text-sm text-slate-600">{product.name}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate({ to: "/admin/products" })}
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <p className="text-sm text-slate-500">Back to products</p>
+      <div className="mx-auto w-full max-w-[1500px] space-y-4 pb-8">
+        <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/admin/products" })}
+                className="hover:text-blue-700"
+              >
+                Products
+              </button>
+              <span>/</span>
+              <span className="text-slate-800">Edit Product</span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit Product</h1>
+            <p className="mt-1 text-sm text-slate-500">Update {product.name} in your catalog</p>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate({ to: "/admin/products" })}
+            >
+              Cancel
+            </Button>
+            <Button
+              form="product-edit-form"
+              type="submit"
+              className="bg-blue-600 px-5 text-white hover:bg-blue-700"
+            >
+              Save Changes
+            </Button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full space-y-5">
+        <form id="product-edit-form" onSubmit={handleSubmit} className="w-full space-y-4">
           {/* Basic Information */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="rounded-lg bg-blue-50 p-2 text-blue-600">
+                <Package className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-slate-900">Basic Information</h3>
+                <p className="text-xs text-slate-500">
+                  Product name, category, brand, and descriptions
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -246,8 +287,16 @@ function EditProductPage() {
           </div>
 
           {/* Descriptions */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Description</h3>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="rounded-lg bg-violet-50 p-2 text-violet-600">
+                <Layers3 className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-slate-900">Descriptions</h3>
+                <p className="text-xs text-slate-500">Help customers understand the product</p>
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Short Description
@@ -273,8 +322,18 @@ function EditProductPage() {
           </div>
 
           {/* Pricing */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Pricing</h3>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+                <CircleDollarSign className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-slate-900">Pricing & Stock</h3>
+                <p className="text-xs text-slate-500">
+                  Set the selling price and inventory for the default variant
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -292,8 +351,16 @@ function EditProductPage() {
           </div>
 
           {/* Inventory */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Inventory</h3>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="rounded-lg bg-amber-50 p-2 text-amber-600">
+                <Boxes className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-slate-900">Inventory</h3>
+                <p className="text-xs text-slate-500">Available quantity for this product</p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-1">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Stock *</label>
@@ -309,10 +376,17 @@ function EditProductPage() {
           </div>
 
           {/* Images */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Images</h3>
-            <p className="text-sm text-slate-500">The first image is shown in the product table.</p>
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center transition hover:border-blue-500 hover:bg-blue-50">
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="rounded-lg bg-orange-50 p-2 text-orange-600">
+                <ImagePlus className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-slate-900">Images</h3>
+                <p className="text-xs text-slate-500">The first image is displayed as the cover</p>
+              </div>
+            </div>
+            <label className="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center transition hover:border-blue-500 hover:bg-blue-50">
               <ImagePlus className="mb-2 h-8 w-8 text-slate-400" />
               <span className="text-sm font-medium text-slate-700">
                 {uploadingImages ? "Uploading images..." : "Choose product images"}
@@ -324,40 +398,63 @@ function EditProductPage() {
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 multiple
-                className="sr-only"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 disabled={uploadingImages}
                 onChange={(event) => {
-                  void uploadImages(event.target.files);
+                  const selectedFiles = Array.from(event.currentTarget.files ?? []);
                   event.currentTarget.value = "";
+                  void uploadImages(selectedFiles);
                 }}
               />
             </label>
-            {imageUrls.map((imageUrl, index) => (
-              <div key={imageUrl} className="relative inline-block">
-                <img
-                  src={imageUrl}
-                  alt={`Product ${index + 1}`}
-                  className="h-24 w-24 rounded-lg border border-slate-200 object-cover"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label={`Remove image ${index + 1}`}
-                  onClick={() =>
-                    setImageUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                  }
-                  className="absolute right-1 top-1 h-7 w-7 bg-white/90"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                </Button>
+            {imageUrls.length > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-700">
+                    {imageUrls.length} image{imageUrls.length === 1 ? "" : "s"} ready to save
+                  </p>
+                  <p className="text-xs text-slate-500">First image is the cover</p>
+                </div>
+                <div className="no-scrollbar flex max-h-36 flex-wrap gap-3 overflow-y-auto pr-1">
+                  {imageUrls.map((imageUrl, index) => (
+                    <div
+                      key={imageUrl}
+                      className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`Product ${index + 1}`}
+                        className="block h-full w-full object-cover"
+                      />
+                      {index === 0 && (
+                        <span className="absolute left-2 top-2 rounded bg-slate-900 px-2 py-1 text-[10px] font-medium text-white">
+                          Cover
+                        </span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label={`Remove image ${index + 1}`}
+                        onClick={() =>
+                          setImageUrls((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index),
+                          )
+                        }
+                        className="absolute right-2 top-2 h-7 w-7 bg-white/90 opacity-0 shadow-sm transition group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
           </div>
 
           {/* Status */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Status</h3>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-slate-900">Publish Settings</h3>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Product Status</label>
               <select
@@ -373,48 +470,7 @@ function EditProductPage() {
               </select>
             </div>
           </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-              Save Changes
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate({ to: "/admin/products" })}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="text-red-600 hover:text-red-700 ml-auto"
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete Product
-            </Button>
-          </div>
         </form>
-        <ConfirmationDialog
-          open={confirmDelete}
-          title="Delete product?"
-          description={`This will soft-delete ${product.name}. It will no longer appear in the catalog.`}
-          confirmLabel="Delete Product"
-          destructive
-          onOpenChange={setConfirmDelete}
-          onConfirm={() => {
-            void (async () => {
-              try {
-                await catalogService.deleteProduct(product.id);
-                toast.success("Product deleted.");
-                navigate({ to: "/admin/products" });
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : "Unable to delete product.");
-              }
-            })();
-          }}
-        />
       </div>
     </AdminLayout>
   );

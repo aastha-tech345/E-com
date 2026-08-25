@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { Eye, ImagePlus, Package, Trash2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,14 +48,36 @@ const productSchema = z.object({
 type ProductFormData = z.infer<typeof productSchema>;
 type ProductFormInput = z.input<typeof productSchema>;
 
+const productFormDefaults: ProductFormInput = {
+  name: "",
+  slug: "",
+  category_id: "",
+  brand_id: "",
+  short_description: "",
+  description: "",
+  is_published: true,
+  variants: [{ name: "Default", sku: "", price: 0, quantity_available: 0, is_default: true }],
+  media: [],
+};
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function CreateProduct() {
-  const { admin } = useShop();
+  const { admin, hydrated } = useShop();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<CatalogCategoryOption[]>([]);
   const [brands, setBrands] = useState<CatalogBrandOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [slugEditedManually, setSlugEditedManually] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     loadOptions();
@@ -75,14 +97,13 @@ function CreateProduct() {
     register,
     control,
     handleSubmit,
+    reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<ProductFormInput, unknown, ProductFormData>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      is_published: true,
-      variants: [{ name: "Default", sku: "", price: 0, quantity_available: 0, is_default: true }],
-      media: [],
-    },
+    defaultValues: productFormDefaults,
   });
 
   const {
@@ -93,6 +114,19 @@ function CreateProduct() {
     control,
     name: "variants",
   });
+
+  const productName = watch("name");
+  const preview = watch();
+  const previewBrand = brands.find((brand) => brand.id === preview.brand_id)?.name || "Brand name";
+  const previewCategory =
+    categories.find((category) => category.id === preview.category_id)?.name || "Category";
+  const previewVariant = preview.variants[0];
+
+  useEffect(() => {
+    if (!slugEditedManually) {
+      setValue("slug", slugify(productName), { shouldValidate: Boolean(productName) });
+    }
+  }, [productName, setValue, slugEditedManually]);
 
   const onSubmit = async (data: ProductFormData) => {
     setLoading(true);
@@ -119,7 +153,12 @@ function CreateProduct() {
         endpoint,
       );
       toast.success("Product created successfully");
-      navigate({ to: "/admin/products" });
+      setSlugEditedManually(false);
+      reset(productFormDefaults);
+      setImageUrls([]);
+      requestAnimationFrame(() =>
+        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create product");
       console.error("Error:", err);
@@ -127,6 +166,14 @@ function CreateProduct() {
       setLoading(false);
     }
   };
+
+  if (!hydrated) {
+    return (
+      <AdminLayout>
+        <p className="text-sm text-slate-600">Loading product form...</p>
+      </AdminLayout>
+    );
+  }
 
   if (!admin) return null;
 
@@ -153,234 +200,19 @@ function CreateProduct() {
 
   return (
     <AdminLayout>
-      <div className="space-y-5">
-        <div className="border-b border-slate-200 pb-4">
-          <h1 className="text-2xl font-bold text-slate-900">Create Product</h1>
-          <p className="mt-1 text-sm text-slate-600">Add a new product to your catalog</p>
-        </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-5">
-          {/* Basic Information */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h2 className="text-lg font-bold mb-4">Basic Information</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">
-                    Product Name *
-                  </label>
-                  <Input {...register("name")} />
-                  {errors.name && (
-                    <p className="text-red-600 text-sm mt-1">{errors.name.message}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">Slug *</label>
-                  <Input {...register("slug")} />
-                  {errors.slug && (
-                    <p className="text-red-600 text-sm mt-1">{errors.slug.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">Category *</label>
-                  <select
-                    {...register("category_id")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.category_id && (
-                    <p className="text-red-600 text-sm mt-1">{errors.category_id.message}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">Brand</label>
-                  <select
-                    {...register("brand_id")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Select Brand</option>
-                    {brands.map((br) => (
-                      <option key={br.id} value={br.id}>
-                        {br.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Short Description
-                </label>
-                <textarea
-                  {...register("short_description")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Full Description
-                </label>
-                <textarea
-                  {...register("description")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  rows={4}
-                />
-              </div>
+      <div className="mx-auto w-full max-w-[1500px] space-y-4 pb-8">
+        <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-2 text-xs font-medium text-slate-500">
+              Dashboard <span className="mx-2">›</span> Products <span className="mx-2">›</span>{" "}
+              <span className="text-slate-800">Create Product</span>
             </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create New Product</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Add a new product to your catalog and start selling
+            </p>
           </div>
-
-          {/* Variants */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h2 className="text-lg font-bold mb-4">Variants</h2>
-            <div className="space-y-4">
-              {variantFields.map((field, idx) => (
-                <div key={field.id} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:items-center">
-                    <Input
-                      className="md:col-span-3"
-                      {...register(`variants.${idx}.name`)}
-                      placeholder="Variant Name"
-                    />
-                    <Input
-                      className="md:col-span-3"
-                      {...register(`variants.${idx}.sku`)}
-                      placeholder="SKU"
-                    />
-                    <Input
-                      className="md:col-span-2"
-                      type="number"
-                      {...register(`variants.${idx}.price`)}
-                      placeholder="Price"
-                    />
-                    <Input
-                      className="md:col-span-3"
-                      type="number"
-                      {...register(`variants.${idx}.quantity_available`)}
-                      placeholder="Quantity"
-                    />
-                    <label className="flex items-center gap-2 whitespace-nowrap md:col-span-1">
-                      <input type="checkbox" {...register(`variants.${idx}.is_default`)} />
-                      <span className="text-sm">Default</span>
-                    </label>
-                  </div>
-                  {variantFields.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => removeVariant(idx)}
-                      className="mt-2 text-red-600"
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                appendVariant({
-                  name: "",
-                  sku: "",
-                  price: 0,
-                  quantity_available: 0,
-                  is_default: false,
-                })
-              }
-              className="mt-4"
-            >
-              Add Variant
-            </Button>
-          </div>
-
-          {/* Media */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="mb-4">
-              <h2 className="text-lg font-bold">Images</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Upload product photos. The first image is used as the cover.
-              </p>
-            </div>
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center transition hover:border-blue-500 hover:bg-blue-50">
-              <ImagePlus className="mb-2 h-8 w-8 text-slate-400" />
-              <span className="text-sm font-medium text-slate-700">
-                {uploadingImages ? "Uploading images..." : "Choose product images"}
-              </span>
-              <span className="mt-1 text-xs text-slate-500">
-                JPG, PNG, WEBP, or GIF up to 5 MB each
-              </span>
-              <Input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                multiple
-                className="sr-only"
-                disabled={uploadingImages}
-                onChange={(event) => {
-                  void uploadImages(event.target.files);
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
-            {imageUrls.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                {imageUrls.map((src, index) => (
-                  <div
-                    key={src}
-                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
-                  >
-                    <img
-                      src={src}
-                      alt={`Product upload ${index + 1}`}
-                      className="h-full w-full object-cover"
-                    />
-                    {index === 0 && (
-                      <span className="absolute left-2 top-2 rounded bg-slate-900 px-2 py-1 text-[10px] font-medium text-white">
-                        Cover
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      aria-label={`Remove image ${index + 1}`}
-                      onClick={() =>
-                        setImageUrls((current) =>
-                          current.filter((_, itemIndex) => itemIndex !== index),
-                        )
-                      }
-                      className="absolute right-2 top-2 rounded-md bg-white p-1.5 text-red-600 opacity-0 shadow-sm transition group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Publish */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <label className="flex items-center">
-              <input type="checkbox" {...register("is_published")} />
-              <span className="ml-2 font-medium">Publish immediately</span>
-            </label>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-4">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Product"}
-            </Button>
+          <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -388,6 +220,320 @@ function CreateProduct() {
             >
               Cancel
             </Button>
+            <Button
+              form="create-product-form"
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 px-5 text-white hover:bg-blue-700"
+            >
+              {loading ? "Saving..." : "Save Product"}
+            </Button>
+          </div>
+        </div>
+        <form
+          id="create-product-form"
+          ref={formRef}
+          onSubmit={handleSubmit(onSubmit)}
+          className="w-full"
+        >
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+            <div className="space-y-4">
+              {/* Basic Information */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="rounded-lg bg-blue-50 p-2 text-blue-600">
+                    <Package className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="font-semibold text-slate-900">Basic Information</h2>
+                    <p className="text-xs text-slate-500">
+                      Provide the basic details about your product
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                        Product Name *
+                      </label>
+                      <Input {...register("name")} placeholder="Enter product name" />
+                      {errors.name && (
+                        <p className="text-red-600 text-sm mt-1">{errors.name.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Slug *</label>
+                      <Input
+                        {...register("slug", {
+                          onChange: () => setSlugEditedManually(true),
+                        })}
+                        placeholder="product-slug"
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Generated automatically from the product name.
+                      </p>
+                      {errors.slug && (
+                        <p className="text-red-600 text-sm mt-1">{errors.slug.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                        Category *
+                      </label>
+                      <select
+                        {...register("category_id")}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select Category</option>
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.category_id && (
+                        <p className="text-red-600 text-sm mt-1">{errors.category_id.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Brand</label>
+                      <select
+                        {...register("brand_id")}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select Brand</option>
+                        {brands.map((br) => (
+                          <option key={br.id} value={br.id}>
+                            {br.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Short Description
+                    </label>
+                    <textarea
+                      {...register("short_description")}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Full Description
+                    </label>
+                    <textarea
+                      {...register("description")}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Variants */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <h2 className="text-lg font-bold mb-4">Variants</h2>
+                <div className="space-y-4">
+                  {variantFields.map((field, idx) => (
+                    <div key={field.id} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:items-center">
+                        <Input
+                          className="md:col-span-3"
+                          {...register(`variants.${idx}.name`)}
+                          placeholder="Variant Name"
+                        />
+                        <Input
+                          className="md:col-span-3"
+                          {...register(`variants.${idx}.sku`)}
+                          placeholder="SKU"
+                        />
+                        <Input
+                          className="md:col-span-2"
+                          type="number"
+                          {...register(`variants.${idx}.price`)}
+                          placeholder="Price"
+                        />
+                        <Input
+                          className="md:col-span-3"
+                          type="number"
+                          {...register(`variants.${idx}.quantity_available`)}
+                          placeholder="Quantity"
+                        />
+                        <label className="flex items-center gap-2 whitespace-nowrap md:col-span-1">
+                          <input type="checkbox" {...register(`variants.${idx}.is_default`)} />
+                          <span className="text-sm">Default</span>
+                        </label>
+                      </div>
+                      {variantFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => removeVariant(idx)}
+                          className="mt-2 text-red-600"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    appendVariant({
+                      name: "",
+                      sku: "",
+                      price: 0,
+                      quantity_available: 0,
+                      is_default: false,
+                    })
+                  }
+                  className="mt-4"
+                >
+                  Add Variant
+                </Button>
+              </div>
+
+              {/* Media */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <div className="mb-4">
+                  <h2 className="text-lg font-bold">Images</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Upload product photos. The first image is used as the cover.
+                  </p>
+                </div>
+                <label className="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center transition hover:border-blue-500 hover:bg-blue-50">
+                  <ImagePlus className="mb-2 h-8 w-8 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-700">
+                    {uploadingImages ? "Uploading images..." : "Choose product images"}
+                  </span>
+                  <span className="mt-1 text-xs text-slate-500">
+                    JPG, PNG, WEBP, or GIF up to 5 MB each
+                  </span>
+                  <Input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    disabled={uploadingImages}
+                    onChange={(event) => {
+                      void uploadImages(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {imageUrls.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-slate-700">
+                        {imageUrls.length} image{imageUrls.length === 1 ? "" : "s"} ready to publish
+                      </p>
+                      <p className="text-xs text-slate-500">First image is the cover</p>
+                    </div>
+                    <div className="no-scrollbar flex max-h-36 flex-wrap gap-3 overflow-y-auto pr-1">
+                      {imageUrls.map((src, index) => (
+                        <div
+                          key={src}
+                          className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                        >
+                          <img
+                            src={src}
+                            alt={`Product upload ${index + 1}`}
+                            className="block h-full w-full object-cover"
+                          />
+                          {index === 0 && (
+                            <span className="absolute left-2 top-2 rounded bg-slate-900 px-2 py-1 text-[10px] font-medium text-white">
+                              Cover
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`Remove image ${index + 1}`}
+                            onClick={() =>
+                              setImageUrls((current) =>
+                                current.filter((_, itemIndex) => itemIndex !== index),
+                              )
+                            }
+                            className="absolute right-2 top-2 rounded-md bg-white p-1.5 text-red-600 opacity-0 shadow-sm transition group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Publish */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <label className="flex items-center">
+                  <input type="checkbox" {...register("is_published")} />
+                  <span className="ml-2 font-medium">Publish immediately</span>
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-4">
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Creating..." : "Create Product"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate({ to: "/admin/products" })}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+            <aside className="xl:sticky xl:top-4">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 flex items-center gap-2 font-semibold text-slate-900">
+                  <Eye className="h-4 w-4 text-violet-600" /> Product Preview
+                </div>
+                <div className="aspect-square overflow-hidden rounded-lg bg-slate-100">
+                  {imageUrls[0] ? (
+                    <img
+                      src={imageUrls[0]}
+                      alt="Product preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
+                      <ImagePlus className="h-9 w-9" />
+                      <span className="text-xs">No image uploaded</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 space-y-2">
+                  <h3 className="font-semibold text-slate-900">
+                    {preview.name || "Product Title"}
+                  </h3>
+                  <p className="text-xs font-medium text-blue-600">{previewBrand}</p>
+                  <p className="text-lg font-bold text-slate-900">₹{previewVariant?.price || 0}</p>
+                  <p className="line-clamp-3 text-xs leading-5 text-slate-500">
+                    {preview.short_description || "Short description will appear here."}
+                  </p>
+                  <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    {previewCategory} ·{" "}
+                    {Number(previewVariant?.quantity_available || 0) > 0
+                      ? "In stock"
+                      : "Out of stock"}
+                  </div>
+                </div>
+              </div>
+            </aside>
           </div>
         </form>
       </div>

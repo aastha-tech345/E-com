@@ -6,7 +6,7 @@ import { authService } from "@/services";
  * Usage: const { user, isAdmin, isSeller, logout } = useAuth()
  */
 export function useAuth() {
-  const { user, admin } = useShop();
+  const { user, admin, hydrated } = useShop();
 
   const getCurrentUser = () => user || admin || null;
 
@@ -77,6 +77,7 @@ export function useAuth() {
 
   return {
     user: getCurrentUser(),
+    hydrated,
     isAuthenticated,
     isAdmin,
     isSeller,

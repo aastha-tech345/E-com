@@ -1,4 +1,5 @@
-import { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useLocation } from "@tanstack/react-router";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
 
@@ -9,8 +10,18 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ children, title, description }: AdminLayoutProps) {
+  const location = useLocation();
+  const contentRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
+
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[#f6f8fb]">
+    <div
+      className="relative flex h-screen min-h-screen w-full max-w-full overflow-hidden bg-[#f6f8fb]"
+      style={{ height: "100dvh" }}
+    >
       {/* Sidebar */}
       <AdminSidebar />
 
@@ -20,8 +31,11 @@ export function AdminLayout({ children, title, description }: AdminLayoutProps) 
         <AdminHeader />
 
         {/* Page Content */}
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="min-h-full p-4 md:p-5">{children}</div>
+        <main
+          ref={contentRef}
+          className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+        >
+          <div className="min-h-full max-w-full p-4 md:p-5">{children}</div>
         </main>
       </div>
     </div>
