@@ -62,6 +62,13 @@ function statusLabel(status: string) {
 
 function orderStatus(order: Order): OrderStatus {
   const statuses = new Set(order.items.map((item) => item.status ?? "pending"));
+  const parentStatus = order.status;
+
+  // Older admin updates changed only the order row. Prefer that status until item rows are synced.
+  if (statuses.size === 1 && statuses.has("pending") && parentStatus !== "pending") {
+    return parentStatus;
+  }
+
   if (!statuses.size || statuses.size === 1) return [...statuses][0] ?? "pending";
   if (statuses.has("delivered")) return "partially_delivered";
   if (statuses.has("shipped")) return "partially_shipped";

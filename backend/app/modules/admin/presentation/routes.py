@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -38,7 +39,7 @@ from app.modules.catalog.application.service import (
 )
 from app.modules.catalog.domain.models import Brand, Category, Product, ProductAttribute
 from app.modules.identity.domain.models import CustomerAddress, Role, User, UserRole
-from app.modules.orders.domain.models import Order, OrderStatusHistory
+from app.modules.orders.domain.models import Order, OrderItemStatusHistory, OrderStatusHistory
 from app.modules.ai_assistant.application.policies import MAX_POLICY_BYTES, delete_policy, ingest_policy, list_policies, rename_policy, replace_policy
 from app.modules.identity.application.schemas import UserProfileResponse
 from app.modules.identity.presentation.dependencies import require_roles
@@ -147,11 +148,16 @@ def admin_update_order_status(
     order = db.get(Order, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found.")
-    if order.status == next_status:
-        return {"id": order.id, "status": order.status}
-
     order.status = next_status
-    db.add(OrderStatusHistory(order_id=order.id, status=next_status, note="Updated by an administrator."))
+    note = "Updated by an administrator."
+    db.add(OrderStatusHistory(order_id=order.id, status=next_status, note=note))
+    for item in order.items:
+        if item.status == next_status:
+            continue
+        item.status = next_status
+        if next_status == "delivered":
+            item.delivered_at = datetime.now(timezone.utc)
+        db.add(OrderItemStatusHistory(order_item_id=item.id, status=next_status, note=note))
     db.commit()
     return {"id": order.id, "status": order.status}
 

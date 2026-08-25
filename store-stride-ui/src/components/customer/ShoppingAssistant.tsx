@@ -18,7 +18,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Price } from "@/components/common/Price";
@@ -28,13 +28,7 @@ import { LoginRequiredDialog } from "@/components/customer/LoginRequiredDialog";
 import { chatbotService, productService, returnService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
-import type {
-  AssistantOrderCard,
-  AssistantProductResult,
-  AssistantReturnAction,
-  ChatMessage,
-  Product,
-} from "@/types";
+import type { AssistantOrderCard, AssistantProductResult, AssistantReturnAction, ChatMessage, Product } from "@/types";
 import { toast } from "sonner";
 
 const STARTERS = [
@@ -92,11 +86,7 @@ export function ShoppingAssistant() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
-  const [returnProof, setReturnProof] = useState<{
-    proofUrl: string;
-    proofType: string;
-    fileName: string;
-  } | null>(null);
+  const [returnProof, setReturnProof] = useState<{ proofUrl: string; proofType: string; fileName: string } | null>(null);
   const [returnIssueReason, setReturnIssueReason] = useState("");
   const [uploadingProof, setUploadingProof] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -110,12 +100,7 @@ export function ShoppingAssistant() {
     const value = text.trim();
     if (!value || typing) return;
     setInput("");
-    pushChat({
-      id: crypto.randomUUID(),
-      role: "user",
-      text: opts?.displayText ?? value,
-      isAction: opts?.isAction,
-    });
+    pushChat({ id: crypto.randomUUID(), role: "user", text: opts?.displayText ?? value, isAction: opts?.isAction });
     setTyping(true);
     const reply = await chatbotService.reply(value);
     setTyping(false);
@@ -546,121 +531,6 @@ function normalizeSuggestion(suggestion: string) {
     .trim();
 }
 
-function ChatMessageContent({ text }: { text: string }) {
-  const lines = normalizeChatMarkdown(text).split("\n");
-  const blocks: ReactNode[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index].trim();
-    if (!line) {
-      index += 1;
-      continue;
-    }
-
-    const heading = line.match(/^(#{1,3})\s+(.+)$/);
-    if (heading) {
-      blocks.push(
-        <p
-          key={`heading-${index}`}
-          className={
-            heading[1].length === 1
-              ? "text-base font-bold text-slate-950"
-              : "text-sm font-bold text-slate-900"
-          }
-        >
-          <InlineMarkdown text={heading[2]} />
-        </p>,
-      );
-      index += 1;
-      continue;
-    }
-
-    if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
-        index += 1;
-      }
-      blocks.push(
-        <ul key={`list-${index}`} className="list-disc space-y-1 pl-5 marker:text-slate-500">
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>
-              <InlineMarkdown text={item} />
-            </li>
-          ))}
-        </ul>,
-      );
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
-        index += 1;
-      }
-      blocks.push(
-        <ol
-          key={`ordered-list-${index}`}
-          className="list-decimal space-y-1 pl-5 marker:font-semibold marker:text-slate-600"
-        >
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>
-              <InlineMarkdown text={item} />
-            </li>
-          ))}
-        </ol>,
-      );
-      continue;
-    }
-
-    const paragraph: string[] = [];
-    while (index < lines.length) {
-      const current = lines[index].trim();
-      if (!current) {
-        index += 1;
-        break;
-      }
-      if (
-        paragraph.length > 0 &&
-        (/^(#{1,3})\s+/.test(current) || /^[-*]\s+/.test(current) || /^\d+\.\s+/.test(current))
-      )
-        break;
-      paragraph.push(current);
-      index += 1;
-    }
-    blocks.push(
-      <p key={`paragraph-${index}`}>
-        <InlineMarkdown text={paragraph.join(" ")} />
-      </p>,
-    );
-  }
-
-  return <div className="space-y-2.5 break-words text-left">{blocks}</div>;
-}
-
-function InlineMarkdown({ text }: { text: string }) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={`${part}-${index}`} className="font-semibold text-slate-900">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return part;
-  });
-}
-
-function normalizeChatMarkdown(text: string) {
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+(#{1,3}\s+)/g, "\n\n$1")
-    .replace(/\s+([-*]\s+)/g, "\n$1")
-    .replace(/\s+(\d+\.\s+)/g, "\n$1");
-}
-
 function ChatBubble({
   message,
   onAdd,
@@ -751,17 +621,8 @@ function ChatBubble({
                 {p.stock > 0 ? "In stock" : "Currently unavailable"}
               </p>
               <div className="flex gap-1.5 pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
-                  asChild
-                >
-                  <Link
-                    to="/products/$id"
-                    params={{ id: p.id }}
-                    onClick={() => productService.remember(product)}
-                  >
+                <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100" asChild>
+                  <Link to="/products/$id" params={{ id: p.id }} onClick={() => productService.remember(product)}>
                     View Product
                   </Link>
                 </Button>
