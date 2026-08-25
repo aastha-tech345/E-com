@@ -44,15 +44,15 @@ function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fcfaf6]">
+    <div className="min-h-screen bg-[#f8f1e6]">
       <Header />
 
       {/* Hero Banner */}
-      <section className="relative overflow-hidden border-b border-stone-200 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.18),_transparent_28%),linear-gradient(135deg,#122033_0%,#1f3045_48%,#2f4b68_100%)] text-white">
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.04)_50%,transparent_100%)]" />
+      <section className="relative overflow-hidden border-b border-[#dcc8aa] bg-[radial-gradient(circle_at_86%_28%,rgba(221,151,65,0.55),transparent_32%),radial-gradient(circle_at_12%_18%,rgba(255,255,255,0.08),transparent_24%),linear-gradient(135deg,#111827_0%,#1f2933_52%,#6b4b2a_100%)] text-white">
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.18)_0%,transparent_45%,rgba(255,205,130,0.08)_100%)]" />
         <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 md:grid-cols-[1.2fr_0.8fr] md:py-24 lg:items-center">
           <div>
-            <p className="mb-4 inline-flex rounded-full border border-white/15 bg-white/8 px-4 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-amber-200">
+            <p className="mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-[#ead8bd]">
               Premium marketplace
             </p>
             <h1 className="max-w-3xl text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
@@ -67,7 +67,7 @@ function Index() {
                 size="lg"
                 variant="secondary"
                 onClick={() => navigate({ to: "/products" })}
-                className="rounded-full bg-amber-400 px-7 text-slate-950 hover:bg-amber-300"
+                className="rounded-full bg-[#a7622d] px-7 text-white shadow-lg shadow-black/20 hover:bg-[#8d5228]"
               >
                 Explore Collection <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
@@ -88,7 +88,7 @@ function Index() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-3xl border border-white/10 bg-white/6 px-5 py-4 backdrop-blur"
+                  className="rounded-xl border border-white/10 bg-white/10 px-5 py-4 shadow-lg shadow-black/10 backdrop-blur"
                 >
                   <p className="text-2xl font-semibold text-white">{item.value}</p>
                   <p className="mt-1 text-sm text-slate-300">{item.label}</p>
@@ -97,17 +97,17 @@ function Index() {
             </div>
           </div>
           <div className="hidden md:block">
-            <div className="rounded-[32px] border border-white/10 bg-white/8 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] backdrop-blur">
-              <div className="rounded-[28px] bg-[#f8f3e7] p-6 text-slate-900">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.3)] backdrop-blur">
+              <div className="rounded-xl bg-[#ead8bd]/95 p-6 text-slate-900 shadow-inner">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d5228]">
                       Editor’s pick
                     </p>
                     <h2 className="mt-2 text-2xl font-bold">Classic living, modern utility</h2>
                   </div>
                   <div className="rounded-full bg-white p-3 shadow-sm">
-                    <Sparkles className="h-6 w-6 text-amber-600" />
+                    <Sparkles className="h-6 w-6 text-[#a7622d]" />
                   </div>
                 </div>
                 <div className="mt-8 grid gap-4">
@@ -120,7 +120,7 @@ function Index() {
                       key={line}
                       className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm"
                     >
-                      <Star className="h-4 w-4 text-amber-500" />
+                      <Star className="h-4 w-4 text-[#a7622d]" />
                       <span className="text-sm font-medium text-slate-700">{line}</span>
                     </div>
                   ))}
@@ -132,30 +132,30 @@ function Index() {
       </section>
 
       {/* Trust Badges */}
-      <section className="py-8">
+      <section className="-mt-2 py-7">
         <div className="mx-auto max-w-7xl px-4">
           <div className="grid gap-5 md:grid-cols-3">
-            <div className="rounded-[28px] border border-stone-200 bg-white px-6 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            <div className="rounded-xl border border-[#d8c2a2] bg-gradient-to-br from-[#f8ead7] to-[#fffaf2] px-6 py-4 shadow-sm shadow-[#7c4a24]/10">
               <div className="flex items-center gap-4">
-                <Truck className="h-8 w-8 text-amber-700" />
+                <Truck className="h-7 w-7 text-[#a7622d]" />
                 <div>
                   <h3 className="font-semibold text-slate-900">Free Delivery</h3>
                   <p className="text-sm text-slate-600">On orders above ₹999</p>
                 </div>
               </div>
             </div>
-            <div className="rounded-[28px] border border-stone-200 bg-white px-6 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            <div className="rounded-xl border border-[#d8c2a2] bg-gradient-to-br from-white to-[#fbf1e3] px-6 py-4 shadow-sm shadow-[#7c4a24]/10">
               <div className="flex items-center gap-4">
-                <RotateCcw className="h-8 w-8 text-amber-700" />
+                <RotateCcw className="h-7 w-7 text-[#a7622d]" />
                 <div>
                   <h3 className="font-semibold text-slate-900">7-Day Returns</h3>
                   <p className="text-sm text-slate-600">Easy replacements</p>
                 </div>
               </div>
             </div>
-            <div className="rounded-[28px] border border-stone-200 bg-white px-6 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            <div className="rounded-xl border border-[#d8c2a2] bg-gradient-to-br from-white to-[#fbf1e3] px-6 py-4 shadow-sm shadow-[#7c4a24]/10">
               <div className="flex items-center gap-4">
-                <ShieldCheck className="h-8 w-8 text-amber-700" />
+                <ShieldCheck className="h-7 w-7 text-[#a7622d]" />
                 <div>
                   <h3 className="font-semibold text-slate-900">100% Authentic</h3>
                   <p className="text-sm text-slate-600">Guaranteed products</p>
@@ -171,7 +171,7 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d5228]">
                 Best of ShopNest
               </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Featured Products</h2>
@@ -179,7 +179,7 @@ function Index() {
             <Button
               variant="ghost"
               onClick={() => navigate({ to: "/products" })}
-              className="rounded-full text-slate-700 hover:text-slate-950"
+              className="rounded-full text-[#8d5228] hover:bg-[#f3e1ca] hover:text-[#633719]"
             >
               View All <ArrowRight className="ml-1 w-4 h-4" />
             </Button>
@@ -201,7 +201,7 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d5228]">
                 Fresh demand
               </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Trending Now</h2>
@@ -209,7 +209,7 @@ function Index() {
             <Button
               variant="ghost"
               onClick={() => navigate({ to: "/products", search: { sort: "trending" } })}
-              className="rounded-full text-slate-700 hover:text-slate-950"
+              className="rounded-full text-[#8d5228] hover:bg-[#f3e1ca] hover:text-[#633719]"
             >
               View All <ArrowRight className="ml-1 w-4 h-4" />
             </Button>
@@ -231,7 +231,7 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d5228]">
                 Customer favorites
               </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Best Sellers</h2>
@@ -239,7 +239,7 @@ function Index() {
             <Button
               variant="ghost"
               onClick={() => navigate({ to: "/products", search: { sort: "best-seller" } })}
-              className="rounded-full text-slate-700 hover:text-slate-950"
+              className="rounded-full text-[#8d5228] hover:bg-[#f3e1ca] hover:text-[#633719]"
             >
               View All <ArrowRight className="ml-1 w-4 h-4" />
             </Button>
@@ -261,7 +261,7 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d5228]">
                 Limited-time selection
               </p>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Hot Deals</h2>
@@ -270,7 +270,7 @@ function Index() {
             <Button
               variant="ghost"
               onClick={() => navigate({ to: "/products", search: { sort: "deals" } })}
-              className="rounded-full text-slate-700 hover:text-slate-950"
+              className="rounded-full text-[#8d5228] hover:bg-[#f3e1ca] hover:text-[#633719]"
             >
               View All <ArrowRight className="ml-1 w-4 h-4" />
             </Button>

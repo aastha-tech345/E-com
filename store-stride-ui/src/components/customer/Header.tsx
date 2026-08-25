@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SiteLogo } from "@/components/common/SiteLogo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,16 +81,16 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
             setOpen(true);
           }}
           placeholder="Search for products, brands, categories or product ID"
-          className="h-10 pl-9 pr-20"
+          className="h-10 rounded-full border-[#d8c2a2] bg-gradient-to-b from-white to-[#f8efe3] pl-9 pr-20 shadow-sm focus-visible:ring-[#d1a06d]"
           autoComplete="off"
         />
-        <Button type="submit" size="sm" className="absolute right-1 top-1 h-8">
+        <Button type="submit" size="sm" className="absolute right-1 top-1 h-8 rounded-full bg-[#a7622d] px-4 hover:bg-[#8d5228]">
           Search
         </Button>
       </form>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border bg-popover shadow-lg">
+        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-[#d8c2a2] bg-[#fffaf2] shadow-xl shadow-[#7c4a24]/10">
           {!term && (
             <div className="p-3">
               {recentSearches.length > 0 && (
@@ -102,7 +103,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
                       <button
                         key={r}
                         onClick={() => submit(r)}
-                        className="rounded-full border px-3 py-1 text-xs hover:bg-muted"
+                        className="rounded-full border border-[#d8c2a2] bg-[#f8ead7] px-3 py-1 text-xs text-[#8d5228] hover:bg-[#f3e1ca]"
                       >
                         {r}
                       </button>
@@ -118,7 +119,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
                   <button
                     key={r}
                     onClick={() => submit(r)}
-                    className="rounded-full border px-3 py-1 text-xs hover:bg-muted"
+                    className="rounded-full border border-[#d8c2a2] bg-[#f8ead7] px-3 py-1 text-xs text-[#8d5228] hover:bg-[#f3e1ca]"
                   >
                     {r}
                   </button>
@@ -137,7 +138,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
                       to="/category/$slug"
                       params={{ slug: c.slug }}
                       onClick={() => setOpen(false)}
-                      className="block rounded px-2 py-1.5 text-sm hover:bg-muted"
+                      className="block rounded-lg px-2 py-1.5 text-sm hover:bg-[#f3e1ca]"
                     >
                       in <span className="font-medium">{c.name}</span>
                     </Link>
@@ -150,7 +151,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
                     <button
                       key={b.id}
                       onClick={() => submit(b.name)}
-                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                      className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[#f3e1ca]"
                     >
                       Brand: <span className="font-medium">{b.name}</span>
                     </button>
@@ -169,7 +170,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
                       to="/products/$id"
                       params={{ id: p.id }}
                       onClick={() => setOpen(false)}
-                      className="flex items-center gap-3 rounded px-2 py-2 hover:bg-muted"
+                      className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-[#f3e1ca]"
                     >
                       <img src={p.images[0]} alt="" className="h-10 w-10 rounded object-cover" />
                       <span className="min-w-0 flex-1">
@@ -199,8 +200,8 @@ export function Header() {
   });
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="bg-primary py-1.5 text-center text-xs text-primary-foreground">
+    <header className="sticky top-0 z-40 border-b border-[#dcc8aa] bg-[#fffaf2]/95 shadow-sm shadow-[#7c4a24]/5 backdrop-blur">
+      <div className="bg-[#151a20] py-1.5 text-center text-xs text-[#ead8bd]">
         Free delivery on prepaid orders above ₹999 · Easy 7-day returns
       </div>
       <div className="container-page flex h-16 items-center gap-3">
@@ -221,7 +222,7 @@ export function Header() {
                   to="/category/$slug"
                   params={{ slug: c.slug }}
                   onClick={() => setMobileOpen(false)}
-                  className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+                  className="rounded-lg px-3 py-2.5 text-sm hover:bg-[#f3e1ca]"
                 >
                   {c.name}
                 </Link>
@@ -230,21 +231,21 @@ export function Header() {
               <Link
                 to="/orders"
                 onClick={() => setMobileOpen(false)}
-                className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+                className="rounded-lg px-3 py-2.5 text-sm hover:bg-[#f3e1ca]"
               >
                 My Orders
               </Link>
               <Link
                 to="/wishlist"
                 onClick={() => setMobileOpen(false)}
-                className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+                className="rounded-lg px-3 py-2.5 text-sm hover:bg-[#f3e1ca]"
               >
                 Wishlist
               </Link>
               <Link
                 to="/profile"
                 onClick={() => setMobileOpen(false)}
-                className="rounded px-3 py-2.5 text-sm hover:bg-muted"
+                className="rounded-lg px-3 py-2.5 text-sm hover:bg-[#f3e1ca]"
               >
                 My Profile
               </Link>
@@ -253,15 +254,13 @@ export function Header() {
         </Sheet>
 
         <Link to="/" className="flex shrink-0 items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded bg-accent text-sm font-black text-accent-foreground">
-            S
-          </span>
+          <SiteLogo size="sm" />
           <span className="text-lg font-extrabold tracking-tight">ShopNest</span>
         </Link>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="hidden shrink-0 lg:inline-flex">
+          <Button variant="ghost" className="hidden shrink-0 rounded-full hover:bg-[#f3e1ca] lg:inline-flex">
               Categories <ChevronDown size={15} />
             </Button>
           </DropdownMenuTrigger>
@@ -281,7 +280,7 @@ export function Header() {
         </div>
 
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon" asChild aria-label="Wishlist" className="relative">
+          <Button variant="ghost" size="icon" asChild aria-label="Wishlist" className="relative rounded-full hover:bg-[#f3e1ca]">
             <Link to="/wishlist">
               <Heart size={19} />
               {wishlist.length > 0 && (
@@ -291,7 +290,7 @@ export function Header() {
               )}
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild aria-label="Cart" className="relative">
+          <Button variant="ghost" size="icon" asChild aria-label="Cart" className="relative rounded-full hover:bg-[#f3e1ca]">
             <Link to="/cart">
               <ShoppingCart size={19} />
               {cartCount > 0 && (
@@ -303,7 +302,7 @@ export function Header() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Account">
+              <Button variant="ghost" size="icon" aria-label="Account" className="rounded-full hover:bg-[#f3e1ca]">
                 <User size={19} />
               </Button>
             </DropdownMenuTrigger>
@@ -350,14 +349,14 @@ export function Header() {
         <SearchBox />
       </div>
 
-      <nav className="hidden border-t lg:block">
+      <nav className="hidden border-t border-[#ead8bd] bg-[#fffaf2] lg:block">
         <div className="container-page flex items-center gap-6 overflow-x-auto py-2 text-sm no-scrollbar">
           {categories.map((c) => (
             <Link
               key={c.id}
               to="/category/$slug"
               params={{ slug: c.slug }}
-              className="whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+              className="whitespace-nowrap text-muted-foreground transition-colors hover:text-[#8d5228]"
               activeProps={{ className: "text-foreground font-medium" }}
             >
               {c.name}
@@ -366,7 +365,7 @@ export function Header() {
           <Link
             to="/products"
             search={{ page: 1, sort: "discount" }}
-            className="whitespace-nowrap font-medium text-accent"
+            className="whitespace-nowrap font-medium text-[#a7622d]"
           >
             Today's Deals
           </Link>

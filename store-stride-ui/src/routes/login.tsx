@@ -6,6 +6,7 @@ import { useShop } from "@/store/shop";
 import { authService } from "@/services";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
+import { SiteLogo } from "@/components/common/SiteLogo";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -52,7 +53,7 @@ function LoginPage() {
       <div className="mx-auto grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 md:grid-cols-[1.05fr_.95fr]">
         <aside className="relative hidden overflow-hidden bg-[#10233e] p-10 text-white md:flex md:flex-col md:justify-between">
           <div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f28b20] text-lg font-black text-slate-950">S</div>
+            <SiteLogo size="lg" />
             <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Store Stride</p>
             <h2 className="mt-4 max-w-sm text-4xl font-bold leading-tight">Everything you love, in one thoughtful place.</h2>
             <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">Discover trusted products, simple ordering, and a better way to shop every day.</p>
@@ -63,9 +64,7 @@ function LoginPage() {
           <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="mb-6 text-center">
-            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#f28b20] text-base font-bold text-slate-950 md:hidden">
-              <span className="text-white text-xl font-bold">S</span>
-            </div>
+            <SiteLogo size="md" className="mb-3 md:hidden" />
             <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
             <p className="mt-1 text-sm text-slate-500">Sign in to continue shopping.</p>
           </div>

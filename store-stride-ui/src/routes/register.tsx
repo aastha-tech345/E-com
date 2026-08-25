@@ -6,6 +6,7 @@ import { useShop } from "@/store/shop";
 import { authService } from "@/services";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
+import { SiteLogo } from "@/components/common/SiteLogo";
 
 export const Route = createFileRoute("/register")({
   component: RegisterPage,
@@ -100,7 +101,7 @@ function RegisterPage() {
       <div className="mx-auto grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 md:grid-cols-[.9fr_1.1fr]">
         <aside className="relative hidden overflow-hidden bg-[#10233e] p-10 text-white md:flex md:flex-col md:justify-between">
           <div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f28b20] text-lg font-black text-slate-950">S</div>
+            <SiteLogo size="lg" />
             <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Join Store Stride</p>
             <h2 className="mt-4 max-w-sm text-4xl font-bold leading-tight">A better storefront for every kind of ambition.</h2>
             <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">Shop for what matters or open your own storefront with one secure account.</p>
@@ -111,9 +112,7 @@ function RegisterPage() {
           <div className="w-full max-w-md">
           {/* Logo */}
           <div className="mb-4 text-center">
-            <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#f28b20] text-sm font-bold text-slate-950 md:hidden">
-              S
-            </div>
+            <SiteLogo size="sm" className="mb-2 md:hidden" />
             <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
             <p className="mt-1 text-sm text-slate-500">Choose how you want to use Store Stride.</p>
           </div>
