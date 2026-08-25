@@ -1732,7 +1732,10 @@ function sanitizeAssistantAnswer(answer: string, productCount = 0) {
       /I could not find an exact match\. Try a broader category, brand, budget, or product use\./gi,
       "I could not find matching products right now. Try a category, brand, budget, or product name.",
     )
-    .replace(/\s+/g, " ")
+    // Keep Markdown structure intact so the chat UI can render policy headings and lists.
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
   return (
     cleaned ||
