@@ -219,8 +219,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const addToCart: ShopContextValue["addToCart"] = useCallback(
     (productId, quantity = 1, opts) => {
       if (!state.user) {
-        toast.error("Please sign in to add products to your cart.");
+        toast.error("Login required. Please sign in to add products to your cart.");
         return;
+      }
+      if (opts?.product) {
+        productService.remember(opts.product);
       }
       patch((s) => {
         const existing = s.cart.find((l) => l.productId === productId);

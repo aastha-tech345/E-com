@@ -8,6 +8,7 @@ from app.modules.ai_assistant.application.graph import AssistantGraph, classify_
 from app.modules.ai_assistant.application.tool_registry import ToolRegistry
 from app.modules.ai_assistant.application.tools import (
     CartSnapshotTool,
+    CatalogSearchTool,
     LangChainSemanticSearchTool,
     NotificationSummaryTool,
     OrderLookupTool,
@@ -26,6 +27,7 @@ def build_tool_registry() -> ToolRegistry:
     return ToolRegistry(
         tools=(
             LangChainSemanticSearchTool(),  # Use LangChain semantic search
+            CatalogSearchTool(),
             SearchSuggestionsTool(),
             PopularSearchesTool(),
             RecommendationTool(),
@@ -48,7 +50,7 @@ def run_assistant_orchestrator(
     conversation_summary: str = "",
 ) -> AssistantGraphState:
     intent = classify_intent(prompt)
-    cache_key = f"assistant:prompt:{user_id or 'anonymous'}:{prompt.strip().lower()}"
+    cache_key = f"assistant:v2:prompt:{user_id or 'anonymous'}:{prompt.strip().lower()}"
     cached = cache_backend.get(cache_key)
     cacheable_intents = {"product_search", "product_compare", "product_recommendation", "policy_help"}
     if intent in cacheable_intents and isinstance(cached, dict) and cached.get("answer") and cached.get("product_ids"):

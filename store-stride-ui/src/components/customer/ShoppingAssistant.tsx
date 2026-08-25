@@ -24,10 +24,11 @@ import { Input } from "@/components/ui/input";
 import { Price } from "@/components/common/Price";
 import { Rating } from "@/components/common/Rating";
 import { SiteLogo } from "@/components/common/SiteLogo";
+import { LoginRequiredDialog } from "@/components/customer/LoginRequiredDialog";
 import { chatbotService, productService, returnService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
-import type { AssistantOrderCard, AssistantReturnAction, ChatMessage, Product } from "@/types";
+import type { AssistantOrderCard, AssistantProductResult, AssistantReturnAction, ChatMessage, Product } from "@/types";
 import { toast } from "sonner";
 
 const STARTERS = [
@@ -73,11 +74,12 @@ const INTENT_SUGGESTIONS: Record<string, string[]> = {
 };
 
 export function ShoppingAssistant() {
-  const { chat, pushChat, resetChat, addToCart, hydrated } = useShop();
+  const { chat, pushChat, resetChat, addToCart, hydrated, user } = useShop();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [returnProof, setReturnProof] = useState<{ proofUrl: string; proofType: string; fileName: string } | null>(null);
   const [returnIssueReason, setReturnIssueReason] = useState("");
   const [uploadingProof, setUploadingProof] = useState(false);
@@ -219,6 +221,14 @@ export function ShoppingAssistant() {
     void send(text);
   };
 
+  const handleAddToCart = (id: string, quantity?: number, opts?: { product?: Product }) => {
+    if (!user) {
+      setLoginPromptOpen(true);
+      return;
+    }
+    addToCart(id, quantity, opts);
+  };
+
   if (!hydrated) return null;
 
   return (
@@ -312,7 +322,7 @@ export function ShoppingAssistant() {
               <ChatBubble
                 key={m.id}
                 message={m}
-                onAdd={addToCart}
+                onAdd={handleAddToCart}
                 onReturnAction={(action) => void handleReturnAction(action)}
                 returnProof={returnProof}
                 issueReason={returnIssueReason}
@@ -379,6 +389,7 @@ export function ShoppingAssistant() {
           </form>
         </section>
       )}
+      <LoginRequiredDialog open={loginPromptOpen} onOpenChange={setLoginPromptOpen} />
     </>
   );
 }
@@ -487,7 +498,7 @@ function ChatBubble({
         </p>
       ) : null}
       {backendItems.map((p) => {
-        const canAddToLocalCart = Boolean(productService.byId(p.id));
+        const product = productService.byId(p.id) ?? assistantProductToProduct(p);
         return (
           <div key={p.id} className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10">
             {p.image ? (
@@ -506,17 +517,16 @@ function ChatBubble({
               </p>
               <div className="flex gap-1.5 pt-1">
                 <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100" asChild>
-                  <Link to="/products/$id" params={{ id: p.id }}>
+                  <Link to="/products/$id" params={{ id: p.id }} onClick={() => productService.remember(product)}>
                     View Product
                   </Link>
                 </Button>
                 <Button
                   size="sm"
                   className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
-                  disabled={!canAddToLocalCart || p.stock <= 0}
+                  disabled={p.stock <= 0}
                   onClick={() => {
-                    const product = productService.byId(p.id);
-                    onAdd(p.id, 1, product ? { product } : undefined);
+                    onAdd(p.id, 1, { product });
                   }}
                 >
                   Add to Cart
@@ -556,6 +566,42 @@ function ChatBubble({
       ))}
     </div>
   );
+}
+
+function assistantProductToProduct(product: AssistantProductResult): Product {
+  const images = product.images?.length ? product.images : product.image ? [product.image] : [];
+  return {
+    id: product.id,
+    defaultVariantId: product.defaultVariantId,
+    sku: product.sku || product.slug || product.id,
+    name: product.name,
+    slug: product.slug,
+    brand: product.brand || "Unbranded",
+    category: product.category || "Uncategorized",
+    categorySlug: product.categorySlug || "uncategorized",
+    subcategory: "",
+    description: product.description,
+    shortDescription: product.shortDescription || product.description,
+    images,
+    mrp: product.price,
+    price: product.price,
+    costPrice: 0,
+    rating: product.rating ?? 0,
+    reviewCount: product.reviewCount ?? 0,
+    stock: product.stock,
+    reserved: 0,
+    minStock: 0,
+    colors: [],
+    sizes: [],
+    specifications: [],
+    tags: [],
+    status: "active",
+    createdAt: "",
+    featured: false,
+    trending: false,
+    bestSeller: false,
+    deal: false,
+  };
 }
 
 function OrderStatusCard({ order }: { order: AssistantOrderCard }) {

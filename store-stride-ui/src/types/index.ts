@@ -198,13 +198,22 @@ export interface ChatMessage {
 
 export interface AssistantProductResult {
   id: string;
+  defaultVariantId?: string;
+  sku: string;
   name: string;
   slug: string;
+  brand: string;
+  category: string;
+  categorySlug: string;
   description: string;
+  shortDescription: string;
   image?: string;
+  images: string[];
   price: number;
   currency: string;
   stock: number;
+  rating: number;
+  reviewCount: number;
 }
 
 export interface AssistantOrderCard {

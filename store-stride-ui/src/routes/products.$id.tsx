@@ -10,6 +10,7 @@ import { QuantitySelector } from "@/components/common/QuantitySelector";
 import { ProductCard } from "@/components/common/ProductCard";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
+import { LoginRequiredDialog } from "@/components/customer/LoginRequiredDialog";
 import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { productService } from "@/services";
@@ -22,12 +23,13 @@ export const Route = createFileRoute("/products/$id")({
 function ProductDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams({ from: "/products/$id" });
-  const { addToCart, toggleWishlist, isWishlisted, markViewed } = useShop();
+  const { addToCart, toggleWishlist, isWishlisted, markViewed, user } = useShop();
 
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
 
   const product = productService.byId(id);
 
@@ -55,6 +57,10 @@ function ProductDetailsPage() {
     .slice(0, 4);
 
   const handleAddToCart = () => {
+    if (!user) {
+      setLoginPromptOpen(true);
+      return;
+    }
     if (product.colors.length > 0 && !selectedColor) {
       toast.error("Please select a color");
       return;
@@ -339,6 +345,7 @@ function ProductDetailsPage() {
 
       <ShoppingAssistant />
       <Footer />
+      <LoginRequiredDialog open={loginPromptOpen} onOpenChange={setLoginPromptOpen} />
     </div>
   );
 }
