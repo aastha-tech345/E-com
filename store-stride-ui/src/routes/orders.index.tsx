@@ -93,7 +93,7 @@ function CopyId({ value, label }: { value: string; label: string }) {
       onClick={() =>
         void navigator.clipboard
           .writeText(value)
-          .then(() => toast.success("Copied successfully"))
+          .then(() => toast.success("Text copied"))
           .catch(() => toast.error("Unable to copy"))
       }
       className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"

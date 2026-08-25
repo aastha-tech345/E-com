@@ -132,3 +132,20 @@ def test_ai_assistant_support_memory_and_feedback(db_session: Session) -> None:
     assert context_row
     assert feedback_row
     assert len(invocations) >= 4
+
+
+def test_ai_assistant_multi_intent_policy_and_auth_routing(db_session: Session) -> None:
+    conversation, answer, products, intent, used_tools, metadata = answer_prompt(
+        db_session,
+        prompt="What is the return policy and can you track my latest order?",
+        user_id=None,
+        conversation_id=None,
+    )
+
+    assert conversation.id
+    assert products == []
+    assert intent in {"policy_help", "shipping_support"}
+    assert "knowledge.return_policy" in used_tools
+    assert metadata.get("requires_authentication") is True
+    assert "return" in answer.lower()
+    assert "sign in" in answer.lower()

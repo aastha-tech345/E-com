@@ -28,7 +28,13 @@ import { LoginRequiredDialog } from "@/components/customer/LoginRequiredDialog";
 import { chatbotService, productService, returnService } from "@/services";
 import { useShop } from "@/store/shop";
 import { cn } from "@/lib/utils";
-import type { AssistantOrderCard, AssistantProductResult, AssistantReturnAction, ChatMessage, Product } from "@/types";
+import type {
+  AssistantOrderCard,
+  AssistantProductResult,
+  AssistantReturnAction,
+  ChatMessage,
+  Product,
+} from "@/types";
 import { toast } from "sonner";
 
 const STARTERS = [
@@ -86,7 +92,11 @@ export function ShoppingAssistant() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
-  const [returnProof, setReturnProof] = useState<{ proofUrl: string; proofType: string; fileName: string } | null>(null);
+  const [returnProof, setReturnProof] = useState<{
+    proofUrl: string;
+    proofType: string;
+    fileName: string;
+  } | null>(null);
   const [returnIssueReason, setReturnIssueReason] = useState("");
   const [uploadingProof, setUploadingProof] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -100,7 +110,12 @@ export function ShoppingAssistant() {
     const value = text.trim();
     if (!value || typing) return;
     setInput("");
-    pushChat({ id: crypto.randomUUID(), role: "user", text: opts?.displayText ?? value, isAction: opts?.isAction });
+    pushChat({
+      id: crypto.randomUUID(),
+      role: "user",
+      text: opts?.displayText ?? value,
+      isAction: opts?.isAction,
+    });
     setTyping(true);
     const reply = await chatbotService.reply(value);
     setTyping(false);
@@ -621,8 +636,17 @@ function ChatBubble({
                 {p.stock > 0 ? "In stock" : "Currently unavailable"}
               </p>
               <div className="flex gap-1.5 pt-1">
-                <Button size="sm" variant="outline" className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100" asChild>
-                  <Link to="/products/$id" params={{ id: p.id }} onClick={() => productService.remember(product)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
+                  asChild
+                >
+                  <Link
+                    to="/products/$id"
+                    params={{ id: p.id }}
+                    onClick={() => productService.remember(product)}
+                  >
                     View Product
                   </Link>
                 </Button>
@@ -718,20 +742,97 @@ function assistantProductToProduct(product: AssistantProductResult): Product {
 }
 
 function ChatMessageContent({ text }: { text: string }) {
-  const parts = text.split(/(RET-[A-Z0-9]+|ORD-[A-Z0-9-]+|ITM-[A-Z0-9-]+)/g);
-  return (
-    <>
-      {parts.map((part, index) =>
-        /^(RET-[A-Z0-9]+|ORD-[A-Z0-9-]+|ITM-[A-Z0-9-]+)$/.test(part) ? (
-          <strong key={`${part}-${index}`} className="font-extrabold text-slate-950">
-            {part}
-          </strong>
-        ) : (
-          <span key={`${part}-${index}`}>{part}</span>
-        ),
-      )}
-    </>
-  );
+  const blocks: React.ReactNode[] = [];
+  const lines = text.split("\n");
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      blocks.push(
+        <p key={`heading-${index}`} className="mt-2 font-semibold text-slate-950 first:mt-0">
+          <InlineMessageContent text={heading[2]} />
+        </p>,
+      );
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ul key={`list-${index}`} className="my-1 list-disc space-y-1 pl-5 marker:text-zinc-500">
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>
+              <InlineMessageContent text={item} />
+            </li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ol
+          key={`ordered-list-${index}`}
+          className="my-1 list-decimal space-y-1 pl-5 marker:font-medium marker:text-zinc-600"
+        >
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>
+              <InlineMessageContent text={item} />
+            </li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+
+    blocks.push(
+      <p key={`paragraph-${index}`} className="my-1 first:mt-0 last:mb-0">
+        <InlineMessageContent text={line} />
+      </p>,
+    );
+    index += 1;
+  }
+
+  return <>{blocks}</>;
+}
+
+function InlineMessageContent({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|RET-[A-Z0-9]+|ORD-[A-Z0-9-]+|ITM-[A-Z0-9-]+)/g);
+  return parts.map((part, index) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) {
+      return (
+        <strong key={`${part}-${index}`} className="font-bold text-slate-950">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (/^(RET-[A-Z0-9]+|ORD-[A-Z0-9-]+|ITM-[A-Z0-9-]+)$/.test(part)) {
+      return (
+        <strong key={`${part}-${index}`} className="font-extrabold text-slate-950">
+          {part}
+        </strong>
+      );
+    }
+    return <span key={`${part}-${index}`}>{part}</span>;
+  });
 }
 
 function OrderStatusCard({ order }: { order: AssistantOrderCard }) {

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.cache import cache_backend
 from app.core.config import settings
-from app.modules.ai_assistant.application.graph import AssistantGraph, classify_intent
+from app.modules.ai_assistant.application.graph import AssistantGraph, classify_intent, classify_intents
 from app.modules.ai_assistant.application.tool_registry import ToolRegistry
 from app.modules.ai_assistant.application.tools import (
     CartSnapshotTool,
@@ -50,6 +50,7 @@ def run_assistant_orchestrator(
     conversation_summary: str = "",
 ) -> AssistantGraphState:
     intent = classify_intent(prompt)
+    intents = classify_intents(prompt, conversation_summary)
     cache_key = f"assistant:v3:prompt:{user_id or 'anonymous'}:{prompt.strip().lower()}"
     cached = cache_backend.get(cache_key)
     cacheable_intents = {"product_search", "product_compare", "product_recommendation", "policy_help"}
@@ -60,6 +61,7 @@ def run_assistant_orchestrator(
             conversation_summary=conversation_summary,
         )
         state.intent = intent
+        state.intents = list(cached.get("intents", intents))
         state.answer = str(cached["answer"])
         state.intent = str(cached.get("intent", "product_search"))
         state.metadata["cached"] = True
@@ -86,6 +88,7 @@ def run_assistant_orchestrator(
                 "answer": result.answer,
                 "product_ids": [product.id for product in result.products],
                 "intent": result.intent,
+                "intents": result.intents,
                 "metadata": result.metadata,
                 "used_tools": [record.tool_name for record in result.tool_records if record.status == "completed"],
             },
