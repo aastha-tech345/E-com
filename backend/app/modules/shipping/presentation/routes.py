@@ -4,12 +4,36 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db_session
 from app.modules.identity.application.schemas import UserProfileResponse
 from app.modules.identity.presentation.dependencies import get_current_user, require_roles
-from app.modules.shipping.application.schemas import ShipmentResponse, ShipmentUpdateRequest
-from app.modules.shipping.application.service import get_shipment_for_user, update_shipment_status
+from app.modules.shipping.application.schemas import OrderItemShipmentUpdateRequest, ShipmentResponse, ShipmentUpdateRequest
+from app.modules.shipping.application.service import get_shipment_for_user, update_order_item_status, update_shipment_status
 from app.modules.shipping.domain.models import Shipment
 from app.shared.enums.roles import SystemRole
 
 router = APIRouter(prefix="/admin/shipping", tags=["shipping"])
+
+
+@router.put("/items/{order_item_id}/status")
+def update_order_item_shipping(
+    order_item_id: str,
+    payload: OrderItemShipmentUpdateRequest,
+    _: UserProfileResponse = Depends(require_roles(SystemRole.ADMIN_CATALOG.value, SystemRole.SUPER_ADMIN.value)),
+    db: Session = Depends(get_db_session),
+) -> dict[str, str]:
+    try:
+        item = update_order_item_status(
+            db,
+            order_item_id=order_item_id,
+            status=payload.status,
+            tracking_number=payload.tracking_number,
+            shipping_partner=payload.shipping_partner,
+            estimated_delivery=payload.estimated_delivery,
+            note=payload.note,
+        )
+        db.commit()
+        return {"item_id": item.id, "item_number": item.item_number, "status": item.status}
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/status")

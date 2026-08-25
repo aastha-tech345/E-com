@@ -18,7 +18,13 @@ from app.modules.identity.application.schemas import (
     CustomerAddressResponse,
     UserRegisterRequest,
 )
-from app.modules.identity.application.service import authenticate_user, ensure_default_admin, register_user, build_auth_response
+from app.modules.identity.application.service import (
+    authenticate_user,
+    ensure_default_admin,
+    register_user,
+    build_auth_response,
+    normalize_email,
+)
 from app.modules.identity.presentation.dependencies import get_current_user
 from app.modules.identity.domain.models import CustomerAddress, User
 from app.shared.enums.roles import SystemRole
@@ -95,7 +101,7 @@ def update_me(payload: UserProfileUpdateRequest, current_user: UserProfileRespon
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
     user.full_name = payload.full_name.strip()
-    user.email = str(payload.email).lower()
+    user.email = normalize_email(str(payload.email))
     try:
         db.commit()
     except IntegrityError as exc:

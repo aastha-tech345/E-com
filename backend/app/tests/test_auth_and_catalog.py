@@ -19,7 +19,7 @@ from app.modules.catalog.application.service import (
     seed_catalog,
 )
 from app.modules.identity.application.schemas import UserLoginRequest, UserRegisterRequest
-from app.modules.identity.application.service import authenticate_user, register_user
+from app.modules.identity.application.service import authenticate_user, ensure_default_admin, register_user
 
 
 def test_register_login_and_catalog_flow(db_session: Session) -> None:
@@ -29,6 +29,12 @@ def test_register_login_and_catalog_flow(db_session: Session) -> None:
     )
     assert register_response.user.roles == ["customer"]
     assert decode_access_token(register_response.access_token)["email"] == "customer@example.com"
+
+    customer_login = authenticate_user(
+        db_session,
+        UserLoginRequest(email="  CUSTOMER@EXAMPLE.COM ", password="Password123!"),
+    )
+    assert customer_login.user.email == "customer@example.com"
 
     admin_login = authenticate_user(
         db_session,
@@ -93,3 +99,15 @@ def test_seed_catalog_is_idempotent(db_session: Session) -> None:
 
     public_products = list_products(db_session)
     assert len(public_products) == first_seed.products_created
+
+
+def test_ensure_default_admin_repairs_credentials(db_session: Session) -> None:
+    ensure_default_admin(db_session, settings.admin_email, "OldPassword123!")
+    ensure_default_admin(db_session, f"  {settings.admin_email.upper()}  ", settings.admin_password)
+
+    admin_login = authenticate_user(
+        db_session,
+        UserLoginRequest(email=f" {settings.admin_email.upper()} ", password=settings.admin_password),
+    )
+
+    assert "super_admin" in admin_login.user.roles

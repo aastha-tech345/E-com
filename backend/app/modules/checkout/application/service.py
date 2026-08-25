@@ -7,7 +7,7 @@ from app.modules.cart.application.service import clear_cart, get_cart
 from app.modules.inventory.application.service import commit_inventory
 from app.modules.identity.domain.models import CustomerAddress
 from app.modules.notifications.application.service import create_notification
-from app.modules.orders.domain.models import Order, OrderItem, OrderStatusHistory
+from app.modules.orders.domain.models import Order, OrderItem, OrderItemStatusHistory, OrderStatusHistory
 from app.modules.payments.application.service import create_captured_payment
 from app.modules.pricing.application.service import get_active_price
 from app.modules.promotions.application.service import apply_coupon
@@ -75,7 +75,7 @@ def place_order_from_cart(
 
     created_items: list[OrderItem] = []
     commission_rate = Decimal("0.1000")
-    for cart_item in cart.items:
+    for item_index, cart_item in enumerate(cart.items, start=1):
         variant = cart_item.variant
         price = get_active_price(db, variant_id=variant.id)
         unit_price = price.amount if price is not None else variant.price
@@ -97,9 +97,13 @@ def place_order_from_cart(
             commission_rate=commission_rate,
             commission_amount=commission_amount,
             seller_payout_amount=seller_payout_amount,
+            item_number=f"ITM-{order.order_number.removeprefix('ORD-')}-{item_index:02d}",
+            status="pending",
         )
         db.add(created_item)
         created_items.append(created_item)
+        db.flush()
+        db.add(OrderItemStatusHistory(order_item_id=created_item.id, status="pending", note="Order placed"))
         commit_inventory(db, variant_id=variant.id, quantity=cart_item.quantity)
 
     if coupon_code:
@@ -167,30 +171,33 @@ def create_pending_order_from_cart(
 
     subtotal = Decimal("0.00")
     commission_rate = Decimal("0.1000")
-    for cart_item in active_items:
+    for item_index, cart_item in enumerate(active_items, start=1):
         variant = cart_item.variant
         price = get_active_price(db, variant_id=variant.id)
         unit_price = price.amount if price is not None else variant.price
         line_total = (unit_price * cart_item.quantity).quantize(Decimal("0.01"))
         commission_amount = (line_total * commission_rate).quantize(Decimal("0.01"))
         subtotal += line_total
-        db.add(
-            OrderItem(
-                order_id=order.id,
-                product_id=variant.product_id,
-                variant_id=variant.id,
-                seller_id=variant.product.seller_id,
-                product_name=variant.product.name,
-                variant_name=variant.name,
-                sku=variant.sku,
-                quantity=cart_item.quantity,
-                unit_price=unit_price,
-                line_total=line_total,
-                commission_rate=commission_rate,
-                commission_amount=commission_amount,
-                seller_payout_amount=(line_total - commission_amount).quantize(Decimal("0.01")),
-            )
+        created_item = OrderItem(
+            order_id=order.id,
+            product_id=variant.product_id,
+            variant_id=variant.id,
+            seller_id=variant.product.seller_id,
+            product_name=variant.product.name,
+            variant_name=variant.name,
+            sku=variant.sku,
+            quantity=cart_item.quantity,
+            unit_price=unit_price,
+            line_total=line_total,
+            commission_rate=commission_rate,
+            commission_amount=commission_amount,
+            seller_payout_amount=(line_total - commission_amount).quantize(Decimal("0.01")),
+            item_number=f"ITM-{order.order_number.removeprefix('ORD-')}-{item_index:02d}",
+            status="pending",
         )
+        db.add(created_item)
+        db.flush()
+        db.add(OrderItemStatusHistory(order_item_id=created_item.id, status="pending", note="Checkout started"))
 
     order.subtotal = subtotal
     db.add(OrderStatusHistory(order_id=order.id, status="payment_pending", note="Stripe checkout started"))

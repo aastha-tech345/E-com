@@ -16,11 +16,22 @@ export function useAuth() {
   };
 
   const isAuthenticated = (): boolean => {
-    return !!user || !!admin;
+    return !!user || !!admin || !!authService.getAccessToken();
   };
 
   const isAdmin = (): boolean => {
-    return getCurrentRoles().some((role) => ["super_admin", "admin_catalog"].includes(role));
+    return getCurrentRoles().some((role) =>
+      [
+        "super_admin",
+        "admin",
+        "admin_catalog",
+        "admin_orders",
+        "admin_payments",
+        "admin_customers",
+        "admin_marketing",
+        "admin_support",
+      ].includes(role),
+    );
   };
 
   const isSeller = (): boolean => {

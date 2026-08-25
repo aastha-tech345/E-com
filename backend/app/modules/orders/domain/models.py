@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
+from app.modules.catalog.domain.models import Product  # noqa: F401
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -59,8 +61,20 @@ class OrderItem(Base):
     commission_rate: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0.1000"))
     commission_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     seller_payout_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    product_image: Mapped[str] = mapped_column(String(500), default="")  # First product media URL
+    item_number: Mapped[str] = mapped_column(String(48), unique=True, index=True, default=lambda: f"ITM-{uuid4().hex[:12].upper()}")
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    tracking_number: Mapped[str] = mapped_column(String(80), default="")
+    shipping_partner: Mapped[str] = mapped_column(String(80), default="")
+    estimated_delivery: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     order: Mapped[Order] = relationship(back_populates="items")
+    product: Mapped["Product"] = relationship(foreign_keys=[product_id])
+    status_history: Mapped[list["OrderItemStatusHistory"]] = relationship(
+        back_populates="order_item",
+        cascade="all, delete-orphan",
+    )
 
 
 class OrderStatusHistory(Base):
@@ -73,3 +87,15 @@ class OrderStatusHistory(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     order: Mapped[Order] = relationship(back_populates="status_history")
+
+
+class OrderItemStatusHistory(Base):
+    __tablename__ = "order_item_status_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    order_item_id: Mapped[str] = mapped_column(ForeignKey("order_items.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(40))
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    order_item: Mapped[OrderItem] = relationship(back_populates="status_history")

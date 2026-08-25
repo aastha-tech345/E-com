@@ -12,6 +12,10 @@ from app.modules.identity.domain.models import Role, User, UserRole
 from app.shared.enums.roles import SystemRole
 
 
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 def ensure_system_roles(db: Session) -> None:
     existing = {role.name for role in db.scalars(select(Role)).all()}
     for role_name in SystemRole:
@@ -22,14 +26,22 @@ def ensure_system_roles(db: Session) -> None:
 
 def ensure_default_admin(db: Session, admin_email: str, admin_password: str) -> None:
     ensure_system_roles(db)
-    existing_admin = db.scalar(select(User).where(User.email == admin_email))
-    if existing_admin:
-        return
-    user = User(email=admin_email, full_name="Platform Admin", hashed_password=hash_password(admin_password))
-    db.add(user)
-    db.flush()
+    normalized_email = normalize_email(admin_email)
+    existing_admin = db.scalar(select(User).where(User.email == normalized_email))
+    if existing_admin is None:
+        user = User(email=normalized_email, full_name="Platform Admin", hashed_password=hash_password(admin_password))
+        db.add(user)
+        db.flush()
+    else:
+        user = existing_admin
+        user.email = normalized_email
+        user.full_name = "Platform Admin"
+        user.hashed_password = hash_password(admin_password)
+        user.is_active = True
+
     admin_role = db.scalar(select(Role).where(Role.name == SystemRole.SUPER_ADMIN.value))
-    if admin_role is not None:
+    has_admin_role = any(link.role_id == admin_role.id for link in user.roles) if admin_role is not None else False
+    if admin_role is not None and not has_admin_role:
         db.add(UserRole(user_id=user.id, role_id=admin_role.id))
     db.commit()
 
@@ -41,12 +53,13 @@ def register_user(
     role: SystemRole = SystemRole.CUSTOMER,
 ) -> AuthTokenResponse:
     ensure_system_roles(db)
-    if db.scalar(select(User).where(User.email == payload.email)):
+    normalized_email = normalize_email(str(payload.email))
+    if db.scalar(select(User).where(User.email == normalized_email)):
         raise ValueError("A user with this email already exists.")
 
     user = User(
-        email=payload.email,
-        full_name=payload.full_name,
+        email=normalized_email,
+        full_name=payload.full_name.strip(),
         hashed_password=hash_password(payload.password),
     )
     db.add(user)
@@ -62,7 +75,8 @@ def register_user(
 
 
 def authenticate_user(db: Session, payload: UserLoginRequest) -> AuthTokenResponse:
-    user = db.scalar(select(User).where(User.email == payload.email))
+    normalized_email = normalize_email(str(payload.email))
+    user = db.scalar(select(User).where(User.email == normalized_email))
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise ValueError("Invalid credentials.")
     if not user.is_active:

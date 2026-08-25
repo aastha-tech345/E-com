@@ -10,6 +10,14 @@ class ShipmentUpdateRequest(BaseModel):
     note: str = Field(default="", max_length=255)
 
 
+class OrderItemShipmentUpdateRequest(BaseModel):
+    status: str = Field(pattern="^(pending|processing|packed|shipped|delivered|cancelled)$")
+    tracking_number: str = Field(default="", max_length=80)
+    shipping_partner: str = Field(default="", max_length=80)
+    estimated_delivery: datetime | None = None
+    note: str = Field(default="", max_length=255)
+
+
 class TrackingEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -64,20 +64,36 @@ export interface Review {
   status: "published" | "pending" | "rejected";
 }
 
-export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "replacement_requested";
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "packed"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "replacement_requested"
+  | "partially_shipped"
+  | "partially_delivered";
 
 export interface OrderItem {
   id?: string;
+  itemNumber?: string;
   productId: string;
   name: string;
   image: string;
   variant?: string;
   price: number;
   quantity: number;
+  status?: OrderStatus;
+  trackingNumber?: string;
+  shippingPartner?: string;
+  estimatedDelivery?: string;
+  deliveredAt?: string;
 }
 
 export interface Order {
   id: string;
+  order_number?: string; // User-friendly order number like ORD-ABC12345
   customerId: string;
   customerName: string;
   email: string;

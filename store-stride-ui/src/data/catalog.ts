@@ -20,14 +20,14 @@ function rng(seed: number) {
   };
 }
 
-const img = (seed: string, w = 800, h = 800) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
+const img = (query: string, w = 800, h = 800) => `https://source.unsplash.com/${w}x${h}/?${query}`;
 
 export const categories: Category[] = [
   {
     id: "CAT01",
     name: "Electronics",
     slug: "electronics",
-    image: img("electronics-cat", 600, 600),
+    image: img("electronics,product", 600, 600),
     description: "Audio, wearables, mobiles and smart devices.",
     status: "active",
     subcategories: [
@@ -40,7 +40,7 @@ export const categories: Category[] = [
     id: "CAT02",
     name: "Fashion",
     slug: "fashion",
-    image: img("fashion-cat", 600, 600),
+    image: img("fashion,clothing", 600, 600),
     description: "Everyday and occasion wear for all.",
     status: "active",
     subcategories: [
@@ -53,7 +53,7 @@ export const categories: Category[] = [
     id: "CAT03",
     name: "Beauty",
     slug: "beauty",
-    image: img("beauty-cat", 600, 600),
+    image: img("beauty,skincare", 600, 600),
     description: "Skincare, fragrance and grooming.",
     status: "active",
     subcategories: [
@@ -65,7 +65,7 @@ export const categories: Category[] = [
     id: "CAT04",
     name: "Home",
     slug: "home",
-    image: img("home-cat", 600, 600),
+    image: img("home-decor", 600, 600),
     description: "Kitchen, decor and furnishing essentials.",
     status: "active",
     subcategories: [
@@ -77,7 +77,7 @@ export const categories: Category[] = [
     id: "CAT05",
     name: "Grocery",
     slug: "grocery",
-    image: img("grocery-cat", 600, 600),
+    image: img("grocery,food", 600, 600),
     description: "Daily staples and gourmet picks.",
     status: "active",
     subcategories: [
@@ -89,7 +89,7 @@ export const categories: Category[] = [
     id: "CAT06",
     name: "Sports",
     slug: "sports",
-    image: img("sports-cat", 600, 600),
+    image: img("sports,fitness", 600, 600),
     description: "Fitness gear and outdoor equipment.",
     status: "active",
     subcategories: [
@@ -101,7 +101,7 @@ export const categories: Category[] = [
     id: "CAT07",
     name: "Accessories",
     slug: "accessories",
-    image: img("accessories-cat", 600, 600),
+    image: img("fashion-accessories", 600, 600),
     description: "Bags, eyewear and travel add-ons.",
     status: "active",
     subcategories: [
@@ -178,7 +178,7 @@ function build(): Product[] {
           subcategory: sub.name,
           shortDescription: `${label} by ${brand.name} — built for everyday performance with a premium finish.`,
           description: `The ${name} blends thoughtful engineering with a refined design language. Crafted from durable materials and tested for daily use, it offers dependable performance, comfortable ergonomics and a finish that holds up over time. Backed by a 1 year brand warranty and easy 7-day returns.`,
-          images: [1, 2, 3, 4].map((k) => img(`${id}-${k}`)),
+          images: [1, 2, 3, 4].map((k) => img(`${sub.slug},${label.toLowerCase().replace(/\s+/g, "-")},product&sig=${k}`)),
           mrp,
           price,
           costPrice: Math.round(price * 0.62),
@@ -216,7 +216,7 @@ function build(): Product[] {
     price: 2799,
     mrp: 4999,
     stock: 42,
-    images: [1, 2, 3, 4].map((k) => img(`WH1001-${k}`)),
+    images: [1, 2, 3, 4].map((k) => img(`wireless-headphones,product&sig=${k}`)),
   };
   return list;
 }

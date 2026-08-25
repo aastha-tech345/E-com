@@ -4,6 +4,7 @@ from app.modules.ai_assistant.application.tools.customer import (
     NotificationSummaryTool,
     OrderLookupTool,
     ReturnPolicyTool,
+    ReturnWorkflowTool,
     ShipmentStatusTool,
 )
 from app.modules.ai_assistant.application.tools.langchain_search import LangChainSemanticSearchTool
@@ -19,6 +20,7 @@ __all__ = [
     "PopularSearchesTool",
     "RecommendationTool",
     "ReturnPolicyTool",
+    "ReturnWorkflowTool",
     "SearchSuggestionsTool",
     "ShipmentStatusTool",
 ]

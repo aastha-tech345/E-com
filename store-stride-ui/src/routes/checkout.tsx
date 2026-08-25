@@ -180,7 +180,7 @@ function CheckoutPage() {
         cancel_path: "/checkout/cancel",
         items: checkoutItems,
       });
-      window.location.assign(stripeSession.checkout_url);
+      window.location.assign(session.checkout_url);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to place order");
       setSubmittingPayment(false);

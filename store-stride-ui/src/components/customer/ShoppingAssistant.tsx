@@ -1,5 +1,18 @@
 import { Link } from "@tanstack/react-router";
-import { Bot, Maximize2, Minimize2, Send, Sparkles, X } from "lucide-react";
+import {
+  Bot,
+  Maximize2,
+  Minimize2,
+  PackageSearch,
+  RefreshCcw,
+  RotateCcw,
+  Search,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +24,26 @@ import { cn } from "@/lib/utils";
 import type { ChatMessage, Product } from "@/types";
 
 const STARTERS = [
-  "I need a wireless headphone under ₹3000",
-  "Best rated running shoes",
-  "Track my latest order",
-  "My product arrived damaged",
+  {
+    label: "Find Products",
+    prompt: "I need a wireless headphone under ₹3000",
+    icon: Search,
+  },
+  {
+    label: "Track Order",
+    prompt: "Track my latest order",
+    icon: Truck,
+  },
+  {
+    label: "Damaged Item",
+    prompt: "My product arrived damaged. Help me with refund or replacement.",
+    icon: RefreshCcw,
+  },
+  {
+    label: "Policy Help",
+    prompt: "What is the return and refund policy?",
+    icon: ShieldCheck,
+  },
 ];
 
 export function ShoppingAssistant() {
@@ -65,53 +94,74 @@ export function ShoppingAssistant() {
               : "bottom-3 right-3 left-3 h-[70vh] sm:left-auto sm:h-[560px] sm:w-[400px]",
           )}
         >
-          <header className="flex items-center gap-2 border-b bg-primary px-4 py-3 text-primary-foreground">
-            <Bot size={18} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">AI Shopping Assistant</p>
-              <p className="text-[11px] opacity-80">Backend AI · LangGraph flow</p>
+          <header className="border-b bg-slate-950 px-4 py-3 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600">
+                <Bot size={19} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">ShopNest Assistant</p>
+                <p className="mt-0.5 text-[11px] text-slate-300">Product search, orders, delivery, refunds and policy help</p>
+              </div>
+              <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] text-emerald-100 sm:flex">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                Online
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-white hover:bg-white/10"
+                aria-label={full ? "Exit fullscreen" : "Fullscreen"}
+                onClick={() => setFull((f) => !f)}
+              >
+                {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-white hover:bg-white/10"
+                aria-label="Close assistant"
+                onClick={() => setOpen(false)}
+              >
+                <X size={16} />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
-              aria-label={full ? "Exit fullscreen" : "Fullscreen"}
-              onClick={() => setFull((f) => !f)}
-            >
-              {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
-              aria-label="Close assistant"
-              onClick={() => setOpen(false)}
-            >
-              <X size={16} />
-            </Button>
           </header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
-            <div className="max-w-[85%] rounded-lg rounded-tl-none bg-muted px-3 py-2 text-sm">
-              Hi! I can search products, compare options, check orders, track shipping, and help
-              with damaged-item refund or replacement requests.
+          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">How can I help?</p>
+                  <p className="mt-1 text-sm leading-5 text-slate-600">
+                    I can search products, compare options, check your orders, track delivery, and guide damaged-item refund or replacement flows.
+                  </p>
+                </div>
+              </div>
             </div>
             {chat.length === 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {STARTERS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => void send(s)}
-                    className="rounded-full border px-3 py-1.5 text-xs hover:bg-muted"
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-2">
+                {STARTERS.map((starter) => {
+                  const Icon = starter.icon;
+                  return (
+                    <button
+                      key={starter.label}
+                      onClick={() => void send(starter.prompt)}
+                      className="flex min-h-20 flex-col items-start justify-between rounded-lg border border-slate-200 bg-white p-3 text-left text-xs shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      <Icon size={17} className="text-blue-600" />
+                      <span className="font-semibold text-slate-800">{starter.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
             {chat.map((m) => (
-              <ChatBubble key={m.id} message={m} onAdd={addToCart} />
+              <ChatBubble key={m.id} message={m} onAdd={addToCart} onSend={(text) => void send(text)} />
             ))}
 
             {typing && (
@@ -129,14 +179,14 @@ export function ShoppingAssistant() {
           </div>
 
           <form
-            className="flex items-center gap-2 border-t p-3"
+            className="flex items-center gap-2 border-t bg-white p-3"
             onSubmit={(e) => {
               e.preventDefault();
               void send(input);
             }}
           >
-            <Button type="button" variant="ghost" size="sm" onClick={resetChat} className="text-xs">
-              Clear
+            <Button type="button" variant="ghost" size="icon" onClick={resetChat} aria-label="Reset chat">
+              <RotateCcw size={15} />
             </Button>
             <label htmlFor="assistant-input" className="sr-only">
               Message the assistant
@@ -145,10 +195,11 @@ export function ShoppingAssistant() {
               id="assistant-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your message..."
+              placeholder="Ask about product, order ID, refund..."
               autoComplete="off"
+              className="h-10"
             />
-            <Button type="submit" size="icon" aria-label="Send message" disabled={!input.trim()}>
+            <Button type="submit" size="icon" aria-label="Send message" disabled={!input.trim() || typing}>
               <Send size={16} />
             </Button>
           </form>
@@ -161,9 +212,11 @@ export function ShoppingAssistant() {
 function ChatBubble({
   message,
   onAdd,
+  onSend,
 }: {
   message: ChatMessage;
   onAdd: (id: string, quantity?: number, opts?: { product?: Product }) => void;
+  onSend: (text: string) => void;
 }) {
   const mockItems = message.products ? productService.byIds(message.products) : [];
   const backendItems = message.productResults ?? [];
@@ -176,39 +229,26 @@ function ChatBubble({
   }
   return (
     <div className="space-y-2">
-      <div className="max-w-[85%] rounded-lg rounded-tl-none bg-muted px-3 py-2 text-sm">
+      <div className="max-w-[90%] rounded-lg rounded-tl-none border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-700 shadow-sm">
         {message.text}
       </div>
-      {(message.intent || message.orchestrator || message.source) && (
-        <div className="flex max-w-[85%] flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-          <span className="rounded-full border px-2 py-0.5">
-            {message.source === "fallback" ? "Local fallback" : "Backend AI"}
-          </span>
-          {message.orchestrator && (
-            <span className="rounded-full border px-2 py-0.5">
-              {message.orchestrator === "langgraph" ? "LangGraph" : message.orchestrator}
-            </span>
-          )}
-          {message.intent && (
-            <span className="rounded-full border px-2 py-0.5">{formatIntent(message.intent)}</span>
-          )}
-          {message.usedTools && message.usedTools.length > 0 && (
-            <span className="rounded-full border px-2 py-0.5">
-              {message.usedTools.length} tools used
-            </span>
-          )}
-        </div>
-      )}
+      {message.intent && <SupportContext intent={message.intent} />}
       {backendItems.map((p) => {
         const canAddToLocalCart = Boolean(productService.byId(p.id));
         return (
-          <div key={p.id} className="flex gap-3 rounded-lg border p-2">
-            {p.image && <img src={p.image} alt="" className="h-16 w-16 rounded object-cover" />}
+          <div key={p.id} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            {p.image ? (
+              <img src={p.image} alt="" className="h-20 w-20 rounded-md bg-slate-100 object-cover" />
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400">
+                <PackageSearch size={22} />
+              </div>
+            )}
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="truncate text-sm font-medium">{p.name}</p>
+              <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
               <Price price={p.price} size="sm" />
-              <p className="line-clamp-2 text-[11px] text-muted-foreground">{p.description}</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="line-clamp-2 text-[11px] leading-4 text-slate-500">{p.description}</p>
+              <p className="text-[11px] text-slate-500">
                 {p.stock > 0 ? "In stock" : "Currently unavailable"}
               </p>
               <div className="flex gap-1.5 pt-1">
@@ -234,13 +274,13 @@ function ChatBubble({
         );
       })}
       {mockItems.map((p) => (
-        <div key={p.id} className="flex gap-3 rounded-lg border p-2">
-          <img src={p.images[0]} alt="" className="h-16 w-16 rounded object-cover" />
+        <div key={p.id} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <img src={p.images[0]} alt="" className="h-20 w-20 rounded-md object-cover" />
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="truncate text-sm font-medium">{p.name}</p>
+            <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
             <Rating value={p.rating} count={p.reviewCount} />
             <Price price={p.price} mrp={p.mrp} size="sm" />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-slate-500">
               {p.stock > 0 ? "In stock" : "Currently unavailable"}
             </p>
             <div className="flex gap-1.5 pt-1">
@@ -264,12 +304,25 @@ function ChatBubble({
       {message.suggestions && (
         <div className="flex flex-wrap gap-1.5">
           {message.suggestions.map((s) => (
-            <span key={s} className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
+            <button
+              key={s}
+              onClick={() => onSend(s)}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:border-blue-300 hover:bg-blue-50"
+            >
               {s}
-            </span>
+            </button>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function SupportContext({ intent }: { intent: string }) {
+  return (
+    <div className="inline-flex max-w-[90%] items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700">
+      <Sparkles size={12} />
+      {formatIntent(intent)}
     </div>
   );
 }
