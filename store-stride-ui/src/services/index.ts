@@ -247,6 +247,62 @@ function mapApiProduct(product: BackendProduct): Product {
   };
 }
 
+function productSlug(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function localProductPage(query?: ProductQuery): Paged<Product> {
+  hydrateProductCache();
+  const candidates = new Map<string, Product>();
+  products.forEach((product) => candidates.set(product.id, product));
+  productCache.forEach((product) => candidates.set(product.id, product));
+
+  const searchTerm = query?.search?.trim().toLowerCase();
+  let items = Array.from(candidates.values()).filter((product) => {
+    if (product.status !== "active") return false;
+    if (searchTerm) {
+      const searchable = [
+        product.name,
+        product.brand,
+        product.category,
+        product.description,
+        product.sku,
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (!searchable.includes(searchTerm)) return false;
+    }
+    if (query?.category?.length && !query.category.includes(product.categorySlug)) return false;
+    if (query?.brands?.length && !query.brands.includes(productSlug(product.brand))) return false;
+    if (query?.minPrice !== undefined && product.price < query.minPrice) return false;
+    if (query?.maxPrice !== undefined && product.price > query.maxPrice) return false;
+    if (query?.minRating !== undefined && product.rating < query.minRating) return false;
+    return true;
+  });
+
+  if (query?.sort === "price-low")
+    items = [...items].sort((first, second) => first.price - second.price);
+  if (query?.sort === "price-high")
+    items = [...items].sort((first, second) => second.price - first.price);
+  if (query?.sort === "rating")
+    items = [...items].sort((first, second) => second.rating - first.rating);
+
+  const perPage = query?.perPage || 12;
+  const page = query?.page || 1;
+  const total = items.length;
+  return {
+    items: items.slice((page - 1) * perPage, page * perPage),
+    total,
+    page,
+    perPage,
+    pages: Math.ceil(total / perPage),
+  };
+}
+
 export interface StripeCheckoutItem {
   product_id: string;
   name: string;
@@ -590,24 +646,29 @@ export const productService = {
     params.set("page", String(query?.page || 1));
     params.set("per_page", String(query?.perPage || 12));
 
-    const response = await fetch(`${API_BASE}/products?${params.toString()}`);
-    if (!response.ok) throw new Error("Unable to load products from the server.");
-    const data = (await response.json()) as {
-      items: BackendProduct[];
-      total: number;
-      page: number;
-      per_page: number;
-      pages: number;
-    };
-    const items = data.items.map(mapApiProduct);
-    rememberProducts(items);
-    return {
-      items,
-      total: data.total,
-      page: data.page,
-      perPage: data.per_page,
-      pages: data.pages,
-    };
+    try {
+      const response = await fetch(`${API_BASE}/products?${params.toString()}`);
+      if (!response.ok) throw new Error(`Catalog request failed with status ${response.status}.`);
+      const data = (await response.json()) as {
+        items: BackendProduct[];
+        total: number;
+        page: number;
+        per_page: number;
+        pages: number;
+      };
+      const items = data.items.map(mapApiProduct);
+      rememberProducts(items);
+      return {
+        items,
+        total: data.total,
+        page: data.page,
+        perPage: data.per_page,
+        pages: data.pages,
+      };
+    } catch (error) {
+      console.warn("Catalog API is unavailable; using the local product catalog.", error);
+      return localProductPage(query);
+    }
   },
 
   byId(id: string): Product | undefined {
@@ -1669,7 +1730,12 @@ function sanitizeAssistantAnswer(answer: string, productCount = 0) {
     )
     .replace(/\s+/g, " ")
     .trim();
-  return cleaned || (productCount > 0 ? "Here are the closest products I found for you." : "I could not find matching products right now.");
+  return (
+    cleaned ||
+    (productCount > 0
+      ? "Here are the closest products I found for you."
+      : "I could not find matching products right now.")
+  );
 }
 
 function classifyLocalAssistantIntent(message: string) {
@@ -1736,7 +1802,10 @@ function toAssistantProductResult(product: BackendAssistantProduct): AssistantPr
     image: mapped.images[0],
     images: mapped.images,
     price: mapped.price,
-    currency: product.variants.find((item) => item.is_default)?.currency ?? product.variants[0]?.currency ?? "INR",
+    currency:
+      product.variants.find((item) => item.is_default)?.currency ??
+      product.variants[0]?.currency ??
+      "INR",
     stock: mapped.stock,
     rating: mapped.rating,
     reviewCount: mapped.reviewCount,

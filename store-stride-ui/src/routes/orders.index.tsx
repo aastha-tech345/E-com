@@ -461,15 +461,10 @@ function OrderCard({
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_24px_-22px_rgba(15,23,42,0.55)]">
       <header className="grid gap-3 border-b border-slate-200 px-4 py-3.5 sm:grid-cols-2 lg:grid-cols-[1.2fr_1.15fr_0.9fr_1fr_0.8fr_auto] lg:items-center lg:gap-4">
-        <OrderMeta label="Product order ID">
+        <OrderMeta label="Order ID">
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-950">
-              {order.items[0]?.itemNumber || order.order_number || order.id}
-            </span>
-            <CopyId
-              value={order.items[0]?.itemNumber || order.order_number || order.id}
-              label="Product order ID"
-            />
+            <span className="font-semibold text-slate-950">{order.order_number || order.id}</span>
+            <CopyId value={order.order_number || order.id} label="Order ID" />
           </div>
         </OrderMeta>
         <OrderMeta label="Placed on">

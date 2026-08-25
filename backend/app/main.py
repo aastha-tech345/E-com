@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -37,6 +38,8 @@ from app.modules.shipping.presentation.routes import customer_router as customer
 from app.modules.shipping.presentation.routes import router as shipping_router
 from app.modules.wishlist.presentation.routes import router as wishlist_router
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="Marketplace API",
     version="0.1.0",
@@ -54,6 +57,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_with_cors(request: Request, exc: Exception) -> JSONResponse:
+    """Keep API errors readable by the configured browser clients."""
+    logger.exception("Unhandled API exception", exc_info=exc)
+    origin = request.headers.get("origin")
+    headers = {"Vary": "Origin"}
+    if origin in settings.cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "The server could not complete this request. Please try again."},
+        headers=headers,
+    )
 
 
 @app.middleware("http")

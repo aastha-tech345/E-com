@@ -12,7 +12,14 @@ export function Rating({
   size?: number;
   className?: string;
 }) {
-  if (!value) return null;
+  if (!value) {
+    return (
+      <div className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
+        <Star size={size - 3} className="text-muted-foreground/60" aria-hidden />
+        <span>No ratings yet</span>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
