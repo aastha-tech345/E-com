@@ -44,6 +44,7 @@ export const Route = createFileRoute("/products/")({
     sort: (search.sort as string) || "relevance",
     layout: (search.layout as string) || "grid",
     page: (search["page"] as number) || 1,
+    perPage: (search["perPage"] as number) || 20,
     // TanStack uses this normalization at the routing boundary; application code receives typed values.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   })) as (search: Record<string, unknown>) => any,
@@ -58,7 +59,7 @@ function ProductListingPage() {
   const [localPriceMin, setLocalPriceMin] = useState(search.priceMin);
   const [localPriceMax, setLocalPriceMax] = useState(search.priceMax);
 
-  const itemsPerPage = 12;
+  const itemsPerPage = Number(search.perPage) || 20;
   const {
     data: productPage,
     isPending,
@@ -103,6 +104,20 @@ function ProductListingPage() {
     });
   };
 
+  const changePage = (page: number) => {
+    navigate({
+      to: "/products",
+      search: { ...search, page },
+    });
+  };
+
+  const changePageSize = (perPage: number) => {
+    navigate({
+      to: "/products",
+      search: { ...search, perPage, page: 1 },
+    });
+  };
+
   const clearFilters = () => {
     navigate({
       to: "/products",
@@ -116,6 +131,7 @@ function ProductListingPage() {
         sort: "relevance",
         layout: "grid",
         page: 1,
+        perPage: 20,
       },
     });
   };
@@ -209,7 +225,17 @@ function ProductListingPage() {
                   <option value="deals">Deals</option>
                 </select>
               </div>
-              <div className="flex gap-2 self-end lg:self-auto">
+              <div className="flex flex-wrap gap-2 self-end lg:self-auto">
+                <select
+                  value={itemsPerPage}
+                  onChange={(event) => changePageSize(Number(event.target.value))}
+                  className="rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+                  aria-label="Products per page"
+                >
+                  <option value={10}>10 per page</option>
+                  <option value={20}>20 per page</option>
+                  <option value={40}>40 per page</option>
+                </select>
                 <Button
                   variant={search.layout === "grid" ? "default" : "outline"}
                   size="icon"
@@ -277,19 +303,19 @@ function ProductListingPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button
                   variant="outline"
                   disabled={currentPage === 1}
-                  onClick={() => updateSearch({ page: currentPage - 1 })}
+                  onClick={() => changePage(currentPage - 1)}
                 >
                   Previous
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                {visiblePages(currentPage, totalPages).map((page) => (
                   <Button
                     key={page}
                     variant={page === currentPage ? "default" : "outline"}
-                    onClick={() => updateSearch({ page })}
+                    onClick={() => changePage(page)}
                   >
                     {page}
                   </Button>
@@ -297,7 +323,7 @@ function ProductListingPage() {
                 <Button
                   variant="outline"
                   disabled={currentPage === totalPages}
-                  onClick={() => updateSearch({ page: currentPage + 1 })}
+                  onClick={() => changePage(currentPage + 1)}
                 >
                   Next
                 </Button>
@@ -492,4 +518,10 @@ function FilterPanel({
       </div>
     </div>
   );
+}
+
+function visiblePages(currentPage: number, totalPages: number) {
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, currentPage + 2);
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }

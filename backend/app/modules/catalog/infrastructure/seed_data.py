@@ -24,6 +24,7 @@ SEED_CATEGORIES: list[CategoryCreateRequest] = [
     CategoryCreateRequest(name="Home Decor", slug="home-decor"),
     CategoryCreateRequest(name="Footwear", slug="footwear"),
     CategoryCreateRequest(name="Bags", slug="bags"),
+    CategoryCreateRequest(name="Watches & Wearables", slug="watches-wearables"),
 ]
 
 SEED_BRANDS: list[BrandCreateRequest] = [
@@ -39,6 +40,9 @@ SEED_BRANDS: list[BrandCreateRequest] = [
     BrandCreateRequest(name="Cosmix", slug="cosmix"),
     BrandCreateRequest(name="Veloura", slug="veloura"),
     BrandCreateRequest(name="HouseBloom", slug="housebloom"),
+    BrandCreateRequest(name="Samsung", slug="samsung"),
+    BrandCreateRequest(name="Titan", slug="titan"),
+    BrandCreateRequest(name="Canon", slug="canon"),
 ]
 
 
@@ -55,6 +59,7 @@ def seed_product(
     price: str,
     quantity_available: int,
     image_query: str,
+    image_url: str | None = None,
 ) -> ProductCreateRequest:
     return ProductCreateRequest(
         category_id=category_id,
@@ -75,7 +80,7 @@ def seed_product(
         ],
         media=[
             ProductMediaPayload(
-                media_url=f"https://source.unsplash.com/640x840/?{image_query}",
+                media_url=image_url or f"https://source.unsplash.com/640x840/?{image_query}",
                 alt_text=name,
                 sort_order=1,
             )
@@ -122,6 +127,20 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         price="42199.00",
         quantity_available=12,
         image_query="mirrorless-camera,product",
+    ),
+    seed_product(
+        category_id="cameras-photography",
+        brand_id="canon",
+        name="Canon Digital Creator Camera",
+        slug="canon-digital-creator-camera",
+        short_description="Digital camera with crisp photos and easy creator controls",
+        description="A compact digital camera for product shots, travel photos, and everyday creator video with reliable autofocus.",
+        variant_name="Black / 24MP Kit",
+        sku="CANON-DIGITAL-CREATOR-BLK",
+        price="34999.00",
+        quantity_available=22,
+        image_query="digital-camera,product",
+        image_url="https://placehold.co/640x840/png?text=Canon+Digital+Camera",
     ),
     seed_product(
         category_id="cameras-photography",
@@ -174,6 +193,34 @@ SEED_PRODUCTS: list[ProductCreateRequest] = [
         price="1999.00",
         quantity_available=73,
         image_query="power-bank,product",
+    ),
+    seed_product(
+        category_id="mobiles-accessories",
+        brand_id="samsung",
+        name="Samsung S26 Ultra Phone",
+        slug="samsung-s26-ultra-phone",
+        short_description="Premium large-screen smartphone with pro-grade camera features",
+        description="A flagship-style Android smartphone for photography, gaming, productivity, and all-day usage.",
+        variant_name="256GB / Titanium Black",
+        sku="SAMSUNG-S26-ULTRA-256-BLK",
+        price="119999.00",
+        quantity_available=18,
+        image_query="samsung-phone,product",
+        image_url="https://placehold.co/640x840/png?text=Samsung+S26+Ultra",
+    ),
+    seed_product(
+        category_id="watches-wearables",
+        brand_id="titan",
+        name="Titan Smart Classic Watch",
+        slug="titan-smart-classic-watch",
+        short_description="Everyday smartwatch with classic styling and health tracking",
+        description="A premium wearable with notification alerts, activity tracking, long battery life, and a polished metal case.",
+        variant_name="Black Strap / 46mm",
+        sku="TITAN-SMART-CLASSIC-BLK",
+        price="8999.00",
+        quantity_available=33,
+        image_query="smartwatch,product",
+        image_url="https://placehold.co/640x840/png?text=Titan+Smart+Watch",
     ),
     seed_product(
         category_id="mobiles-accessories",

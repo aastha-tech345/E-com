@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.modules.background_jobs.application.service import enqueue_job
 from app.modules.inventory.application.service import restock_inventory
 from app.modules.notifications.application.service import create_notification
-from app.modules.orders.domain.models import Order, OrderItem, OrderStatusHistory
+from app.modules.orders.domain.models import Order, OrderItem, OrderItemStatusHistory, OrderStatusHistory
 from app.modules.payments.application.service import create_refund, get_payment_for_order
 from app.modules.returns.domain.models import ReturnRequest
 
@@ -38,8 +38,13 @@ def create_return_request(
     )
     db.add(request)
     if reason.strip().lower() == "replacement":
+        item.status = "replacement_requested"
         order.status = "replacement_requested"
+        db.add(OrderItemStatusHistory(order_item_id=item.id, status=item.status, note="Replacement requested"))
         db.add(OrderStatusHistory(order_id=order.id, status=order.status, note=f"Replacement requested for {item.product_name}."))
+    else:
+        item.status = "return_requested"
+        db.add(OrderItemStatusHistory(order_item_id=item.id, status=item.status, note=f"Return requested: {reason}"))
     create_notification(
         db,
         user_id=user_id,
@@ -77,6 +82,8 @@ def decide_return(db: Session, *, return_id: str, status: str) -> tuple[ReturnRe
             reason=request.reason,
         )
         restock_inventory(db, variant_id=item.variant_id, quantity=request.quantity)
+        item.status = "replacement_approved" if request.reason.strip().lower() == "replacement" else "return_approved"
+        db.add(OrderItemStatusHistory(order_item_id=item.id, status=item.status, note="Request approved"))
         order.status = "partially_returned" if request.quantity < item.quantity else "returned"
         db.add(OrderStatusHistory(order_id=order.id, status=order.status, note="Return approved"))
         create_notification(
@@ -86,6 +93,8 @@ def decide_return(db: Session, *, return_id: str, status: str) -> tuple[ReturnRe
             message=f"Your refund of INR {refund_amount} has been processed.",
         )
     else:
+        item.status = "delivered"
+        db.add(OrderItemStatusHistory(order_item_id=item.id, status=item.status, note="Request rejected"))
         create_notification(
             db,
             user_id=request.user_id,

@@ -21,7 +21,8 @@ export const Route = createFileRoute("/admin/policy")({ component: PolicyPage })
 function PolicyPage() {
   const { admin } = useShop();
   const [policies, setPolicies] = useState<PolicyDocument[]>([]);
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -47,15 +48,20 @@ function PolicyPage() {
   if (!admin) return null;
 
   const upload = async () => {
-    if (!file) {
-      toast.error("Choose a .txt or .md policy file first.");
+    if (uploadFiles.length === 0) {
+      toast.error("Choose one or more .txt or .md policy files first.");
       return;
     }
     setUploading(true);
     try {
-      const result = await policyService.upload(file, name, description);
-      toast.success(`${result.title} indexed into ${result.chunks} vector chunks.`);
-      setFile(null);
+      let indexedChunks = 0;
+      for (const selectedFile of uploadFiles) {
+        const uploadName = uploadFiles.length === 1 ? name : "";
+        const result = await policyService.upload(selectedFile, uploadName, description);
+        indexedChunks += result.chunks;
+      }
+      toast.success(`${uploadFiles.length} policy file${uploadFiles.length === 1 ? "" : "s"} indexed into ${indexedChunks} vector chunks.`);
+      setUploadFiles([]);
       setName("");
       setDescription("");
       setOpen(false);
@@ -70,8 +76,8 @@ function PolicyPage() {
   const updatePolicy = async () => {
     if (!editing || !name.trim()) return;
     try {
-      if (file) {
-        const result = await policyService.replaceFile(editing.id, file, name, description);
+      if (replacementFile) {
+        const result = await policyService.replaceFile(editing.id, replacementFile, name, description);
         toast.success(`${result.title} re-indexed into ${result.chunks} vector chunks.`);
       } else {
         await policyService.rename(editing.id, name, description);
@@ -80,7 +86,7 @@ function PolicyPage() {
       setEditing(null);
       setName("");
       setDescription("");
-      setFile(null);
+      setReplacementFile(null);
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Update failed.");
@@ -147,7 +153,7 @@ function PolicyPage() {
             onClick: () => {
               setName("");
               setDescription("");
-              setFile(null);
+              setUploadFiles([]);
               setOpen(true);
             },
           }}
@@ -162,7 +168,7 @@ function PolicyPage() {
                 setEditing(policy);
                 setName(policy.title);
                 setDescription(policy.description || "");
-                setFile(null);
+                setReplacementFile(null);
               },
             },
             { label: "Delete", onClick: (policy) => void remove(policy) },
@@ -173,27 +179,33 @@ function PolicyPage() {
             <DialogHeader>
               <DialogTitle>Upload policy</DialogTitle>
               <DialogDescription>
-                Add a policy name and a UTF-8 text or Markdown document.
+                Add one or more UTF-8 text or Markdown policy documents.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4">
               <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Policy name"
+                placeholder="Policy name, used when uploading one file"
               />
               <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Document description" />
               <Input
                 type="file"
+                multiple
                 accept=".txt,.md,text/plain,text/markdown"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => setUploadFiles(Array.from(event.target.files ?? []))}
               />
+              {uploadFiles.length > 0 ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  {uploadFiles.map((selectedFile) => selectedFile.name).join(", ")}
+                </div>
+              ) : null}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={upload} disabled={!name || !file || uploading}>
+              <Button onClick={upload} disabled={uploadFiles.length === 0 || uploading}>
                 {uploading ? "Embedding..." : "Upload & index"}
               </Button>
             </DialogFooter>
@@ -206,6 +218,7 @@ function PolicyPage() {
               setEditing(null);
               setName("");
               setDescription("");
+              setReplacementFile(null);
             }
           }}
         >
@@ -223,14 +236,14 @@ function PolicyPage() {
             <Input
               type="file"
               accept=".txt,.md,text/plain,text/markdown"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => setReplacementFile(event.target.files?.[0] ?? null)}
             />
             <p className="text-xs text-slate-500">Choose a file to replace and re-index this policy, or leave it empty to rename only.</p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditing(null)}>
                 Cancel
               </Button>
-              <Button onClick={() => void updatePolicy()}>{file ? "Replace & index" : "Save changes"}</Button>
+              <Button onClick={() => void updatePolicy()}>{replacementFile ? "Replace & index" : "Save changes"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

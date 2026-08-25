@@ -16,6 +16,7 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -82,6 +83,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReturnsRoute = ReturnsRouteImport.update({
+  id: '/returns',
+  path: '/returns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/returns': typeof ReturnsRoute
   '/search': typeof SearchRoute
   '/wishlist': typeof WishlistRoute
   '/admin/admin-users': typeof AdminAdminUsersRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/returns': typeof ReturnsRoute
   '/search': typeof SearchRoute
   '/wishlist': typeof WishlistRoute
   '/admin/admin-users': typeof AdminAdminUsersRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/returns': typeof ReturnsRoute
   '/search': typeof SearchRoute
   '/wishlist': typeof WishlistRoute
   '/admin/admin-users': typeof AdminAdminUsersRoute
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
+    | '/returns'
     | '/search'
     | '/wishlist'
     | '/admin/admin-users'
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
+    | '/returns'
     | '/search'
     | '/wishlist'
     | '/admin/admin-users'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
+    | '/returns'
     | '/search'
     | '/wishlist'
     | '/admin/admin-users'
@@ -499,6 +511,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
+  ReturnsRoute: typeof ReturnsRoute
   SearchRoute: typeof SearchRoute
   WishlistRoute: typeof WishlistRoute
   CategorySlugRoute: typeof CategorySlugRoute
@@ -557,6 +570,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/returns': {
+      id: '/returns'
+      path: '/returns'
+      fullPath: '/returns'
+      preLoaderRoute: typeof ReturnsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -882,6 +902,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
+  ReturnsRoute: ReturnsRoute,
   SearchRoute: SearchRoute,
   WishlistRoute: WishlistRoute,
   CategorySlugRoute: CategorySlugRoute,

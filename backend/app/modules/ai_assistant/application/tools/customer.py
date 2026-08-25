@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.modules.ai_assistant.application.rag import retrieve_knowledge
 from app.modules.ai_assistant.application.tool_registry import AssistantTool
@@ -16,6 +16,52 @@ from app.modules.orders.domain.models import Order
 from app.modules.orders.application.service import list_orders_for_user
 from app.modules.returns.application.service import list_returns_for_user
 from app.modules.shipping.application.service import get_shipment_for_user
+
+
+def _product_image(db: Session, product_id: str) -> str | None:
+    product = db.scalar(
+        select(Product)
+        .options(selectinload(Product.media))
+        .where(Product.id == product_id)
+    )
+    if product is None or not product.media:
+        return None
+    media = sorted(product.media, key=lambda item: item.sort_order)
+    return media[0].media_url if media else None
+
+
+def _order_card(db: Session, order: Order, shipment: object | None = None) -> dict[str, object]:
+    return {
+        "id": order.id,
+        "order_number": order.order_number,
+        "status": order.status,
+        "currency": order.currency,
+        "subtotal": str(order.subtotal),
+        "created_at": order.created_at.isoformat(),
+        "shipment": (
+            {
+                "status": getattr(shipment, "status", "pending"),
+                "carrier": getattr(shipment, "carrier", "internal"),
+                "tracking_number": getattr(shipment, "tracking_number", ""),
+                "events": [event.status for event in getattr(shipment, "events", [])[:5]],
+            }
+            if shipment is not None
+            else None
+        ),
+        "items": [
+            {
+                "order_item_id": item.id,
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "variant_name": item.variant_name,
+                "quantity": item.quantity,
+                "unit_price": str(item.unit_price),
+                "line_total": str(item.line_total),
+                "image": _product_image(db, item.product_id),
+            }
+            for item in order.items
+        ],
+    }
 
 
 class CartSnapshotTool(AssistantTool):
@@ -57,6 +103,7 @@ class OrderLookupTool(AssistantTool):
             state.metadata["auth_required"] = True
             return state
         orders = list_orders_for_user(db, user_id=state.context.user_id)
+        order_cards = [_order_card(db, order) for order in orders[:3]]
         state.metadata["orders"] = [
             {
                 "id": order.id,
@@ -67,6 +114,7 @@ class OrderLookupTool(AssistantTool):
             }
             for order in orders[:3]
         ]
+        state.metadata["order_cards"] = order_cards
         state.tool_records.append(
             ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(orders[:3])} recent orders.")
         )
@@ -96,6 +144,14 @@ class ShipmentStatusTool(AssistantTool):
             "tracking_number": shipment.tracking_number,
             "events": [event.status for event in shipment.events[:5]],
         }
+        order = db.get(Order, order_id)
+        if order is not None:
+            cards = state.metadata.get("order_cards", [])
+            updated_card = _order_card(db, order, shipment)
+            state.metadata["order_cards"] = [
+                updated_card if isinstance(card, dict) and card.get("id") == order.id else card
+                for card in cards
+            ] or [updated_card]
         state.tool_records.append(
             ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded shipment status {shipment.status}.")
         )
@@ -107,7 +163,8 @@ class ReturnPolicyTool(AssistantTool):
     intent_names = ("return_support", "policy_help")
 
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
-        docs = retrieve_knowledge(db, query=f"returns {state.prompt}", limit=2)
+        query = f"returns {state.prompt}" if state.intent == "return_support" else state.prompt
+        docs = retrieve_knowledge(db, query=query, limit=3)
         state.metadata["knowledge"] = [
             {"title": doc.title, "category": doc.category, "content": doc.content}
             for doc in docs
@@ -174,17 +231,32 @@ class ReturnWorkflowTool(AssistantTool):
                 "product_name": item.product_name,
                 "quantity": item.quantity,
                 "unit_price": str(item.unit_price),
+                "image": _product_image(db, item.product_id),
             }
             for item in order.items
         ]
 
+        replacement_available = self._same_product_replacement_available(db, order)
         similar_products = self._similar_products(db, order)
         if similar_products and not state.products:
             state.products = similar_products
 
+        if eligible:
+            next_actions = ["Request a refund", "Contact support"]
+            if replacement_available:
+                next_actions.insert(0, "Replace this item")
+            if similar_products:
+                similar_label = "Choose a similar product" if not replacement_available else "Show similar products"
+                insert_at = 1 if replacement_available else 0
+                next_actions.insert(insert_at, similar_label)
+        else:
+            next_actions = ["Track delivery", "Contact support", "Check return policy"]
+
         state.metadata["return_workflow"] = {
             "status": "verified",
             "eligible": eligible,
+            "replacement_available": replacement_available,
+            "similar_product_count": len(similar_products),
             "order": {
                 "id": order.id,
                 "order_number": order.order_number,
@@ -202,12 +274,34 @@ class ReturnWorkflowTool(AssistantTool):
                 }
                 for request in existing_returns
             ],
-            "next_actions": (
-                ["Request replacement", "Request refund", "Show similar products", "Contact support"]
-                if eligible
-                else ["Track delivery", "Contact support", "Review return policy"]
-            ),
+            "next_actions": next_actions,
         }
+        state.metadata["order_cards"] = [_order_card(db, order)]
+        return_actions = []
+        if replacement_available:
+            return_actions.append(
+                {
+                    "label": "Replace this item",
+                    "description": "Choose this if you want the same item sent again.",
+                    "enabled": eligible,
+                }
+            )
+        if similar_products:
+            return_actions.append(
+                {
+                    "label": "Choose a similar product" if not replacement_available else "Show similar products",
+                    "description": "Pick from similar in-stock products shown below.",
+                    "enabled": eligible,
+                }
+            )
+        return_actions.append(
+            {
+                "label": "Request a refund",
+                "description": "Choose this if you prefer money back according to the return policy.",
+                "enabled": eligible,
+            }
+        )
+        state.metadata["return_actions"] = return_actions
         state.metadata["quick_replies"] = state.metadata["return_workflow"]["next_actions"]
         state.confirmation_required = eligible
         state.tool_records.append(
@@ -240,6 +334,16 @@ class ReturnWorkflowTool(AssistantTool):
             return orders[0]
         return None
 
+    def _same_product_replacement_available(self, db: Session, order: Order) -> bool:
+        for item in order.items:
+            product = db.get(Product, item.product_id)
+            if product is None or not product.is_published or product.is_deleted:
+                continue
+            hydrated = hydrate_product_read_model(db, product)
+            if self._available_units(hydrated) >= item.quantity:
+                return True
+        return False
+
     def _similar_products(self, db: Session, order: Order) -> list[Product]:
         first_item = order.items[0] if order.items else None
         if first_item is None:
@@ -252,11 +356,20 @@ class ReturnWorkflowTool(AssistantTool):
             published_only=True,
             category_slugs=[source.category.slug] if source.category else None,
         )
-        return [
-            hydrate_product_read_model(db, product)
-            for product in products
-            if product.id != source.id
-        ][:4]
+        similar: list[Product] = []
+        for product in products:
+            if product.id == source.id:
+                continue
+            hydrated = hydrate_product_read_model(db, product)
+            if self._available_units(hydrated) <= 0:
+                continue
+            similar.append(hydrated)
+            if len(similar) >= 4:
+                break
+        return similar
+
+    def _available_units(self, product: Product) -> int:
+        return sum(max(0, variant.quantity_available) for variant in product.variants)
 
 
 class NotificationSummaryTool(AssistantTool):

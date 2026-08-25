@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password
 from app.modules.identity.application.schemas import (
     AuthTokenResponse,
@@ -76,6 +77,10 @@ def register_user(
 
 def authenticate_user(db: Session, payload: UserLoginRequest) -> AuthTokenResponse:
     normalized_email = normalize_email(str(payload.email))
+    # Keep the configured development administrator recoverable even when an
+    # existing database was created before the bootstrap account was added.
+    if normalized_email == normalize_email(settings.admin_email):
+        ensure_default_admin(db, settings.admin_email, settings.admin_password)
     user = db.scalar(select(User).where(User.email == normalized_email))
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise ValueError("Invalid credentials.")

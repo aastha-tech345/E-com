@@ -32,7 +32,7 @@ import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { useShop } from "@/store/shop";
 import { EmptyState } from "@/components/common/EmptyState";
-import { orderService, type OrderItemTracking } from "@/services";
+import { orderService, returnService, type OrderItemTracking } from "@/services";
 import type { Order, OrderItem, OrderStatus } from "@/types";
 import { toast } from "sonner";
 
@@ -52,6 +52,9 @@ const statusStyles: Record<string, string> = {
   returned: "bg-slate-100 text-slate-700 ring-slate-200",
   refunded: "bg-slate-100 text-slate-700 ring-slate-200",
   replacement_requested: "bg-orange-50 text-orange-800 ring-orange-200",
+  return_requested: "bg-orange-50 text-orange-800 ring-orange-200",
+  return_approved: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  replacement_approved: "bg-emerald-50 text-emerald-800 ring-emerald-200",
 };
 
 function statusLabel(status: string) {
@@ -147,6 +150,10 @@ function OrdersPage() {
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [summaryOrder, setSummaryOrder] = useState<Order | null>(null);
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
+  const [returnItem, setReturnItem] = useState<{
+    item: OrderItem;
+    action: "return" | "replace";
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -301,6 +308,7 @@ function OrdersPage() {
                       navigate({ to: "/products/$id", params: { id: productId } })
                     }
                     expanded={expandedOrderIds.has(order.id)}
+                    onRequestReturn={(item, action) => setReturnItem({ item, action })}
                     onToggle={() =>
                       setExpandedOrderIds((current) => {
                         const next = new Set(current);
@@ -337,6 +345,24 @@ function OrdersPage() {
           onTrackItem={setTrackingItemId}
         />
       )}
+      {returnItem && (
+        <ReturnItemModal
+          item={returnItem.item}
+          action={returnItem.action}
+          onClose={() => setReturnItem(null)}
+          onSubmitted={(status) => {
+            setUserOrders((orders) =>
+              orders.map((order) => ({
+                ...order,
+                items: order.items.map((item) =>
+                  item.id === returnItem.item.id ? { ...item, status } : item,
+                ),
+              })),
+            );
+            setReturnItem(null);
+          }}
+        />
+      )}
       <Footer />
     </div>
   );
@@ -351,6 +377,7 @@ function OrderCard({
   onViewItem,
   expanded,
   onToggle,
+  onRequestReturn,
 }: {
   order: Order;
   query: string;
@@ -360,6 +387,7 @@ function OrderCard({
   onViewItem: (id: string) => void;
   expanded: boolean;
   onToggle: () => void;
+  onRequestReturn: (item: OrderItem, action: "return" | "replace") => void;
 }) {
   const aggregateStatus = orderStatus(order);
   return (
@@ -428,6 +456,7 @@ function OrderCard({
                 highlighted={itemMatchesSearch(item, query)}
                 onTrack={() => item.id && onTrackItem(item.id)}
                 onView={() => onViewItem(item.productId)}
+                onRequestReturn={(action) => onRequestReturn(item, action)}
               />
             ))}
           </div>
@@ -461,11 +490,13 @@ function OrderItemCard({
   highlighted,
   onTrack,
   onView,
+  onRequestReturn,
 }: {
   item: OrderItem;
   highlighted: boolean;
   onTrack: () => void;
   onView: () => void;
+  onRequestReturn: (action: "return" | "replace") => void;
 }) {
   const itemStatus = item.status ?? "pending";
   return (
@@ -533,9 +564,102 @@ function OrderItemCard({
           <Button variant="ghost" size="sm" onClick={onView}>
             View item
           </Button>
+          {itemStatus === "delivered" && (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => onRequestReturn("return")}>
+                Return
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onRequestReturn("replace")}>
+                Replace
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </section>
+  );
+}
+
+function ReturnItemModal({
+  item,
+  action,
+  onClose,
+  onSubmitted,
+}: {
+  item: OrderItem;
+  action: "return" | "replace";
+  onClose: () => void;
+  onSubmitted: (status: OrderStatus) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const title = action === "replace" ? "Request replacement" : "Request return";
+  const submit = async () => {
+    if (!item.id) return;
+    if (action === "return" && reason.trim().length < 3) {
+      toast.error("Please share a brief reason for the return.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await returnService.requestReturn(
+        item.id,
+        item.quantity,
+        action === "replace" ? "replacement" : reason.trim(),
+      );
+      toast.success(
+        action === "replace" ? "Replacement request submitted." : "Return request submitted.",
+      );
+      onSubmitted(action === "replace" ? "replacement_requested" : "return_requested");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to submit your request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-5 p-5 sm:p-6">
+        <div className="flex gap-3 rounded-xl bg-slate-50 p-4">
+          {item.image ? (
+            <img src={item.image} alt={item.name} className="h-16 w-16 rounded-lg object-cover" />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-white text-slate-400">
+              <Package className="h-5 w-5" />
+            </div>
+          )}
+          <div>
+            <p className="font-semibold text-slate-900">{item.name}</p>
+            <p className="mt-1 text-sm text-slate-500">{item.itemNumber}</p>
+            <p className="mt-1 text-sm text-slate-600">Quantity: {item.quantity}</p>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="return-reason" className="mb-2 block text-sm font-medium text-slate-800">
+            {action === "replace" ? "What is wrong with this item?" : "Reason for return"}
+          </label>
+          <textarea
+            id="return-reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder={
+              action === "replace"
+                ? "Describe the issue, such as damaged or incorrect item"
+                : "Tell us why you would like to return this item"
+            }
+            className="min-h-24 w-full rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-primary"
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={() => void submit()} disabled={submitting}>
+            {submitting ? "Submitting..." : title}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -543,18 +667,18 @@ function AccountNavigation({
   onNavigate,
   onLogout,
 }: {
-  onNavigate: (path: "/profile" | "/orders" | "/wishlist") => void;
+  onNavigate: (path: "/profile" | "/orders" | "/returns" | "/wishlist") => void;
   onLogout: () => void;
 }) {
   const entries: Array<{
     label: string;
     icon: ReactNode;
-    path?: "/profile" | "/orders" | "/wishlist";
+    path?: "/profile" | "/orders" | "/returns" | "/wishlist";
     active?: boolean;
   }> = [
     { label: "Dashboard", icon: <House className="h-4 w-4" />, path: "/profile" },
     { label: "My Orders", icon: <Clipboard className="h-4 w-4" />, path: "/orders", active: true },
-    { label: "Returns & Refunds", icon: <RotateCcw className="h-4 w-4" />, path: "/profile" },
+    { label: "Returns & Refunds", icon: <RotateCcw className="h-4 w-4" />, path: "/returns" },
     { label: "My Addresses", icon: <MapPin className="h-4 w-4" />, path: "/profile" },
     { label: "My Payments", icon: <WalletCards className="h-4 w-4" />, path: "/profile" },
     { label: "Wishlist", icon: <Heart className="h-4 w-4" />, path: "/wishlist" },

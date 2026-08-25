@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Eye, Heart, ShoppingCart } from "lucide-react";
+import { Eye, Heart, PackageSearch, ShoppingCart } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Price } from "@/components/common/Price";
 import { Rating } from "@/components/common/Rating";
@@ -24,6 +25,8 @@ export function ProductCard({
   const { addToCart, toggleWishlist, isWishlisted } = useShop();
   const wished = isWishlisted(product.id);
   const out = product.stock <= 0;
+  const [imageFailed, setImageFailed] = useState(false);
+  const image = product.images?.[0];
 
   return (
     <article
@@ -42,13 +45,18 @@ export function ProductCard({
           layout === "grid" ? "aspect-[4/5] w-full" : "aspect-square w-full sm:w-52",
         )}
       >
-        {product.images?.[0] && (
+        {image && !imageFailed ? (
           <img
-            src={product.images[0]}
+            src={image}
             alt={product.name}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+            onError={() => setImageFailed(true)}
           />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-stone-400">
+            <PackageSearch size={30} />
+          </div>
         )}
         {out && (
           <span className="absolute inset-x-0 bottom-0 bg-foreground/80 py-1 text-center text-xs font-medium text-background">

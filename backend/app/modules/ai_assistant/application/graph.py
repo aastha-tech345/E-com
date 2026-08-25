@@ -14,6 +14,8 @@ from app.modules.ai_assistant.infrastructure.llm_client import BaseLLMClient
 
 def classify_intent(prompt: str) -> str:
     normalized = prompt.lower()
+    if any(token in normalized for token in ("policy", "how does")):
+        return "policy_help"
     if any(token in normalized for token in ("return", "refund", "exchange", "replace", "damage", "damaged", "broken")):
         return "return_support"
     if any(token in normalized for token in ("track", "shipment", "delivery", "delivered", "courier")):
@@ -22,7 +24,7 @@ def classify_intent(prompt: str) -> str:
         return "order_support"
     if any(token in normalized for token in ("cart", "checkout", "coupon")):
         return "cart_help"
-    if any(token in normalized for token in ("policy", "how does", "help", "support")):
+    if any(token in normalized for token in ("help", "support")):
         return "policy_help"
     if any(token in normalized for token in ("account", "notification", "alert")):
         return "account_help"
@@ -108,9 +110,9 @@ class AssistantGraph:
         product_count = len(state.products)
         if state.metadata.get("auth_required"):
             state.answer = (
-                "I can help with that once you are signed in. "
-                "Please log in and share your order ID so I can safely access your cart, orders, "
-                "or account details and show refund or replacement options."
+                "I can help with that after you sign in. "
+                "Once you are logged in, share your order ID and I can check the order, delivery, "
+                "refund, or replacement options for you."
             )
             state.confirmation_required = False
             return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
@@ -139,7 +141,7 @@ class AssistantGraph:
                 return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
             if isinstance(cart, dict):
                 cart_summary = (
-                    f"Your cart currently has {cart.get('total_items', 0)} items worth "
+                    f"You have {cart.get('total_items', 0)} item(s) in your cart worth "
                     f"{cart.get('currency', 'INR')} {cart.get('subtotal', '0')}."
                 )
                 fragments.append(
@@ -148,12 +150,12 @@ class AssistantGraph:
             if isinstance(orders, list) and orders:
                 latest_order = orders[0]
                 fragments.append(
-                    f"Your latest order {latest_order['order_number']} is currently {latest_order['status']}."
+                    f"Your latest order {latest_order['order_number']} is {latest_order['status']} right now."
                 )
             if isinstance(shipment, dict):
                 shipment_summary = (
-                    f"Shipment status is {shipment.get('status', 'pending')} "
-                    f"with carrier {shipment.get('carrier', 'internal')}."
+                    f"Delivery status is {shipment.get('status', 'pending')}. "
+                    f"Carrier: {shipment.get('carrier', 'internal')}."
                 )
                 fragments.append(
                     shipment_summary
@@ -164,8 +166,7 @@ class AssistantGraph:
                 fragments.append(str(knowledge[0].get("content", "")))
             if state.intent == "return_support":
                 fragments.append(
-                    "For a damaged item, I can help you choose a replacement, similar product, "
-                    "or refund according to the return policy once the order is verified."
+                    "For a damaged item, I can help you check replacement, refund, or similar product options once I verify the order."
                 )
             state.answer = " ".join(fragment for fragment in fragments if fragment).strip()
             state.metadata["llm_provider"] = completion.provider
@@ -176,19 +177,19 @@ class AssistantGraph:
         if product_count > 0:
             state.answer = (
                 f"{completion.content} "
-                f"I found {product_count} matching product options for '{state.prompt}'."
+                f"I found {product_count} option(s) that may work for you."
             )
         else:
             suggestions = state.metadata.get("suggestions", [])
             if suggestions:
                 state.answer = (
-                    f"{completion.content} I could not find direct matches for '{state.prompt}'. "
-                    f"Try related searches like {', '.join(suggestions[:3])}."
+                    f"{completion.content} I could not find an exact match. "
+                    f"You can also try: {', '.join(suggestions[:3])}."
                 )
             else:
                 state.answer = (
-                    f"{completion.content} I could not find direct matches for '{state.prompt}'. "
-                    "Try using a broader category, brand, or use-case."
+                    f"{completion.content} I could not find an exact match. "
+                    "Try a broader category, brand, budget, or product use."
                 )
         state.metadata["llm_provider"] = completion.provider
         state.metadata["llm_model"] = completion.model
@@ -205,18 +206,20 @@ class AssistantGraph:
                     if isinstance(order, dict)
                 )
                 return (
-                    "I can help with refund, replacement, or similar product options. "
+                    "I can help with a refund, replacement, or similar product. "
                     "Please share the order ID for the damaged item. "
                     f"Your recent orders are: {order_lines}."
                 )
             return (
-                "I can help with refund, replacement, or similar product options. "
+                "I can help with a refund, replacement, or similar product. "
                 "Please share the order ID for the damaged item so I can verify it."
             )
 
         order = workflow.get("order") if isinstance(workflow.get("order"), dict) else {}
         order_number = order.get("order_number") or order.get("id") or "this order"
         eligible = bool(workflow.get("eligible"))
+        replacement_available = bool(workflow.get("replacement_available"))
+        similar_product_count = int(workflow.get("similar_product_count") or 0)
         items = workflow.get("items", [])
         item_names = [
             str(item.get("product_name"))
@@ -229,8 +232,8 @@ class AssistantGraph:
         if not eligible:
             return (
                 f"I found order {order_number} for {item_summary}. "
-                "A refund or replacement can usually start after the order is delivered. "
-                "For now, I can help track delivery, explain the policy, or connect you with support."
+                "A refund or replacement usually starts after delivery. "
+                "For now, I can help you track it, explain the return policy, or connect you with support."
             )
 
         if isinstance(existing_returns, list) and existing_returns:
@@ -238,12 +241,27 @@ class AssistantGraph:
             status = latest.get("status", "requested") if isinstance(latest, dict) else "requested"
             return (
                 f"I found order {order_number} for {item_summary}. "
-                f"There is already a return request on this order with status: {status}. "
+                f"A return request is already open for this order. Current status: {status}. "
                 "I can still show similar products or explain the refund and replacement policy."
+            )
+
+        if not replacement_available and similar_product_count > 0:
+            return (
+                f"I found order {order_number} for {item_summary}. "
+                "The same item is not available for replacement right now. "
+                f"I found {similar_product_count} similar in-stock option(s) you can choose from, "
+                "or you can request a refund according to the return policy."
+            )
+
+        if not replacement_available:
+            return (
+                f"I found order {order_number} for {item_summary}. "
+                "The same item is not available for replacement right now. "
+                "I can help you request a refund or connect you with support."
             )
 
         return (
             f"I found order {order_number} for {item_summary}. "
-            "This order is eligible for help. You can choose a replacement, request a refund, "
-            "view similar products, or contact support if the damage needs manual review."
+            "This order is eligible for help. You can replace the item, request a refund, "
+            "view similar products, or contact support if the damage needs review."
         )

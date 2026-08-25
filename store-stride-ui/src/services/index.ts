@@ -6,7 +6,14 @@
  * API base: http://localhost:8000/api/v1
  */
 
-import type { AssistantProductResult, ChatMessage, Order, Product } from "@/types";
+import type {
+  AssistantOrderCard,
+  AssistantProductResult,
+  AssistantReturnAction,
+  ChatMessage,
+  Order,
+  Product,
+} from "@/types";
 import {
   adminUsers,
   banners,
@@ -180,6 +187,25 @@ function rememberProducts(items: Product[]) {
   }
 }
 
+function normalizeImageUrl(value?: string | null): string {
+  const raw = value?.trim();
+  if (!raw) return "";
+
+  try {
+    const url = new URL(raw);
+    const googleImageUrl = url.searchParams.get("imgurl");
+    if (googleImageUrl) return decodeURIComponent(googleImageUrl);
+    const wrappedUrl = url.searchParams.get("url");
+    if (wrappedUrl && /\.(avif|gif|jpe?g|png|webp)(\?|$)/i.test(wrappedUrl)) {
+      return decodeURIComponent(wrappedUrl);
+    }
+  } catch {
+    return raw;
+  }
+
+  return raw;
+}
+
 function mapApiProduct(product: BackendProduct): Product {
   const variant = product.variants.find((item) => item.is_default) ?? product.variants[0];
   const price = Number(variant?.price ?? 0);
@@ -198,7 +224,8 @@ function mapApiProduct(product: BackendProduct): Product {
     shortDescription: product.short_description,
     images: [...product.media]
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((media) => media.media_url),
+      .map((media) => normalizeImageUrl(media.media_url))
+      .filter(Boolean),
     mrp: price,
     price,
     costPrice: 0,
@@ -240,14 +267,21 @@ export interface StripeCheckoutRequest {
   cancel_path?: string;
 }
 
-function getStoredAccessToken(): string | null {
+interface StoredAuthTokens {
+  access_token: string;
+  refresh_token: string;
+}
+
+function getStoredAuthTokens(): StoredAuthTokens | null {
   if (typeof window === "undefined") return null;
 
   const authTokens = localStorage.getItem("authTokens");
   if (authTokens) {
     try {
-      const parsed = JSON.parse(authTokens) as { access_token?: unknown };
-      if (typeof parsed.access_token === "string") return parsed.access_token;
+      const parsed = JSON.parse(authTokens) as { access_token?: unknown; refresh_token?: unknown };
+      if (typeof parsed.access_token === "string" && typeof parsed.refresh_token === "string") {
+        return { access_token: parsed.access_token, refresh_token: parsed.refresh_token };
+      }
     } catch {
       /* ignore corrupt token storage */
     }
@@ -256,16 +290,99 @@ function getStoredAccessToken(): string | null {
   const shopState = localStorage.getItem(SHOP_STATE_KEY);
   if (!shopState) return null;
   try {
-    const parsed = JSON.parse(shopState) as { tokens?: { access_token?: unknown } };
-    return typeof parsed.tokens?.access_token === "string" ? parsed.tokens.access_token : null;
+    const parsed = JSON.parse(shopState) as {
+      tokens?: { access_token?: unknown; refresh_token?: unknown };
+    };
+    if (
+      typeof parsed.tokens?.access_token === "string" &&
+      typeof parsed.tokens.refresh_token === "string"
+    ) {
+      return {
+        access_token: parsed.tokens.access_token,
+        refresh_token: parsed.tokens.refresh_token,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
+function getStoredAccessToken(): string | null {
+  return getStoredAuthTokens()?.access_token ?? null;
+}
+
+function persistAuthTokens(tokens: StoredAuthTokens) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = JSON.parse(localStorage.getItem("authTokens") ?? "{}") as { user?: unknown };
+    localStorage.setItem(
+      "authTokens",
+      JSON.stringify({ ...tokens, ...(existing.user ? { user: existing.user } : {}) }),
+    );
+    const shopState = JSON.parse(localStorage.getItem(SHOP_STATE_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    localStorage.setItem(SHOP_STATE_KEY, JSON.stringify({ ...shopState, tokens }));
+  } catch {
+    /* Storage failures should not prevent the current request from completing. */
+  }
+}
+
+function clearStoredAuthTokens() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("authTokens");
+  try {
+    const shopState = JSON.parse(localStorage.getItem(SHOP_STATE_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    localStorage.setItem(SHOP_STATE_KEY, JSON.stringify({ ...shopState, tokens: null }));
+  } catch {
+    /* ignore corrupt persisted state */
+  }
+}
+
+let refreshRequest: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const tokens = getStoredAuthTokens();
+  if (!tokens) return false;
+  if (!refreshRequest) {
+    refreshRequest = fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+    })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        const payload = (await response.json()) as StoredAuthTokens;
+        if (!payload.access_token || !payload.refresh_token) return false;
+        persistAuthTokens(payload);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshRequest = null;
+      });
+  }
+  const refreshed = await refreshRequest;
+  if (!refreshed) clearStoredAuthTokens();
+  return refreshed;
+}
+
 function authHeaders(): HeadersInit {
   const token = getStoredAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function authenticatedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const request = () => fetch(url, { ...init, headers: { ...authHeaders(), ...init.headers } });
+  let response = await request();
+  if (response.status !== 401 || !(await refreshAccessToken())) return response;
+  response = await request();
+  return response;
 }
 
 export interface PolicyDocument {
@@ -395,9 +512,9 @@ export const profileService = {
 };
 
 async function authenticatedJsonRequest(path: string, init: RequestInit) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await authenticatedFetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...init.headers },
+    headers: { "Content-Type": "application/json", ...init.headers },
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
@@ -435,13 +552,20 @@ export const productService = {
     payload: ProductCreatePayload,
     endpoint: "admin" | "seller" = "admin",
   ): Promise<Product> {
+    const normalizedPayload: ProductCreatePayload = {
+      ...payload,
+      media: payload.media?.map((media) => ({
+        ...media,
+        media_url: normalizeImageUrl(media.media_url),
+      })),
+    };
     const response = await fetch(`${API_BASE}/${endpoint}/products`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...authHeaders(),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalizedPayload),
     });
 
     if (!response.ok) {
@@ -886,9 +1010,7 @@ export const orderService = {
     const token = getStoredAccessToken();
     if (!token) return [];
 
-    const response = await fetch(`${API_BASE}/orders`, {
-      headers: authHeaders(),
-    });
+    const response = await authenticatedFetch(`${API_BASE}/orders`);
 
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
@@ -903,9 +1025,7 @@ export const orderService = {
     const token = getStoredAccessToken();
     if (!token) return undefined;
 
-    const response = await fetch(`${API_BASE}/orders/${id}`, {
-      headers: authHeaders(),
-    });
+    const response = await authenticatedFetch(`${API_BASE}/orders/${id}`);
 
     if (response.status === 404) return undefined;
     if (!response.ok) {
@@ -917,9 +1037,7 @@ export const orderService = {
   },
 
   async itemTracking(itemId: string): Promise<OrderItemTracking> {
-    const response = await fetch(`${API_BASE}/orders/items/${itemId}/tracking`, {
-      headers: authHeaders(),
-    });
+    const response = await authenticatedFetch(`${API_BASE}/orders/items/${itemId}/tracking`);
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
       throw new Error(detail?.detail || "Unable to load item tracking");
@@ -1005,13 +1123,39 @@ export const checkoutService = {
 };
 
 export const returnService = {
-  async requestReplacement(orderItemId: string, quantity: number) {
+  async list(): Promise<ReturnRequest[]> {
+    const response = await authenticatedFetch(`${API_BASE}/returns`);
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(detail?.detail || "Unable to load return requests");
+    }
+    return response.json() as Promise<ReturnRequest[]>;
+  },
+  async requestReturn(
+    orderItemId: string,
+    quantity: number,
+    reason: string,
+  ): Promise<ReturnRequest> {
     return authenticatedJsonRequest("/returns", {
       method: "POST",
-      body: JSON.stringify({ order_item_id: orderItemId, quantity, reason: "replacement" }),
-    });
+      body: JSON.stringify({ order_item_id: orderItemId, quantity, reason }),
+    }) as Promise<ReturnRequest>;
+  },
+  async requestReplacement(orderItemId: string, quantity: number) {
+    return this.requestReturn(orderItemId, quantity, "replacement");
   },
 };
+
+export interface ReturnRequest {
+  id: string;
+  order_id: string;
+  order_item_id: string;
+  quantity: number;
+  reason: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
 
 // ============================================================================
 // CART SERVICE
@@ -1050,9 +1194,7 @@ export const cartService = {
   async current(): Promise<BackendCartResponse | null> {
     if (!this.isAuthenticated()) return null;
 
-    const response = await fetch(`${API_BASE}/cart`, {
-      headers: authHeaders(),
-    });
+    const response = await authenticatedFetch(`${API_BASE}/cart`);
 
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
@@ -1067,9 +1209,9 @@ export const cartService = {
     const variantId = getDefaultVariantId(productId);
     if (!variantId) return null;
 
-    const response = await fetch(`${API_BASE}/cart/items`, {
+    const response = await authenticatedFetch(`${API_BASE}/cart/items`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ variant_id: variantId, quantity }),
     });
 
@@ -1086,9 +1228,9 @@ export const cartService = {
     const variantId = getDefaultVariantId(productId);
     if (!variantId) return null;
 
-    const response = await fetch(`${API_BASE}/cart/items/${variantId}`, {
+    const response = await authenticatedFetch(`${API_BASE}/cart/items/${variantId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ quantity }),
     });
 
@@ -1116,9 +1258,8 @@ export const cartService = {
 
   async clear(): Promise<void> {
     if (!this.isAuthenticated()) return;
-    const response = await fetch(`${API_BASE}/cart`, {
+    const response = await authenticatedFetch(`${API_BASE}/cart`, {
       method: "DELETE",
-      headers: authHeaders(),
     });
 
     if (!response.ok) {
@@ -1352,6 +1493,8 @@ export const chatbotService = {
           popular_search_terms?: string[];
           quick_replies?: string[];
           orchestrator?: string;
+          order_cards?: AssistantOrderCard[];
+          return_actions?: AssistantReturnAction[];
         };
       };
 
@@ -1366,6 +1509,8 @@ export const chatbotService = {
         orchestrator: payload.metadata?.orchestrator,
         source: "backend",
         productResults: payload.products.map(toAssistantProductResult),
+        orderCards: (payload.metadata?.order_cards ?? []).map(normalizeAssistantOrderCard),
+        returnActions: payload.metadata?.return_actions ?? [],
         suggestions:
           payload.metadata?.quick_replies ??
           payload.metadata?.suggestions ??
@@ -1382,10 +1527,10 @@ export const chatbotService = {
       return {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: "You can usually request a return or refund for eligible delivered items within the return window. For damaged products, keep the packaging and share your order ID so support can verify the item and offer refund, replacement, or similar-product options.",
+        text: "Most eligible delivered items can be returned within the return window. If an item arrived damaged, please keep the packaging and share your order ID so we can check replacement, refund, or similar product options.",
         suggestions: [
           "My product arrived damaged",
-          "How do I request refund?",
+          "How do I request a refund?",
           "Track my latest order",
         ],
         intent: "policy_help",
@@ -1396,7 +1541,7 @@ export const chatbotService = {
       return {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: "I can help with a damaged product. Please share your order ID, then I can guide you through refund, replacement, or similar-product options based on policy.",
+        text: "I can help with that. Please share your order ID, then I can check whether replacement, refund, or similar product options are available.",
         suggestions: ["Where can I find my order ID?", "Request replacement", "Request refund"],
         intent: "return_support",
         source: "fallback",
@@ -1406,7 +1551,7 @@ export const chatbotService = {
       return {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: "I can check order status when the backend is connected. Please make sure you are logged in and share the order ID.",
+        text: "I can check your order status after you sign in. Please share the order ID, or ask me to track your latest order.",
         suggestions: ["Track my latest order", "Show my recent orders", "Contact support"],
         intent: "order_support",
         source: "fallback",
@@ -1479,10 +1624,20 @@ function toAssistantProductResult(product: BackendAssistantProduct): AssistantPr
     name: product.name,
     slug: product.slug,
     description: product.short_description || product.description,
-    image: media?.media_url,
+    image: normalizeImageUrl(media?.media_url),
     price: Number(variant?.price ?? 0),
     currency: variant?.currency ?? "INR",
     stock: variant?.quantity_available ?? 0,
+  };
+}
+
+function normalizeAssistantOrderCard(order: AssistantOrderCard): AssistantOrderCard {
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      image: normalizeImageUrl(item.image),
+    })),
   };
 }
 
@@ -1597,6 +1752,9 @@ function normalizeOrderStatus(status: string): Order["status"] {
       "delivered",
       "cancelled",
       "replacement_requested",
+      "return_requested",
+      "return_approved",
+      "replacement_approved",
       "partially_shipped",
       "partially_delivered",
     ].includes(status)
