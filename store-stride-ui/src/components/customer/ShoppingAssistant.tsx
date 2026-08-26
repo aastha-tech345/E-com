@@ -49,12 +49,12 @@ const STARTERS = [
     icon: Truck,
   },
   {
-    label: "Damaged item",
+    label: "Return items",
     prompt: "My product arrived damaged. Help me with refund or replacement.",
     icon: RefreshCcw,
   },
   {
-    label: "Return policy",
+    label: "Cancel and Return policy",
     prompt: "What is the return and refund policy?",
     icon: ShieldCheck,
   },
@@ -66,6 +66,7 @@ const DEFAULT_SUGGESTIONS = [
   "My product arrived damaged",
   "Show phones under ₹50000",
 ];
+const ASSISTANT_UI_STATE_KEY = "shopnest-assistant-ui-state";
 
 const PRICE_FILTER_SUGGESTIONS = ["Under ₹500", "Under ₹1000", "Under ₹5000", "Under ₹50000"];
 
@@ -86,7 +87,7 @@ const INTENT_SUGGESTIONS: Record<string, string[]> = {
 };
 
 export function ShoppingAssistant() {
-  const { chat, pushChat, resetChat, addToCart, hydrated, user } = useShop();
+  const { chat, pushChat, resetChat, addToCart, cart, hydrated, user } = useShop();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [input, setInput] = useState("");
@@ -98,9 +99,30 @@ export function ShoppingAssistant() {
     fileName: string;
   } | null>(null);
   const [returnIssueReason, setReturnIssueReason] = useState("");
+  const [selectedReturnItem, setSelectedReturnItem] = useState<{
+    orderItemId: string;
+    productName: string;
+    quantity?: number;
+  } | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const autoSuggestions = getAutoSuggestions(chat, input);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ASSISTANT_UI_STATE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { open?: unknown; full?: unknown };
+      setOpen(saved.open === true);
+      setFull(saved.full === true);
+    } catch {
+      /* ignore saved UI state */
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(ASSISTANT_UI_STATE_KEY, JSON.stringify({ open, full }));
+  }, [open, full]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -175,6 +197,7 @@ export function ShoppingAssistant() {
                   proofUrl: returnProof.proofUrl,
                   proofType: returnProof.proofType,
                   issueReason: returnIssueReason,
+                  replacementProductId: action.replacementProductId,
                 }
               : undefined,
           );
@@ -200,6 +223,7 @@ export function ShoppingAssistant() {
         );
         setReturnProof(null);
         setReturnIssueReason("");
+        setSelectedReturnItem(null);
         pushChat({
           id: crypto.randomUUID(),
           role: "assistant",
@@ -235,6 +259,13 @@ export function ShoppingAssistant() {
     }
 
     if (action.action === "message" && action.orderItemId) {
+      setSelectedReturnItem({
+        orderItemId: action.orderItemId,
+        productName: action.productName || action.label.replace(/^Select\s+/i, ""),
+        quantity: action.quantity,
+      });
+      setReturnProof(null);
+      setReturnIssueReason("");
       void send(`I received damaged item ${action.orderItemId}`, {
         displayText: action.label,
         isAction: true,
@@ -271,6 +302,7 @@ export function ShoppingAssistant() {
     resetChat();
     setReturnProof(null);
     setReturnIssueReason("");
+    setSelectedReturnItem(null);
   };
 
   const handleAddToCart = (id: string, quantity?: number, opts?: { product?: Product }) => {
@@ -419,6 +451,8 @@ export function ShoppingAssistant() {
                 onReturnAction={(action) => void handleReturnAction(action)}
                 returnProof={returnProof}
                 issueReason={returnIssueReason}
+                selectedReturnItem={selectedReturnItem}
+                cartProductIds={new Set(cart.map((line) => line.productId))}
                 uploadingProof={uploadingProof}
                 onProofUpload={(file) => void handleProofUpload(file)}
               />
@@ -567,6 +601,8 @@ function ChatBubble({
   onReturnAction,
   returnProof,
   issueReason,
+  selectedReturnItem,
+  cartProductIds,
   uploadingProof,
   onProofUpload,
 }: {
@@ -575,6 +611,8 @@ function ChatBubble({
   onReturnAction: (action: AssistantReturnAction) => void;
   returnProof: { proofUrl: string; proofType: string; fileName: string } | null;
   issueReason: string;
+  selectedReturnItem: { orderItemId: string; productName: string; quantity?: number } | null;
+  cartProductIds: Set<string>;
   uploadingProof: boolean;
   onProofUpload: (file: File) => void;
 }) {
@@ -606,9 +644,24 @@ function ChatBubble({
       {message.returnConfirmation ? (
         <ReturnConfirmationCard confirmation={message.returnConfirmation} />
       ) : null}
+      {message.returnTicket ? <ReturnTicketCard ticket={message.returnTicket} /> : null}
       {message.intent && <SupportContext intent={message.intent} />}
       {orderCards.map((order) => (
-        <OrderStatusCard key={order.id} order={order} />
+        <OrderStatusCard
+          key={order.id}
+          order={order}
+          selectable={message.intent === "return_support"}
+          onSelectItem={(item) =>
+            onReturnAction({
+              label: `Select ${item.product_name}`,
+              description: "Choose this product for return or replacement.",
+              enabled: true,
+              action: "message",
+              orderItemId: item.order_item_id,
+              productName: item.product_name,
+            })
+          }
+        />
       ))}
       {returnActions.length > 0 ? (
         <ReturnActions
@@ -622,11 +675,12 @@ function ChatBubble({
       ) : null}
       {message.intent === "return_support" && backendItems.length > 0 ? (
         <p className="max-w-[94%] px-1 text-xs font-semibold text-slate-600">
-          Similar products available for replacement
+          Similar products available for replacement after proof verification
         </p>
       ) : null}
       {backendItems.map((p) => {
         const product = productService.byId(p.id) ?? assistantProductToProduct(p);
+        const added = cartProductIds.has(p.id);
         return (
           <div
             key={p.id}
@@ -665,57 +719,97 @@ function ChatBubble({
                     View Product
                   </Link>
                 </Button>
+                {message.intent === "return_support" && selectedReturnItem ? (
+                  <Button
+                    size="sm"
+                    className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
+                    disabled={p.stock <= 0}
+                    onClick={() =>
+                      onReturnAction({
+                        label: `Replace with ${p.name}`,
+                        description: "Submit replacement with this similar product.",
+                        enabled: true,
+                        action: "replacement",
+                        orderItemId: selectedReturnItem.orderItemId,
+                        quantity: selectedReturnItem.quantity ?? 1,
+                        productName: selectedReturnItem.productName,
+                        proofRequired: true,
+                        replacementProductId: p.id,
+                      })
+                    }
+                  >
+                    Choose Replacement
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
+                    disabled={p.stock <= 0 || added}
+                    onClick={() => {
+                      onAdd(p.id, 1, { product });
+                    }}
+                  >
+                    {added ? (
+                      <>
+                        <CheckCircle2 size={13} />
+                        Added
+                      </>
+                    ) : (
+                      "Add to Cart"
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {mockItems.map((p) => {
+        const added = cartProductIds.has(p.id);
+        return (
+          <div
+            key={p.id}
+            className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10"
+          >
+            <img src={p.images[0]} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
+              <Rating value={p.rating} count={p.reviewCount} />
+              <Price price={p.price} mrp={p.mrp} size="sm" />
+              <p className="text-[11px] text-slate-500">
+                {p.stock > 0 ? "In stock" : "Currently unavailable"}
+              </p>
+              <div className="flex gap-1.5 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
+                  asChild
+                >
+                  <Link to="/products/$id" params={{ id: p.id }}>
+                    View Product
+                  </Link>
+                </Button>
                 <Button
                   size="sm"
                   className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
-                  disabled={p.stock <= 0}
-                  onClick={() => {
-                    onAdd(p.id, 1, { product });
-                  }}
+                  disabled={p.stock <= 0 || added}
+                  onClick={() => onAdd(p.id, 1, { product: p })}
                 >
-                  Add to Cart
+                  {added ? (
+                    <>
+                      <CheckCircle2 size={13} />
+                      Added
+                    </>
+                  ) : (
+                    "Add to Cart"
+                  )}
                 </Button>
               </div>
             </div>
           </div>
         );
       })}
-      {mockItems.map((p) => (
-        <div
-          key={p.id}
-          className="flex gap-3 rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-2.5 shadow-sm shadow-black/10"
-        >
-          <img src={p.images[0]} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
-            <Rating value={p.rating} count={p.reviewCount} />
-            <Price price={p.price} mrp={p.mrp} size="sm" />
-            <p className="text-[11px] text-slate-500">
-              {p.stock > 0 ? "In stock" : "Currently unavailable"}
-            </p>
-            <div className="flex gap-1.5 pt-1">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-full border-blue-200 bg-blue-50 px-3 text-xs text-blue-700 hover:bg-blue-100"
-                asChild
-              >
-                <Link to="/products/$id" params={{ id: p.id }}>
-                  View Product
-                </Link>
-              </Button>
-              <Button
-                size="sm"
-                className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
-                disabled={p.stock <= 0}
-                onClick={() => onAdd(p.id, 1, { product: p })}
-              >
-                Add to Cart
-              </Button>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -850,13 +944,20 @@ function InlineMessageContent({ text }: { text: string }) {
   });
 }
 
-function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
-  const [imageFailed, setImageFailed] = useState(false);
+function OrderStatusCard({
+  order,
+  selectable = false,
+  onSelectItem,
+}: {
+  order: AssistantOrderCard;
+  selectable?: boolean;
+  onSelectItem?: (item: AssistantOrderCard["items"][number]) => void;
+}) {
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const firstItem = order.items[0];
   const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
   const shipmentStatus = order.shipment?.status || order.status;
-  const fallbackProduct = firstItem ? productService.byId(firstItem.product_id) : undefined;
-  const image = firstItem?.image || fallbackProduct?.images?.[0];
+  const visibleItems = selectable ? order.items : order.items.slice(0, 1);
 
   return (
     <div className="max-w-[94%] rounded-xl border border-zinc-200 bg-gradient-to-br from-white to-zinc-100 p-3 shadow-sm shadow-black/10">
@@ -872,33 +973,70 @@ function OrderStatusCard({ order }: { order: AssistantOrderCard }) {
           {formatStatus(shipmentStatus)}
         </span>
       </div>
-      <div className="mt-3 flex gap-3">
-        {image && !imageFailed ? (
-          <img
-            src={image}
-            alt=""
-            className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-            <Package size={20} />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900">
-            {firstItem?.product_name || "Order item"}
+      <div className="mt-3 space-y-2">
+        {visibleItems.map((item) => {
+          const fallbackProduct = productService.byId(item.product_id);
+          const image = item.image || fallbackProduct?.images?.[0];
+          const imageKey = item.order_item_id || item.product_id;
+          const row = (
+            <>
+              {image && !failedImages.has(imageKey) ? (
+                <img
+                  src={image}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover"
+                  onError={() =>
+                    setFailedImages((current) => new Set(current).add(imageKey))
+                  }
+                />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                  <Package size={20} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  {item.product_name || "Order item"}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {item.quantity} item{item.quantity === 1 ? "" : "s"} • {order.currency}{" "}
+                  {Number(item.line_total || item.unit_price).toLocaleString("en-IN")}
+                </p>
+                {selectable ? (
+                  <p className="mt-1 text-xs font-semibold text-blue-700">
+                    Tap to select this product
+                  </p>
+                ) : null}
+                {order.shipment?.tracking_number && item === firstItem ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Tracking: {order.shipment.tracking_number}
+                  </p>
+                ) : null}
+              </div>
+              {selectable ? <ArrowRight size={15} className="mt-6 shrink-0 text-blue-500" /> : null}
+            </>
+          );
+
+          return selectable ? (
+            <button
+              key={imageKey}
+              type="button"
+              onClick={() => onSelectItem?.(item)}
+              className="flex w-full gap-3 rounded-xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-2 text-left transition hover:border-blue-400 hover:to-blue-100"
+            >
+              {row}
+            </button>
+          ) : (
+            <div key={imageKey} className="flex gap-3">
+              {row}
+            </div>
+          );
+        })}
+        {!selectable && order.items.length > 1 ? (
+          <p className="pl-[76px] text-xs text-slate-500">
+            +{order.items.length - 1} more item{order.items.length - 2 === 0 ? "" : "s"}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {itemCount} item{itemCount === 1 ? "" : "s"} • {order.currency}{" "}
-            {Number(order.subtotal).toLocaleString("en-IN")}
-          </p>
-          {order.shipment?.tracking_number ? (
-            <p className="mt-1 text-xs text-slate-500">
-              Tracking: {order.shipment.tracking_number}
-            </p>
-          ) : null}
-        </div>
+        ) : null}
       </div>
       {order.shipment?.events?.length ? (
         <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2">
@@ -941,6 +1079,61 @@ function ReturnConfirmationCard({
       <p className="mt-2 text-xs leading-4 text-slate-600">
         Keep this ID for support. You can check updates from your returns page.
       </p>
+    </div>
+  );
+}
+
+function ReturnTicketCard({ ticket }: { ticket: NonNullable<ChatMessage["returnTicket"]> }) {
+  const closed = ticket.lifecycleStatus === "closed";
+  return (
+    <div className="max-w-[94%] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm shadow-black/10">
+      <div className="flex items-start justify-between gap-3 border-b border-zinc-100 bg-gradient-to-br from-zinc-50 to-white p-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase text-slate-500">Return Ticket</p>
+          <p className="mt-0.5 text-base font-extrabold tracking-wide text-slate-950">
+            {ticket.referenceId}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold",
+            closed ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700",
+          )}
+        >
+          {closed ? "Closed" : "Open"}
+        </span>
+      </div>
+      <div className="grid gap-2 p-3 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-slate-500">Status</span>
+          <span className="font-bold text-slate-950">{formatStatus(ticket.status)}</span>
+        </div>
+        {ticket.productName ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-slate-500">Product</span>
+            <span className="max-w-[60%] truncate font-semibold text-slate-950">
+              {ticket.productName}
+            </span>
+          </div>
+        ) : null}
+        {ticket.orderNumber ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-slate-500">Order</span>
+            <span className="font-semibold text-slate-950">{ticket.orderNumber}</span>
+          </div>
+        ) : null}
+        {ticket.issueReason ? (
+          <div className="rounded-lg bg-zinc-50 px-3 py-2">
+            <p className="text-xs font-semibold uppercase text-slate-500">Reason</p>
+            <p className="mt-1 font-medium text-slate-800">{ticket.issueReason}</p>
+          </div>
+        ) : null}
+      </div>
+      <div className="border-t border-zinc-100 bg-zinc-50 px-3 py-2 text-xs font-medium text-slate-600">
+        {closed
+          ? "This request has been reviewed by the support team."
+          : "Your request is waiting for admin review. We’ll update this ticket after approval or rejection."}
+      </div>
     </div>
   );
 }

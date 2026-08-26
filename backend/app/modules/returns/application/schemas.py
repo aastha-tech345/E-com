@@ -11,6 +11,7 @@ class ReturnRequestCreate(BaseModel):
     issue_reason: str = Field(default="", max_length=160)
     proof_url: str = Field(default="", max_length=500)
     proof_type: str = Field(default="", max_length=40)
+    replacement_product_id: str | None = None
 
 
 class ReturnDecisionRequest(BaseModel):
@@ -27,6 +28,11 @@ class ReturnResponse(BaseModel):
     issue_reason: str = ""
     proof_url: str = ""
     proof_type: str = ""
+    replacement_product_id: str | None = None
+    order_number: str | None = None
+    product_name: str | None = None
+    replacement_product_name: str | None = None
+    lifecycle_status: str = "open"
     status: str
     created_at: datetime
     updated_at: datetime

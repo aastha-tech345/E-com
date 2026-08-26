@@ -66,9 +66,10 @@ class CatalogSearchTool(AssistantTool):
     intent_names = ("product_search", "product_compare", "product_recommendation")
 
     def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
-        query = _clean_query(state.prompt)
-        max_price = _extract_max_price(state.prompt)
-        in_stock_only = _extract_in_stock_only(state.prompt)
+        entity_query = state.entities.get("product_query")
+        query = _clean_query(str(entity_query)) if entity_query else _clean_query(state.prompt)
+        max_price = _entity_decimal(state.entities.get("max_price")) or _extract_max_price(state.prompt)
+        in_stock_only = bool(state.entities.get("in_stock_only")) or _extract_in_stock_only(state.prompt)
         products = _search_products(
             db,
             state.prompt,
@@ -152,6 +153,19 @@ def _extract_max_price(prompt: str) -> Decimal | None:
     match = re.search(r"\b(?:under|below|less than|upto|up to)\s*(?:rs\.?|inr|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)", prompt.lower())
     if not match:
         return None
+    try:
+        return Decimal(match.group(1).replace(",", ""))
+    except Exception:
+        return None
+
+
+def _entity_decimal(value: object) -> Decimal | None:
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value).replace(",", ""))
+    except Exception:
+        return None
 
 
 def _extract_in_stock_only(prompt: str) -> bool:
@@ -161,10 +175,6 @@ def _extract_in_stock_only(prompt: str) -> bool:
 
 def _has_available_stock(product: Product) -> bool:
     return any(variant.quantity_available > 0 for variant in product.variants)
-    try:
-        return Decimal(match.group(1).replace(",", ""))
-    except Exception:
-        return None
 
 
 def _score_product(product: Product, tokens: set[str]) -> int:

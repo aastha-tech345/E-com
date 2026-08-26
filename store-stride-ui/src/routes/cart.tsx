@@ -8,7 +8,6 @@ import { QuantitySelector } from "@/components/common/QuantitySelector";
 import { Price } from "@/components/common/Price";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { EmptyState } from "@/components/common/EmptyState";
 import { toast } from "sonner";
@@ -232,7 +231,6 @@ function CartPage() {
         </div>
       </div>
 
-      <ShoppingAssistant />
       <Footer />
     </div>
   );

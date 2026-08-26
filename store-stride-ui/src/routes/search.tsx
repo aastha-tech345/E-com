@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { productService } from "@/services";
 import { ProductCard } from "@/components/common/ProductCard";
@@ -72,7 +71,6 @@ function SearchPage() {
         )}
       </div>
 
-      <ShoppingAssistant />
       <Footer />
     </div>
   );

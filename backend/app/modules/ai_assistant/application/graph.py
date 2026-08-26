@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+import json
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from app.modules.ai_assistant.infrastructure.llm_client import BaseLLMClient
 
 ORDER_ID_PATTERN = r"\b(?:ORD|WORD)-[A-Z0-9-]+\b"
 ORDER_ITEM_ID_PATTERN = r"\bITM-[A-Z0-9-]+\b"
+RETURN_TICKET_PATTERN = r"\bRET-[A-Z0-9]+\b"
 PRICE_PATTERN = r"(?:under|below|less than|upto|up to)\s*(?:rs\.?|inr|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)"
 AUTH_REQUIRED_INTENTS = {
     "ACCOUNT",
@@ -170,6 +172,36 @@ INTENT_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("WEB_SEARCH", ("latest", "today", "current", "news")),
 )
 
+LLM_INTENT_SYSTEM_PROMPT = """
+You classify ecommerce customer chat messages.
+Return only valid JSON, with no markdown.
+Schema:
+{
+  "intents": ["RETURN_REQUEST"],
+  "primary_intent": "return_support",
+  "entities": {
+    "return_ticket_id": "RET-ABC12345",
+    "order_id": "ORD-ABC123",
+    "order_item_id": "ITM-ABC123",
+    "product_id": "uuid-or-id",
+    "product_query": "samsung phone",
+    "max_price": 50000,
+    "status_filter": "delivered",
+    "requested_limit": 2,
+    "issue_reason": "damaged",
+    "requested_action": "replacement",
+    "in_stock_only": true
+  }
+}
+Use these primary_intent values only: product_search, product_recommendation, product_compare, cart_help, checkout_help, order_support, shipping_support, return_support, policy_help, account_help.
+Use legacy intent names from ecommerce support flows, for example ORDER_HISTORY, ORDER_TRACKING, RETURN_REQUEST, REPLACEMENT_REQUEST, REFUND_REQUEST, PRODUCT_SEARCH, PRODUCT_PRICE, PRODUCT_AVAILABILITY, RETURN_POLICY.
+If the customer types WORD-... as an order id, normalize it to ORD-....
+For ticket/reference IDs starting RET-, choose return_support and include return_ticket_id.
+For damaged, broken, cracked, defective, refund, return, replace, exchange, choose return_support.
+For latest/last/recent delivered orders, choose order_support and include status_filter/requested_limit.
+For product search, include product_query and max_price/in_stock_only when present.
+"""
+
 
 def classify_intents(prompt: str, conversation_summary: str = "") -> list[str]:
     normalized = prompt.lower()
@@ -180,13 +212,30 @@ def classify_intents(prompt: str, conversation_summary: str = "") -> list[str]:
         if any(keyword in normalized for keyword in keywords):
             intents.append(intent)
 
+    return_tokens = ("return", "retuen", "retrun", "refund", "replace", "replacement", "exchange")
+    ticket_tokens = ("ticket", "reference", "request id", "return id", "status")
+    order_context_tokens = ("order", "orders", "purchase", "purchased")
+    recent_tokens = ("latest", "last", "recent", "past", "history")
+    if any(token in normalized for token in order_context_tokens) and any(token in normalized for token in recent_tokens):
+        intents.insert(0, "ORDER_HISTORY")
+    if any(token in normalized for token in return_tokens):
+        intents.insert(0, "RETURN_REQUEST")
+    if re.search(RETURN_TICKET_PATTERN, prompt.upper()) or (
+        any(token in normalized for token in ticket_tokens) and "ret-" in normalized
+    ):
+        intents.insert(0, "RETURN_STATUS")
+
     if re.search(ORDER_ITEM_ID_PATTERN, prompt.upper()):
-        intents.extend(["RETURN_REQUEST", "ORDER_DETAILS"])
+        intents.insert(0, "RETURN_REQUEST")
+        intents.append("ORDER_DETAILS")
     if re.search(ORDER_ID_PATTERN, prompt.upper()):
+        if any(token in normalized for token in return_tokens):
+            intents.insert(0, "RETURN_REQUEST")
         intents.append("ORDER_DETAILS")
 
     if any(token in combined_context for token in ("damaged", "broken", "defective")):
-        intents.extend(["RETURN_REQUEST", "REFUND_REQUEST"])
+        intents.insert(0, "RETURN_REQUEST")
+        intents.append("REFUND_REQUEST")
     if any(token in normalized for token in ("phone", "laptop", "shoe", "shirt", "headphone", "watch")):
         intents.append("PRODUCT_SEARCH")
 
@@ -207,6 +256,72 @@ def classify_intent(prompt: str) -> str:
 def _primary_intent_from_multi(intents: list[str]) -> str:
     primary = intents[0] if intents else "GENERAL_QUESTION"
     return LEGACY_PRIMARY_INTENT_MAP.get(primary, "product_search")
+
+
+def _parse_llm_json(content: str) -> dict[str, Any] | None:
+    stripped = content.strip()
+    if not stripped:
+        return None
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```(?:json)?", "", stripped).strip()
+        stripped = re.sub(r"```$", "", stripped).strip()
+    try:
+        parsed = json.loads(stripped)
+    except ValueError:
+        match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
+        if not match:
+            return None
+        try:
+            parsed = json.loads(match.group(0))
+        except ValueError:
+            return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _merge_unique_intents(*intent_lists: list[str]) -> list[str]:
+    merged: list[str] = []
+    for intents in intent_lists:
+        for intent in intents:
+            normalized = str(intent).strip().upper()
+            if normalized and normalized not in merged:
+                merged.append(normalized)
+    return merged
+
+
+def _clean_entities(entities: dict[str, Any]) -> dict[str, Any]:
+    cleaned: dict[str, Any] = {}
+    allowed = {
+        "order_id",
+        "order_item_id",
+        "return_ticket_id",
+        "product_id",
+        "product_query",
+        "keywords",
+        "max_price",
+        "status_filter",
+        "requested_limit",
+        "issue_reason",
+        "requested_action",
+        "in_stock_only",
+    }
+    for key, value in entities.items():
+        if key not in allowed or value in (None, "", []):
+            continue
+        if key in {"order_id", "order_item_id", "return_ticket_id"}:
+            text_value = str(value).upper().strip()
+            if text_value.startswith("WORD-"):
+                text_value = f"ORD-{text_value[5:]}"
+            cleaned[key] = text_value
+        elif key == "requested_limit":
+            try:
+                cleaned[key] = max(1, min(10, int(value)))
+            except (TypeError, ValueError):
+                continue
+        elif key == "max_price":
+            cleaned[key] = str(value).replace(",", "")
+        else:
+            cleaned[key] = value
+    return cleaned
 
 
 class LangGraphAssistantState(TypedDict):
@@ -248,8 +363,44 @@ class AssistantGraph:
 
     def _classify_intent_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
         state = payload["state"]
-        state.intents = classify_intents(state.prompt, state.conversation_summary)
-        state.intent = _primary_intent_from_multi(state.intents)
+        rule_intents = classify_intents(state.prompt, state.conversation_summary)
+        state.intents = rule_intents
+        state.intent = _primary_intent_from_multi(rule_intents)
+        llm_payload = self._llm_intelligence(state)
+        if llm_payload:
+            llm_intents = [
+                intent
+                for intent in llm_payload.get("intents", [])
+                if isinstance(intent, str)
+            ]
+            primary_intent = str(llm_payload.get("primary_intent", "")).strip()
+            if llm_intents:
+                state.intents = _merge_unique_intents(llm_intents, rule_intents)
+            if primary_intent in {
+                "product_search",
+                "product_recommendation",
+                "product_compare",
+                "cart_help",
+                "checkout_help",
+                "order_support",
+                "shipping_support",
+                "return_support",
+                "policy_help",
+                "account_help",
+            }:
+                state.intent = primary_intent
+            else:
+                state.intent = _primary_intent_from_multi(state.intents)
+            state.metadata["llm_intelligence"] = {
+                "enabled": True,
+                "primary_intent": primary_intent,
+                "intents": llm_intents,
+            }
+            entities = llm_payload.get("entities", {})
+            if isinstance(entities, dict):
+                state.metadata["llm_entities"] = _clean_entities(entities)
+        else:
+            state.metadata["llm_intelligence"] = {"enabled": False}
         state.metadata["intents"] = state.intents
         state.tool_records.append(
             ToolCallRecord(
@@ -263,11 +414,17 @@ class AssistantGraph:
 
     def _extract_entities_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
         state = payload["state"]
-        entities: dict[str, str | int | list[str]] = {}
+        entities: dict[str, str | int | list[str] | bool] = {}
+        llm_entities = state.metadata.get("llm_entities", {})
+        if isinstance(llm_entities, dict):
+            entities.update(llm_entities)
         if order_id_match := re.search(ORDER_ID_PATTERN, state.prompt.upper()):
-            entities["order_id"] = order_id_match.group(0)
+            order_id = order_id_match.group(0)
+            entities["order_id"] = f"ORD-{order_id[5:]}" if order_id.startswith("WORD-") else order_id
         if order_item_match := re.search(ORDER_ITEM_ID_PATTERN, state.prompt.upper()):
             entities["order_item_id"] = order_item_match.group(0)
+        if return_ticket_match := re.search(RETURN_TICKET_PATTERN, state.prompt.upper()):
+            entities["return_ticket_id"] = return_ticket_match.group(0)
         if budget_match := re.search(PRICE_PATTERN, state.prompt.lower()):
             entities["max_price"] = budget_match.group(1).replace(",", "")
         product_terms = [
@@ -287,6 +444,36 @@ class AssistantGraph:
             )
         )
         return {"state": state, "selected_tool_names": payload.get("selected_tool_names", [])}
+
+    def _llm_intelligence(self, state: AssistantGraphState) -> dict[str, Any] | None:
+        completion = self.llm_client.complete(
+            system_prompt=LLM_INTENT_SYSTEM_PROMPT,
+            user_prompt=state.prompt,
+            context={
+                "conversation_summary": state.conversation_summary,
+                "rule_intents": classify_intents(state.prompt, state.conversation_summary),
+            },
+        )
+        state.metadata["intent_llm_provider"] = completion.provider
+        state.metadata["intent_llm_model"] = completion.model
+        parsed = _parse_llm_json(completion.content)
+        if parsed is None:
+            state.tool_records.append(
+                ToolCallRecord(
+                    tool_name="langgraph.llm_intelligence",
+                    status="skipped",
+                    detail="LLM did not return structured JSON; used rule-based intent extraction.",
+                )
+            )
+            return None
+        state.tool_records.append(
+            ToolCallRecord(
+                tool_name="langgraph.llm_intelligence",
+                status="completed",
+                detail="Used LLM structured intent and entity extraction.",
+            )
+        )
+        return parsed
 
     def _authenticate_user_node(self, payload: LangGraphAssistantState) -> LangGraphAssistantState:
         state = payload["state"]
@@ -441,17 +628,47 @@ class AssistantGraph:
         return llm_content
 
     def _compose_support_answer(self, state: AssistantGraphState, llm_content: str) -> str:
-        fragments = [llm_content]
+        fragments: list[str] = []
+        if isinstance(state.metadata.get("return_ticket"), dict):
+            ticket = state.metadata["return_ticket"]
+            return (
+                "Your return ticket "
+                f"{ticket.get('reference_id', 'RET')} is {ticket.get('lifecycle_status', 'open')}. "
+                f"Current status: {ticket.get('status', 'requested')}. "
+                f"Product: {ticket.get('product_name', 'order item')}."
+            )
+        if isinstance(state.metadata.get("return_tickets"), list):
+            tickets = state.metadata["return_tickets"]
+            if tickets:
+                ticket_lines = ", ".join(
+                    f"{ticket.get('reference_id', 'RET')} ({ticket.get('lifecycle_status', 'open')}, {ticket.get('status', 'requested')})"
+                    for ticket in tickets[:3]
+                    if isinstance(ticket, dict)
+                )
+                return f"Here are your recent return tickets: {ticket_lines}."
+            if state.intent == "return_support":
+                return "I could not find any return or replacement tickets on your account yet."
         if isinstance(state.metadata.get("cart"), dict):
             cart = state.metadata["cart"]
             fragments.append(
                 f"Your cart currently has {cart.get('total_items', 0)} item(s) worth {cart.get('currency', 'INR')} {cart.get('subtotal', '0')}."
             )
         if isinstance(state.metadata.get("orders"), list) and state.metadata["orders"]:
-            latest_order = state.metadata["orders"][0]
-            fragments.append(
-                f"Your latest order {latest_order.get('order_number', 'order')} is {latest_order.get('status', 'processing')}."
-            )
+            orders = state.metadata["orders"]
+            lookup = state.metadata.get("order_lookup", {})
+            status_filter = lookup.get("status_filter") if isinstance(lookup, dict) else None
+            if len(orders) == 1:
+                latest_order = orders[0]
+                fragments.append(
+                    f"I found your order {latest_order.get('order_number', 'order')}. Current status: {latest_order.get('status', 'processing')}."
+                )
+            else:
+                filter_text = f" {str(status_filter).replace('_', ' ')}" if status_filter else ""
+                order_lines = ", ".join(
+                    f"{order.get('order_number', 'order')} ({order.get('status', 'processing')})"
+                    for order in orders[:5]
+                )
+                fragments.append(f"I found {len(orders)}{filter_text} orders: {order_lines}.")
         if isinstance(state.metadata.get("shipment"), dict):
             shipment = state.metadata["shipment"]
             fragments.append(
@@ -466,16 +683,25 @@ class AssistantGraph:
                 recent_orders = workflow.get("recent_orders", [])
                 if recent_orders:
                     order_lines = ", ".join(str(item.get("order_number", item.get("id"))) for item in recent_orders[:3])
-                    fragments.append(f"Please share the order ID. Recent orders: {order_lines}.")
+                    fragments.append(f"Please choose the delivered order for this return. Eligible orders: {order_lines}.")
                 else:
-                    fragments.append("Please share the order ID so I can continue with the return or replacement.")
+                    fragments.append("I could not find any delivered order eligible for return or replacement right now.")
             elif workflow.get("status") == "verified":
                 if workflow.get("eligible"):
-                    fragments.append("The order looks eligible for the next return or replacement step.")
+                    if workflow.get("needs_item_choice"):
+                        fragments.append("This order has more than one item. Please select the damaged product below so I can start the correct return or replacement.")
+                    else:
+                        target = workflow.get("target_item", {})
+                        product_name = target.get("product_name") if isinstance(target, dict) else None
+                        item_text = f" for {product_name}" if product_name else ""
+                        fragments.append(f"This delivered item{item_text} is eligible. Select a damage reason, upload proof, then choose replacement or refund.")
                 else:
-                    fragments.append("The order is not yet in a return-eligible delivery state.")
+                    fragments.append("This order is not delivered yet, so return or replacement can start after delivery is completed.")
         if isinstance(state.metadata.get("knowledge"), list) and state.metadata["knowledge"]:
-            fragments.append(str(state.metadata["knowledge"][0].get("content", "")))
+            if state.intent == "return_support" and not state.metadata.get("return_workflow"):
+                fragments.append(str(state.metadata["knowledge"][0].get("content", "")))
+        if not fragments and llm_content:
+            fragments.append(llm_content)
         return " ".join(fragment for fragment in fragments if fragment).strip()
 
     def _compose_product_answer(self, state: AssistantGraphState, llm_content: str) -> str:

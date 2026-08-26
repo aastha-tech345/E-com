@@ -2,7 +2,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { productService } from "@/services";
 import { ProductCard } from "@/components/common/ProductCard";
@@ -57,7 +56,6 @@ function WishlistPage() {
         )}
       </div>
 
-      <ShoppingAssistant />
       <Footer />
     </div>
   );

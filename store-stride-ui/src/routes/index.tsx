@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/common/ProductCard";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { productService } from "@/services";
 
@@ -287,7 +286,6 @@ function Index() {
         </div>
       </section>
 
-      <ShoppingAssistant />
       <Footer />
     </div>
   );

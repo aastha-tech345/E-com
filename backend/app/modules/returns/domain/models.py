@@ -19,6 +19,7 @@ class ReturnRequest(Base):
     issue_reason: Mapped[str] = mapped_column(String(160), default="")
     proof_url: Mapped[str] = mapped_column(String(500), default="")
     proof_type: Mapped[str] = mapped_column(String(40), default="")
+    replacement_product_id: Mapped[str | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="requested", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

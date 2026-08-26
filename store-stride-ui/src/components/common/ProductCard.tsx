@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Eye, Heart, PackageSearch, ShoppingCart } from "lucide-react";
+import { CheckCircle2, Eye, Heart, PackageSearch, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Price } from "@/components/common/Price";
@@ -22,9 +22,10 @@ export function ProductCard({
   onQuickView?: (product: Product) => void;
   className?: string;
 }) {
-  const { addToCart, toggleWishlist, isWishlisted } = useShop();
+  const { addToCart, cart, toggleWishlist, isWishlisted } = useShop();
   const wished = isWishlisted(product.id);
   const out = product.stock <= 0;
+  const added = cart.some((line) => line.productId === product.id);
   const [imageFailed, setImageFailed] = useState(false);
   const image = product.images?.[0];
 
@@ -106,17 +107,22 @@ export function ProductCard({
           <p className="line-clamp-2 text-sm text-muted-foreground">{product.shortDescription}</p>
         )}
         <Button
-          className="mt-auto w-full rounded-full bg-[#a7622d] shadow-sm shadow-[#7c4a24]/15 hover:bg-[#8d5228]"
+          className={cn(
+            "mt-auto w-full rounded-full shadow-sm shadow-[#7c4a24]/15",
+            added
+              ? "bg-emerald-600 text-white hover:bg-emerald-600"
+              : "bg-[#a7622d] hover:bg-[#8d5228]",
+          )}
           size="sm"
           variant={out ? "secondary" : "default"}
-          disabled={out}
+          disabled={out || added}
           onClick={() => {
             productService.remember(product);
             addToCart(product.id, 1, { product });
           }}
         >
-          <ShoppingCart size={15} />
-          {out ? "Notify me" : "Add to Cart"}
+          {added ? <CheckCircle2 size={15} /> : <ShoppingCart size={15} />}
+          {out ? "Notify me" : added ? "Added" : "Add to Cart"}
         </Button>
       </div>
     </article>

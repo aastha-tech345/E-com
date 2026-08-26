@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     ai_provider: str = "rule_based"
     ai_model: str = "marketplace-assistant-v1"
     ai_temperature: float = 0.1
+    grok_api_key: str = ""
+    grok_base_url: str = "https://api.x.ai/v1"
     ai_max_context_messages: int = 12
     ai_tool_timeout_seconds: int = 8
     ai_cache_ttl_seconds: int = 120

@@ -195,6 +195,20 @@ export interface ChatMessage {
     title: string;
     productName?: string;
   };
+  returnTicket?: AssistantReturnTicket;
+}
+
+export interface AssistantReturnTicket {
+  id: string;
+  referenceId: string;
+  status: string;
+  lifecycleStatus: "open" | "closed" | string;
+  orderNumber?: string;
+  productName?: string;
+  reason?: string;
+  issueReason?: string;
+  proofType?: string;
+  replacementProductId?: string | null;
 }
 
 export interface AssistantProductResult {
@@ -252,4 +266,5 @@ export interface AssistantReturnAction {
   productName?: string;
   proofRequired?: boolean;
   issueReason?: string;
+  replacementProductId?: string;
 }

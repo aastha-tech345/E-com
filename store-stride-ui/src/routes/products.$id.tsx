@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Heart, Share2, Truck, RotateCcw, ShieldCheck, ChevronRight, Star } from "lucide-react";
+import { CheckCircle2, Heart, Share2, Truck, RotateCcw, ShieldCheck, ChevronRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Rating, StarRow } from "@/components/common/Rating";
@@ -11,7 +11,6 @@ import { ProductCard } from "@/components/common/ProductCard";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
 import { LoginRequiredDialog } from "@/components/customer/LoginRequiredDialog";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { productService } from "@/services";
 import { toast } from "sonner";
@@ -23,7 +22,7 @@ export const Route = createFileRoute("/products/$id")({
 function ProductDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams({ from: "/products/$id" });
-  const { addToCart, toggleWishlist, isWishlisted, markViewed, user } = useShop();
+  const { addToCart, cart, toggleWishlist, isWishlisted, markViewed, user } = useShop();
 
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -79,6 +78,7 @@ function ProductDetailsPage() {
 
   const discount = Math.round(((product.mrp - product.price) / product.mrp) * 100);
   const inStock = product.stock - product.reserved > 0;
+  const added = cart.some((line) => line.productId === product.id);
 
   return (
     <div className="min-h-screen bg-white">
@@ -225,11 +225,18 @@ function ProductDetailsPage() {
               <div className="flex gap-3">
                 <Button
                   size="lg"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  className={added ? "flex-1 bg-emerald-600 text-white hover:bg-emerald-600" : "flex-1 bg-blue-600 hover:bg-blue-700 text-white"}
                   onClick={handleAddToCart}
-                  disabled={!inStock}
+                  disabled={!inStock || added}
                 >
-                  Add to Cart
+                  {added ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-5 w-5" />
+                      Added to Cart
+                    </>
+                  ) : (
+                    "Add to Cart"
+                  )}
                 </Button>
                 <Button
                   size="lg"
@@ -343,7 +350,6 @@ function ProductDetailsPage() {
         )}
       </div>
 
-      <ShoppingAssistant />
       <Footer />
       <LoginRequiredDialog open={loginPromptOpen} onOpenChange={setLoginPromptOpen} />
     </div>

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ExternalLink, RefreshCcw } from "lucide-react";
+import { Clock3, ExternalLink, PackageCheck, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -76,8 +76,9 @@ function AdminReturns() {
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="p-3">Ticket</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3">Issue</th>
+                  <th className="p-3">Request</th>
+                  <th className="p-3">Products</th>
+                  <th className="p-3">Issue & Proof</th>
                   <th className="p-3">Proof</th>
                   <th className="p-3">Status</th>
                   <th className="p-3 text-right">Action</th>
@@ -88,14 +89,46 @@ function AdminReturns() {
                   <tr key={request.id} className="border-t border-slate-100">
                     <td className="p-3">
                       <p className="font-bold text-slate-950">{formatRequestReference(request.id)}</p>
-                      <p className="mt-1 text-xs text-slate-500">{new Date(request.created_at).toLocaleString()}</p>
-                    </td>
-                    <td className="p-3 font-medium text-slate-800">
-                      {request.reason.toLowerCase() === "replacement" ? "Replacement" : "Refund/Return"}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {request.order_number || request.order_id}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(request.created_at).toLocaleString()}
+                      </p>
                     </td>
                     <td className="p-3">
-                      <p className="text-slate-800">{request.issue_reason || request.reason}</p>
+                      <p className="font-semibold text-slate-900">
+                        {request.reason.toLowerCase() === "replacement" ? "Replacement" : "Refund/Return"}
+                      </p>
                       <p className="mt-1 text-xs text-slate-500">Qty: {request.quantity}</p>
+                    </td>
+                    <td className="p-3">
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-slate-500">Damaged item</p>
+                          <p className="font-semibold text-slate-900">
+                            {request.product_name || request.order_item_id}
+                          </p>
+                        </div>
+                        {request.replacement_product_name || request.replacement_product_id ? (
+                          <div className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1.5">
+                            <p className="text-xs font-semibold uppercase text-blue-600">
+                              Selected replacement
+                            </p>
+                            <p className="font-semibold text-blue-950">
+                              {request.replacement_product_name || request.replacement_product_id}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <p className="font-medium text-slate-800">
+                        {request.issue_reason || request.reason}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {request.proof_url ? "Proof submitted" : "Proof missing"}
+                      </p>
                     </td>
                     <td className="p-3">
                       {request.proof_url ? (
@@ -113,7 +146,17 @@ function AdminReturns() {
                       )}
                     </td>
                     <td className="p-3">
-                      <span className={statusClass(request.status)}>{formatStatus(request.status)}</span>
+                      <div className="space-y-1.5">
+                        <span className={lifecycleClass(request.lifecycle_status || request.status)}>
+                          {(request.lifecycle_status || "open") === "closed" ? (
+                            <PackageCheck className="h-3.5 w-3.5" />
+                          ) : (
+                            <Clock3 className="h-3.5 w-3.5" />
+                          )}
+                          {formatStatus(request.lifecycle_status || "open")}
+                        </span>
+                        <span className={statusClass(request.status)}>{formatStatus(request.status)}</span>
+                      </div>
                     </td>
                     <td className="p-3">
                       <div className="flex justify-end gap-2">
@@ -159,8 +202,14 @@ function formatStatus(status: string) {
 }
 
 function statusClass(status: string) {
-  const base = "inline-flex rounded-full px-2.5 py-1 text-xs font-bold";
+  const base = "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold";
   if (status === "approved") return `${base} bg-emerald-50 text-emerald-700`;
   if (status === "rejected") return `${base} bg-rose-50 text-rose-700`;
   return `${base} bg-amber-50 text-amber-700`;
+}
+
+function lifecycleClass(status: string) {
+  const base = "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold";
+  if (status === "closed") return `${base} bg-slate-100 text-slate-700`;
+  return `${base} bg-blue-50 text-blue-700`;
 }

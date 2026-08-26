@@ -2,7 +2,6 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { productService } from "@/services";
 import { categories } from "@/data/catalog";
@@ -131,7 +130,6 @@ function CategoryPage() {
         )}
       </div>
 
-      <ShoppingAssistant />
       <Footer />
     </div>
   );

@@ -11,7 +11,6 @@ import { Separator } from "@/components/ui/separator";
 import { ProductCard } from "@/components/common/ProductCard";
 import { Header } from "@/components/customer/Header";
 import { Footer } from "@/components/customer/Footer";
-import { ShoppingAssistant } from "@/components/customer/ShoppingAssistant";
 import { useShop } from "@/store/shop";
 import { catalogService, productService } from "@/services";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -360,7 +359,6 @@ function ProductListingPage() {
         </DrawerContent>
       </Drawer>
 
-      <ShoppingAssistant />
       <Footer />
     </div>
   );

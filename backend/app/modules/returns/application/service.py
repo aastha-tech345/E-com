@@ -9,6 +9,7 @@ from app.modules.notifications.application.service import create_notification
 from app.modules.orders.domain.models import Order, OrderItem, OrderItemStatusHistory, OrderStatusHistory
 from app.modules.payments.application.service import create_refund, get_payment_for_order
 from app.modules.returns.domain.models import ReturnRequest
+from app.modules.catalog.domain.models import Product
 
 
 def create_return_request(
@@ -21,6 +22,7 @@ def create_return_request(
     issue_reason: str = "",
     proof_url: str = "",
     proof_type: str = "",
+    replacement_product_id: str | None = None,
 ) -> ReturnRequest:
     item = db.scalar(select(OrderItem).join(Order).where(OrderItem.id == order_item_id, Order.user_id == user_id))
     if item is None:
@@ -30,6 +32,14 @@ def create_return_request(
         raise ValueError("Returns are only available after delivery.")
     if quantity > item.quantity:
         raise ValueError("Return quantity exceeds ordered quantity.")
+    is_replacement = reason.strip().lower() == "replacement"
+    if is_replacement:
+        if not issue_reason.strip() or not proof_url.strip():
+            raise ValueError("Damage reason and proof are required before replacement.")
+        if replacement_product_id:
+            replacement_product = db.get(Product, replacement_product_id)
+            if replacement_product is None or not replacement_product.is_published or replacement_product.is_deleted:
+                raise ValueError("Selected replacement product is not available.")
 
     request = ReturnRequest(
         order_id=item.order_id,
@@ -40,14 +50,20 @@ def create_return_request(
         issue_reason=issue_reason,
         proof_url=proof_url,
         proof_type=proof_type,
+        replacement_product_id=replacement_product_id if is_replacement else None,
         status="requested",
     )
     db.add(request)
-    if reason.strip().lower() == "replacement":
+    if is_replacement:
         item.status = "replacement_requested"
         order.status = "replacement_requested"
         db.add(OrderItemStatusHistory(order_item_id=item.id, status=item.status, note="Replacement requested"))
-        db.add(OrderStatusHistory(order_id=order.id, status=order.status, note=f"Replacement requested for {item.product_name}."))
+        replacement_note = (
+            f" Replacement product ID: {replacement_product_id}."
+            if replacement_product_id
+            else ""
+        )
+        db.add(OrderStatusHistory(order_id=order.id, status=order.status, note=f"Replacement requested for {item.product_name}.{replacement_note}"))
     else:
         item.status = "return_requested"
         db.add(OrderItemStatusHistory(order_item_id=item.id, status=item.status, note=f"Return requested: {reason}"))

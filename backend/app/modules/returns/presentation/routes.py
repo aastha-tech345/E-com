@@ -16,10 +16,37 @@ from app.modules.returns.application.service import (
     list_returns_for_user,
 )
 from app.modules.returns.domain.models import ReturnRequest
+from app.modules.orders.domain.models import OrderItem, Order
+from app.modules.catalog.domain.models import Product
 from app.shared.enums.roles import SystemRole
 
 router = APIRouter(prefix="/returns", tags=["returns"])
 admin_router = APIRouter(prefix="/admin/returns", tags=["returns"])
+
+
+def _return_reference_payload(db: Session, request: ReturnRequest) -> dict[str, object]:
+    order = db.get(Order, request.order_id)
+    item = db.get(OrderItem, request.order_item_id)
+    replacement = db.get(Product, request.replacement_product_id) if request.replacement_product_id else None
+    return {
+        "id": request.id,
+        "order_id": request.order_id,
+        "order_item_id": request.order_item_id,
+        "user_id": request.user_id,
+        "quantity": request.quantity,
+        "reason": request.reason,
+        "issue_reason": request.issue_reason,
+        "proof_url": request.proof_url,
+        "proof_type": request.proof_type,
+        "replacement_product_id": request.replacement_product_id,
+        "order_number": order.order_number if order is not None else None,
+        "product_name": item.product_name if item is not None else None,
+        "replacement_product_name": replacement.name if replacement is not None else None,
+        "lifecycle_status": "open" if request.status in {"requested", "reviewing", "pending"} else "closed",
+        "status": request.status,
+        "created_at": request.created_at,
+        "updated_at": request.updated_at,
+    }
 
 
 @router.post("", response_model=ReturnResponse, status_code=status.HTTP_201_CREATED)
@@ -38,6 +65,7 @@ def request_return(
             issue_reason=payload.issue_reason,
             proof_url=payload.proof_url,
             proof_type=payload.proof_type,
+            replacement_product_id=payload.replacement_product_id,
         )
         db.commit()
         db.refresh(request)
@@ -77,8 +105,8 @@ async def upload_return_proof(
 def my_returns(
     current_user: UserProfileResponse = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> list[ReturnRequest]:
-    return list_returns_for_user(db, user_id=current_user.id)
+) -> list[dict[str, object]]:
+    return [_return_reference_payload(db, request) for request in list_returns_for_user(db, user_id=current_user.id)]
 
 
 @router.post("/{return_id}/decision")
@@ -105,5 +133,5 @@ def decision(
 def admin_returns(
     _: UserProfileResponse = Depends(require_roles(SystemRole.ADMIN_CATALOG.value, SystemRole.SUPER_ADMIN.value)),
     db: Session = Depends(get_db_session),
-) -> list[ReturnRequest]:
-    return list_all_returns(db)
+) -> list[dict[str, object]]:
+    return [_return_reference_payload(db, request) for request in list_all_returns(db)]

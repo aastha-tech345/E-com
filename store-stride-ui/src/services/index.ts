@@ -1210,7 +1210,7 @@ export const returnService = {
     orderItemId: string,
     quantity: number,
     reason: string,
-    proof?: { proofUrl: string; proofType: string; issueReason?: string },
+    proof?: { proofUrl: string; proofType: string; issueReason?: string; replacementProductId?: string },
   ): Promise<ReturnRequest> {
     return authenticatedJsonRequest("/returns", {
       method: "POST",
@@ -1221,13 +1221,19 @@ export const returnService = {
         issue_reason: proof?.issueReason ?? "",
         proof_url: proof?.proofUrl ?? "",
         proof_type: proof?.proofType ?? "",
+        replacement_product_id: proof?.replacementProductId ?? null,
       }),
     }) as Promise<ReturnRequest>;
   },
   async requestReplacement(
     orderItemId: string,
     quantity: number,
-    proof?: { proofUrl: string; proofType: string; issueReason?: string },
+    proof?: {
+      proofUrl: string;
+      proofType: string;
+      issueReason?: string;
+      replacementProductId?: string;
+    },
   ) {
     return this.requestReturn(orderItemId, quantity, "replacement", proof);
   },
@@ -1279,6 +1285,11 @@ export interface ReturnRequest {
   issue_reason?: string;
   proof_url?: string;
   proof_type?: string;
+  replacement_product_id?: string | null;
+  order_number?: string | null;
+  product_name?: string | null;
+  replacement_product_name?: string | null;
+  lifecycle_status?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -1626,6 +1637,18 @@ export const chatbotService = {
           orchestrator?: string;
           order_cards?: AssistantOrderCard[];
           return_actions?: AssistantReturnAction[];
+          return_ticket?: {
+            id: string;
+            reference_id: string;
+            status: string;
+            lifecycle_status: string;
+            order_number?: string;
+            product_name?: string;
+            reason?: string;
+            issue_reason?: string;
+            proof_type?: string;
+            replacement_product_id?: string | null;
+          };
         };
       };
 
@@ -1642,6 +1665,20 @@ export const chatbotService = {
         productResults: payload.products.map(toAssistantProductResult),
         orderCards: (payload.metadata?.order_cards ?? []).map(normalizeAssistantOrderCard),
         returnActions: (payload.metadata?.return_actions ?? []).map(normalizeAssistantReturnAction),
+        returnTicket: payload.metadata?.return_ticket
+          ? {
+              id: payload.metadata.return_ticket.id,
+              referenceId: payload.metadata.return_ticket.reference_id,
+              status: payload.metadata.return_ticket.status,
+              lifecycleStatus: payload.metadata.return_ticket.lifecycle_status,
+              orderNumber: payload.metadata.return_ticket.order_number,
+              productName: payload.metadata.return_ticket.product_name,
+              reason: payload.metadata.return_ticket.reason,
+              issueReason: payload.metadata.return_ticket.issue_reason,
+              proofType: payload.metadata.return_ticket.proof_type,
+              replacementProductId: payload.metadata.return_ticket.replacement_product_id,
+            }
+          : undefined,
         suggestions:
           payload.metadata?.quick_replies ??
           payload.metadata?.suggestions ??

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -104,8 +105,8 @@ class OrderLookupTool(AssistantTool):
             state.metadata["auth_required"] = True
             return state
         orders = list_orders_for_user(db, user_id=state.context.user_id)
-        filtered_orders = self._filter_orders(state.prompt, orders)
-        limit = self._requested_limit(state.prompt, default=1 if state.intent == "shipping_support" else 3)
+        filtered_orders = self._filter_orders(state, orders)
+        limit = self._requested_limit_for_state(state, default=1 if state.intent == "shipping_support" else 3)
         selected_orders = filtered_orders[:limit]
         order_cards = [_order_card(db, order) for order in selected_orders]
         state.metadata["orders"] = [
@@ -122,7 +123,7 @@ class OrderLookupTool(AssistantTool):
         state.metadata["order_lookup"] = {
             "requested_limit": limit,
             "returned_count": len(selected_orders),
-            "status_filter": self._requested_status(state.prompt),
+            "status_filter": self._requested_status_for_state(state),
         }
         if state.intent == "shipping_support":
             state.metadata["quick_replies"] = ["I received a damaged item", "Show my recent orders"]
@@ -130,6 +131,15 @@ class OrderLookupTool(AssistantTool):
             ToolCallRecord(tool_name=self.name, status="completed", detail=f"Loaded {len(selected_orders)} matching orders.")
         )
         return state
+
+    def _requested_limit_for_state(self, state: AssistantGraphState, *, default: int) -> int:
+        value = state.entities.get("requested_limit")
+        if value not in (None, ""):
+            try:
+                return max(1, min(10, int(value)))
+            except (TypeError, ValueError):
+                pass
+        return self._requested_limit(state.prompt, default=default)
 
     def _requested_limit(self, prompt: str, *, default: int) -> int:
         normalized = prompt.lower()
@@ -168,8 +178,16 @@ class OrderLookupTool(AssistantTool):
                 return status
         return None
 
-    def _filter_orders(self, prompt: str, orders: list[Order]) -> list[Order]:
-        status = self._requested_status(prompt)
+    def _requested_status_for_state(self, state: AssistantGraphState) -> str | None:
+        status = state.entities.get("status_filter")
+        if status:
+            return str(status).lower().replace("-", "_").replace(" ", "_")
+        if state.intent == "return_support":
+            return "delivered"
+        return self._requested_status(state.prompt)
+
+    def _filter_orders(self, state: AssistantGraphState, orders: list[Order]) -> list[Order]:
+        status = self._requested_status_for_state(state)
         if status is None:
             return orders
         if status == "delivered":
@@ -263,11 +281,80 @@ class ReturnWorkflowTool(AssistantTool):
             return state
 
         orders = list_orders_for_user(db, user_id=state.context.user_id)
-        order = self._match_order(db, state.prompt, orders)
+        return_requests = list_returns_for_user(db, user_id=state.context.user_id)
+        ticket = self._match_return_ticket(state.prompt, state.entities, return_requests)
+        if ticket is not None:
+            order = db.get(Order, ticket.order_id)
+            item = db.get(OrderItem, ticket.order_item_id)
+            lifecycle_status = self._ticket_lifecycle(ticket.status)
+            state.metadata["orders"] = []
+            state.metadata["order_cards"] = []
+            state.metadata["return_ticket"] = {
+                "id": ticket.id,
+                "reference_id": self._ticket_reference(ticket.id),
+                "status": ticket.status,
+                "lifecycle_status": lifecycle_status,
+                "order_id": ticket.order_id,
+                "order_number": order.order_number if order is not None else "",
+                "order_item_id": ticket.order_item_id,
+                "product_name": item.product_name if item is not None else "Order item",
+                "reason": ticket.reason,
+                "issue_reason": ticket.issue_reason,
+                "proof_type": ticket.proof_type,
+                "replacement_product_id": ticket.replacement_product_id,
+            }
+            state.metadata["quick_replies"] = ["Track my latest order", "Show my returns", "Contact support"]
+            state.confirmation_required = False
+            state.tool_records.append(
+                ToolCallRecord(
+                    tool_name=self.name,
+                    status="completed",
+                    detail=f"Loaded return ticket {self._ticket_reference(ticket.id)}.",
+                )
+            )
+            return state
+
+        if any(token in state.prompt.lower() for token in ("ticket", "return status", "request status", "reference")):
+            state.metadata["orders"] = []
+            state.metadata["order_cards"] = []
+            state.metadata["return_tickets"] = [
+                {
+                    "id": request.id,
+                    "reference_id": self._ticket_reference(request.id),
+                    "status": request.status,
+                    "lifecycle_status": self._ticket_lifecycle(request.status),
+                    "reason": request.reason,
+                    "created_at": request.created_at.isoformat(),
+                }
+                for request in return_requests[:3]
+            ]
+            state.metadata["quick_replies"] = ["Track my latest order", "Show my delivered orders", "Contact support"]
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="Loaded recent return tickets.")
+            )
+            return state
+
+        order = self._match_order(db, state.prompt, orders, state.entities)
         if order is None:
+            eligible_orders = self._return_eligible_orders(orders)
+            state.metadata["orders"] = [
+                {
+                    "id": item.id,
+                    "order_number": item.order_number,
+                    "status": item.status,
+                    "subtotal": str(item.subtotal),
+                    "created_at": item.created_at.isoformat(),
+                }
+                for item in eligible_orders[:3]
+            ]
+            state.metadata["order_cards"] = [_order_card(db, item) for item in eligible_orders[:3]]
             state.metadata["return_workflow"] = {
                 "status": "needs_order_id",
-                "message": "Ask the customer for the order ID before starting a return or replacement.",
+                "message": (
+                    "Ask the customer to choose one delivered order before starting a return or replacement."
+                    if eligible_orders
+                    else "No delivered orders are currently eligible for return or replacement."
+                ),
                 "recent_orders": [
                     {
                         "id": item.id,
@@ -275,13 +362,13 @@ class ReturnWorkflowTool(AssistantTool):
                         "status": item.status,
                         "created_at": item.created_at.isoformat(),
                     }
-                    for item in orders[:3]
+                    for item in eligible_orders[:3]
                 ],
             }
             state.metadata["quick_replies"] = [
-                "Where can I find my order ID?",
+                "Show my delivered orders",
                 "Track my latest order",
-                "Show my recent orders",
+                "Check return policy",
             ]
             state.confirmation_required = True
             state.tool_records.append(
@@ -290,11 +377,11 @@ class ReturnWorkflowTool(AssistantTool):
             return state
 
         eligible = order.status in {"delivered", "returned", "partially_returned"}
-        target_item = self._match_order_item(state.prompt, order)
+        target_item = self._match_order_item(state.prompt, order, state.entities)
         needs_item_choice = target_item is None and len(order.items) > 1
         existing_returns = [
             request
-            for request in list_returns_for_user(db, user_id=state.context.user_id)
+            for request in return_requests
             if request.order_id == order.id
             and target_item is not None
             and request.order_item_id == target_item.id
@@ -368,10 +455,12 @@ class ReturnWorkflowTool(AssistantTool):
             "existing_returns": [
                 {
                     "id": request.id,
+                    "reference_id": self._ticket_reference(request.id),
                     "order_item_id": request.order_item_id,
                     "quantity": request.quantity,
                     "reason": request.reason,
                     "status": request.status,
+                    "lifecycle_status": self._ticket_lifecycle(request.status),
                 }
                 for request in existing_returns
             ],
@@ -488,8 +577,42 @@ class ReturnWorkflowTool(AssistantTool):
         )
         return state
 
-    def _match_order(self, db: Session, prompt: str, orders: list[Order]) -> Order | None:
-        candidates = self._id_candidates(prompt)
+    def _return_eligible_orders(self, orders: list[Order]) -> list[Order]:
+        return [
+            order
+            for order in orders
+            if order.status in {"delivered", "returned", "partially_returned", "partially_delivered"}
+            or any(item.status == "delivered" for item in order.items)
+        ]
+
+    def _match_return_ticket(self, prompt: str, entities: dict[str, object], requests: list[object]):
+        ticket = str(entities.get("return_ticket_id") or "").upper().strip()
+        if not ticket:
+            match = re.search(r"\bRET-[A-Z0-9]+\b", prompt.upper())
+            ticket = match.group(0) if match else ""
+        if not ticket.startswith("RET-"):
+            return None
+        compact_ticket = ticket.removeprefix("RET-").replace("-", "")
+        for request in requests:
+            compact_id = str(request.id).replace("-", "").upper()
+            if compact_id.startswith(compact_ticket):
+                return request
+        return None
+
+    def _ticket_reference(self, return_id: str) -> str:
+        return f"RET-{return_id.replace('-', '')[:8].upper()}"
+
+    def _ticket_lifecycle(self, status: str) -> str:
+        return "open" if status in {"requested", "reviewing", "pending"} else "closed"
+
+    def _match_order(
+        self,
+        db: Session,
+        prompt: str,
+        orders: list[Order],
+        entities: dict[str, object] | None = None,
+    ) -> Order | None:
+        candidates = self._id_candidates(prompt, entities)
         for order in orders:
             if order.order_number.upper() in candidates or order.id.upper() in candidates:
                 return order
@@ -527,8 +650,13 @@ class ReturnWorkflowTool(AssistantTool):
             return orders[0]
         return None
 
-    def _match_order_item(self, prompt: str, order: Order) -> OrderItem | None:
-        candidates = self._id_candidates(prompt)
+    def _match_order_item(
+        self,
+        prompt: str,
+        order: Order,
+        entities: dict[str, object] | None = None,
+    ) -> OrderItem | None:
+        candidates = self._id_candidates(prompt, entities)
         for item in order.items:
             item_number = (item.item_number or "").upper()
             if (
@@ -566,8 +694,13 @@ class ReturnWorkflowTool(AssistantTool):
                 best_score = score
         return best_item if best_score > 0 else (order.items[0] if len(order.items) == 1 else None)
 
-    def _id_candidates(self, prompt: str) -> set[str]:
+    def _id_candidates(self, prompt: str, entities: dict[str, object] | None = None) -> set[str]:
         candidates = set(re.findall(r"[A-Z0-9][A-Z0-9-]{5,}", prompt.upper()))
+        if entities:
+            for key in ("order_id", "order_item_id", "product_id"):
+                value = entities.get(key)
+                if value:
+                    candidates.add(str(value).upper())
         return candidates | {
             f"ORD-{candidate[5:]}"
             for candidate in candidates
@@ -585,6 +718,11 @@ class ReturnWorkflowTool(AssistantTool):
         source = db.get(Product, item.product_id)
         if source is None:
             return []
+        source_price = Decimal(item.unit_price)
+        narrow_min = max(Decimal("0"), source_price * Decimal("0.85"))
+        narrow_max = source_price * Decimal("1.15")
+        wide_min = max(Decimal("0"), source_price * Decimal("0.70"))
+        wide_max = source_price * Decimal("1.30")
         products = list_products(
             db,
             published_only=True,
@@ -597,13 +735,37 @@ class ReturnWorkflowTool(AssistantTool):
             hydrated = hydrate_product_read_model(db, product)
             if self._available_units(hydrated) <= 0:
                 continue
+            product_price = self._default_price(hydrated)
+            if product_price is None or not narrow_min <= product_price <= narrow_max:
+                continue
             similar.append(hydrated)
             if len(similar) >= 4:
                 break
-        return similar
+        if similar:
+            return sorted(similar, key=lambda product: abs((self._default_price(product) or source_price) - source_price))
+
+        fallback: list[Product] = []
+        for product in products:
+            if product.id == source.id:
+                continue
+            hydrated = hydrate_product_read_model(db, product)
+            if self._available_units(hydrated) <= 0:
+                continue
+            product_price = self._default_price(hydrated)
+            if product_price is None or not wide_min <= product_price <= wide_max:
+                continue
+            fallback.append(hydrated)
+        fallback.sort(key=lambda product: abs((self._default_price(product) or source_price) - source_price))
+        return fallback[:4]
 
     def _available_units(self, product: Product) -> int:
         return sum(max(0, variant.quantity_available) for variant in product.variants)
+
+    def _default_price(self, product: Product) -> Decimal | None:
+        if not product.variants:
+            return None
+        default_variant = next((variant for variant in product.variants if variant.is_default), product.variants[0])
+        return Decimal(default_variant.price)
 
 
 class NotificationSummaryTool(AssistantTool):
