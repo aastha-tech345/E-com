@@ -1,6 +1,9 @@
 from app.modules.ai_assistant.application.tools.catalog import CatalogSearchTool
 from app.modules.ai_assistant.application.tools.customer import (
+    CartAddTool,
+    CartRemoveTool,
     CartSnapshotTool,
+    CartUpdateTool,
     NotificationSummaryTool,
     OrderLookupTool,
     ReturnPolicyTool,
@@ -13,7 +16,10 @@ from app.modules.ai_assistant.application.tools.search import PopularSearchesToo
 
 __all__ = [
     "CatalogSearchTool",
+    "CartAddTool",
+    "CartRemoveTool",
     "CartSnapshotTool",
+    "CartUpdateTool",
     "LangChainSemanticSearchTool",
     "NotificationSummaryTool",
     "OrderLookupTool",

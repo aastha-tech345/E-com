@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Bot,
   CheckCircle2,
+  Copy,
   Maximize2,
   Package,
   Minimize2,
@@ -87,7 +88,19 @@ const INTENT_SUGGESTIONS: Record<string, string[]> = {
 };
 
 export function ShoppingAssistant() {
-  const { chat, pushChat, resetChat, addToCart, cart, hydrated, user } = useShop();
+  const {
+    chat,
+    pushChat,
+    resetChat,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    syncCartFromBackend,
+    cart,
+    cartProducts,
+    hydrated,
+    user,
+  } = useShop();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [input, setInput] = useState("");
@@ -140,8 +153,24 @@ export function ShoppingAssistant() {
     });
     setTyping(true);
     const reply = await chatbotService.reply(value);
+    const assistantReply =
+      reply.source === "fallback" && reply.intent === "cart_help"
+        ? buildLocalCartReply(reply, cartProducts)
+        : reply;
+    if (assistantReply.cartAction?.status === "auth_required") {
+      setLoginPromptOpen(true);
+    }
+    if (
+      assistantReply.cartAction?.status === "added" ||
+      assistantReply.cartAction?.status === "removed" ||
+      assistantReply.cartAction?.status === "updated"
+    ) {
+      await syncCartFromBackend().catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Unable to refresh cart.");
+      });
+    }
     setTyping(false);
-    pushChat(reply);
+    pushChat(assistantReply);
   };
 
   const handleReturnAction = async (action: AssistantReturnAction) => {
@@ -448,11 +477,14 @@ export function ShoppingAssistant() {
                 key={m.id}
                 message={m}
                 onAdd={handleAddToCart}
+                onRemove={removeFromCart}
+                onUpdateQuantity={updateQuantity}
                 onReturnAction={(action) => void handleReturnAction(action)}
                 returnProof={returnProof}
                 issueReason={returnIssueReason}
                 selectedReturnItem={selectedReturnItem}
                 cartProductIds={new Set(cart.map((line) => line.productId))}
+                cartQuantities={new Map(cart.map((line) => [line.productId, line.quantity]))}
                 uploadingProof={uploadingProof}
                 onProofUpload={(file) => void handleProofUpload(file)}
               />
@@ -582,6 +614,37 @@ function getProductQueryContext(message?: ChatMessage) {
   return "Show products";
 }
 
+function buildLocalCartReply(
+  reply: ChatMessage,
+  cartProducts: Array<{ product: Product; line: { quantity: number } }>,
+): ChatMessage {
+  if (cartProducts.length === 0) {
+    return {
+      ...reply,
+      text: "Your cart is empty right now.",
+      products: [],
+      suggestions: ["Find products", "Show best deals"],
+    };
+  }
+  const subtotal = cartProducts.reduce(
+    (total, item) => total + item.product.price * item.line.quantity,
+    0,
+  );
+  const itemText = cartProducts
+    .slice(0, 5)
+    .map((item) => `${item.line.quantity} x ${item.product.name}`)
+    .join(", ");
+  return {
+    ...reply,
+    text: `Your cart currently has ${cartProducts.reduce(
+      (total, item) => total + item.line.quantity,
+      0,
+    )} item(s) worth INR ${subtotal.toFixed(2)}. Items: ${itemText}.`,
+    products: cartProducts.map((item) => item.product.id),
+    suggestions: ["Proceed to checkout", "Find products", "What is in my cart?"],
+  };
+}
+
 function normalizeSuggestion(suggestion: string) {
   return suggestion
     .toLowerCase()
@@ -598,21 +661,27 @@ function normalizeSuggestion(suggestion: string) {
 function ChatBubble({
   message,
   onAdd,
+  onRemove,
+  onUpdateQuantity,
   onReturnAction,
   returnProof,
   issueReason,
   selectedReturnItem,
   cartProductIds,
+  cartQuantities,
   uploadingProof,
   onProofUpload,
 }: {
   message: ChatMessage;
   onAdd: (id: string, quantity?: number, opts?: { product?: Product }) => void;
+  onRemove: (id: string) => void;
+  onUpdateQuantity: (id: string, quantity: number) => void;
   onReturnAction: (action: AssistantReturnAction) => void;
   returnProof: { proofUrl: string; proofType: string; fileName: string } | null;
   issueReason: string;
   selectedReturnItem: { orderItemId: string; productName: string; quantity?: number } | null;
   cartProductIds: Set<string>;
+  cartQuantities: Map<string, number>;
   uploadingProof: boolean;
   onProofUpload: (file: File) => void;
 }) {
@@ -680,7 +749,9 @@ function ChatBubble({
       ) : null}
       {backendItems.map((p) => {
         const product = productService.byId(p.id) ?? assistantProductToProduct(p);
+        productService.remember(product);
         const added = cartProductIds.has(p.id);
+        const quantity = cartQuantities.get(p.id) ?? 0;
         return (
           <div
             key={p.id}
@@ -699,6 +770,7 @@ function ChatBubble({
             )}
             <div className="min-w-0 flex-1 space-y-1">
               <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
+              <ProductIdentifier productId={p.id} sku={p.sku} />
               <Price price={p.price} size="sm" />
               <p className="line-clamp-2 text-[11px] leading-4 text-slate-500">{p.description}</p>
               <p className="text-[11px] text-slate-500">
@@ -719,7 +791,23 @@ function ChatBubble({
                     View Product
                   </Link>
                 </Button>
-                {message.intent === "return_support" && selectedReturnItem ? (
+                {message.intent === "cart_help" && added ? (
+                  <>
+                    <CartQuantityControl
+                      quantity={quantity}
+                      onDecrease={() => onUpdateQuantity(p.id, Math.max(0, quantity - 1))}
+                      onIncrease={() => onUpdateQuantity(p.id, quantity + 1)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-full border-red-200 bg-red-50 px-3 text-xs text-red-700 hover:bg-red-100"
+                      onClick={() => onRemove(p.id)}
+                    >
+                      Remove
+                    </Button>
+                  </>
+                ) : message.intent === "return_support" && selectedReturnItem ? (
                   <Button
                     size="sm"
                     className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
@@ -765,7 +853,9 @@ function ChatBubble({
         );
       })}
       {mockItems.map((p) => {
+        productService.remember(p);
         const added = cartProductIds.has(p.id);
+        const quantity = cartQuantities.get(p.id) ?? 0;
         return (
           <div
             key={p.id}
@@ -774,6 +864,7 @@ function ChatBubble({
             <img src={p.images[0]} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
             <div className="min-w-0 flex-1 space-y-1">
               <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
+              <ProductIdentifier productId={p.id} sku={p.sku} />
               <Rating value={p.rating} count={p.reviewCount} />
               <Price price={p.price} mrp={p.mrp} size="sm" />
               <p className="text-[11px] text-slate-500">
@@ -790,26 +881,97 @@ function ChatBubble({
                     View Product
                   </Link>
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
-                  disabled={p.stock <= 0 || added}
-                  onClick={() => onAdd(p.id, 1, { product: p })}
-                >
-                  {added ? (
-                    <>
-                      <CheckCircle2 size={13} />
-                      Added
-                    </>
-                  ) : (
-                    "Add to Cart"
-                  )}
-                </Button>
+                {message.intent === "cart_help" && added ? (
+                  <>
+                    <CartQuantityControl
+                      quantity={quantity}
+                      onDecrease={() => onUpdateQuantity(p.id, Math.max(0, quantity - 1))}
+                      onIncrease={() => onUpdateQuantity(p.id, quantity + 1)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-full border-red-200 bg-red-50 px-3 text-xs text-red-700 hover:bg-red-100"
+                      onClick={() => onRemove(p.id)}
+                    >
+                      Remove
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="h-8 rounded-full bg-zinc-950 px-3 text-xs hover:bg-zinc-800"
+                    disabled={p.stock <= 0 || added}
+                    onClick={() => onAdd(p.id, 1, { product: p })}
+                  >
+                    {added ? (
+                      <>
+                        <CheckCircle2 size={13} />
+                        Added
+                      </>
+                    ) : (
+                      "Add to Cart"
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ProductIdentifier({ productId, sku }: { productId: string; sku?: string }) {
+  const displayId = sku || productId;
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(displayId)
+      .then(() => toast.success("Product ID copied."))
+      .catch(() => toast.error("Unable to copy product ID."));
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+      title="Copy this ID and ask the assistant to add it to cart"
+    >
+      <span className="truncate">SKU: {displayId}</span>
+      <Copy size={11} className="shrink-0" />
+    </button>
+  );
+}
+
+function CartQuantityControl({
+  quantity,
+  onDecrease,
+  onIncrease,
+}: {
+  quantity: number;
+  onDecrease: () => void;
+  onIncrease: () => void;
+}) {
+  return (
+    <div className="inline-flex h-8 items-center overflow-hidden rounded-full border border-zinc-200 bg-white text-xs font-semibold text-zinc-800 shadow-sm">
+      <button
+        type="button"
+        onClick={onDecrease}
+        className="flex h-8 w-8 items-center justify-center text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
+        aria-label="Decrease quantity"
+      >
+        -
+      </button>
+      <span className="min-w-7 text-center">{quantity}</span>
+      <button
+        type="button"
+        onClick={onIncrease}
+        className="flex h-8 w-8 items-center justify-center text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
+        aria-label="Increase quantity"
+      >
+        +
+      </button>
     </div>
   );
 }

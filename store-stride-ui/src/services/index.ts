@@ -1637,6 +1637,16 @@ export const chatbotService = {
           orchestrator?: string;
           order_cards?: AssistantOrderCard[];
           return_actions?: AssistantReturnAction[];
+          cart_action?: {
+            status: string;
+            product_id?: string;
+            variant_id?: string;
+            sku?: string;
+            product_name?: string;
+            quantity?: number;
+            available_quantity?: number;
+            message?: string;
+          };
           return_ticket?: {
             id: string;
             reference_id: string;
@@ -1662,6 +1672,18 @@ export const chatbotService = {
         usedTools: payload.used_tools ?? [],
         orchestrator: payload.metadata?.orchestrator,
         source: "backend",
+        cartAction: payload.metadata?.cart_action
+          ? {
+              status: payload.metadata.cart_action.status,
+              productId: payload.metadata.cart_action.product_id,
+              variantId: payload.metadata.cart_action.variant_id,
+              sku: payload.metadata.cart_action.sku,
+              productName: payload.metadata.cart_action.product_name,
+              quantity: payload.metadata.cart_action.quantity,
+              availableQuantity: payload.metadata.cart_action.available_quantity,
+              message: payload.metadata.cart_action.message,
+            }
+          : undefined,
         productResults: payload.products.map(toAssistantProductResult),
         orderCards: (payload.metadata?.order_cards ?? []).map(normalizeAssistantOrderCard),
         returnActions: (payload.metadata?.return_actions ?? []).map(normalizeAssistantReturnAction),
@@ -1725,6 +1747,16 @@ export const chatbotService = {
         source: "fallback",
       };
     }
+    if (fallbackIntent === "cart_help") {
+      return {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: "I could not connect to the assistant backend, but I can still show the cart saved in this session.",
+        suggestions: ["Proceed to checkout", "Find products", "Clear cart"],
+        intent: "cart_help",
+        source: "fallback",
+      };
+    }
 
     const matchedProducts = products
       .filter((product) => {
@@ -1784,6 +1816,7 @@ function sanitizeAssistantAnswer(answer: string, productCount = 0) {
 
 function classifyLocalAssistantIntent(message: string) {
   if (/(policy)/i.test(message)) return "policy_help";
+  if (/\b(cart|crat|crt|caart|carrt|basket)\b/i.test(message)) return "cart_help";
   if (/(return|retuen|retrun|refund|exchange|replace|replacement)/i.test(message)) return "return_support";
   if (/(damage|damaged|broken|defective)/i.test(message)) return "return_support";
   if (/(order|track|delivery|shipment|courier)/i.test(message)) return "order_support";

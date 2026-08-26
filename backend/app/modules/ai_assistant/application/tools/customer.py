@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session, selectinload
 from app.modules.ai_assistant.application.rag import retrieve_knowledge
 from app.modules.ai_assistant.application.tool_registry import AssistantTool
 from app.modules.ai_assistant.application.types import AssistantGraphState, ToolCallRecord
-from app.modules.cart.application.service import build_cart_response, get_cart
+from app.modules.cart.application.service import add_item_to_cart, build_cart_response, get_cart, update_cart_item
 from app.modules.catalog.application.service import hydrate_product_read_model, list_products
-from app.modules.catalog.domain.models import Product
+from app.modules.catalog.domain.models import Product, ProductVariant
+from app.modules.inventory.application.service import get_inventory_item
 from app.modules.notifications.application.service import list_notifications, unread_notification_count
 from app.modules.orders.domain.models import Order, OrderItem
 from app.modules.orders.application.service import list_orders_for_user
@@ -66,6 +67,379 @@ def _order_card(db: Session, order: Order, shipment: object | None = None) -> di
     }
 
 
+class CartAddTool(AssistantTool):
+    name = "cart.add_product"
+    intent_names = ("cart_help",)
+
+    def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
+        if "CART_ADD" not in state.intents or not self._is_add_request(state.prompt):
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="No add-to-cart request detected.")
+            )
+            return state
+        if state.context.user_id is None:
+            state.metadata["auth_required"] = True
+            state.metadata["cart_action"] = {"status": "auth_required"}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="Authentication required.")
+            )
+            return state
+
+        quantity = self._quantity(state)
+        variant = self._resolve_variant(db, state)
+        if variant is None:
+            state.metadata["cart_action"] = {"status": "not_found"}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="No matching product or SKU found.")
+            )
+            return state
+
+        product = variant.product
+        available = self._available_units(db, variant)
+        if available < quantity:
+            state.metadata["cart_action"] = {
+                "status": "out_of_stock",
+                "product_id": product.id,
+                "variant_id": variant.id,
+                "sku": variant.sku,
+                "product_name": product.name,
+                "available_quantity": available,
+            }
+            state.products = [hydrate_product_read_model(db, product)]
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="Product is out of stock.")
+            )
+            return state
+
+        try:
+            add_item_to_cart(
+                db,
+                user_id=state.context.user_id,
+                variant_id=variant.id,
+                quantity=quantity,
+            )
+        except ValueError as exc:
+            state.metadata["cart_action"] = {"status": "failed", "message": str(exc)}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="failed", detail=str(exc))
+            )
+            return state
+
+        state.products = [hydrate_product_read_model(db, product)]
+        state.metadata["cart_action"] = {
+            "status": "added",
+            "product_id": product.id,
+            "variant_id": variant.id,
+            "sku": variant.sku,
+            "product_name": product.name,
+            "quantity": quantity,
+        }
+        state.metadata["quick_replies"] = ["View cart", "Proceed to checkout", "Find products"]
+        state.tool_records.append(
+            ToolCallRecord(
+                tool_name=self.name,
+                status="completed",
+                detail=f"Added {quantity} item(s) for SKU {variant.sku} to cart.",
+            )
+        )
+        return state
+
+    def _is_add_request(self, prompt: str) -> bool:
+        return bool(re.search(r"\b(add|put|move)\b.*\b(cart|basket)\b", prompt.lower()))
+
+    def _quantity(self, state: AssistantGraphState) -> int:
+        value = state.entities.get("quantity")
+        if value not in (None, ""):
+            try:
+                return max(1, min(10, int(value)))
+            except (TypeError, ValueError):
+                pass
+        match = re.search(r"\b(?:qty|quantity|x)\s*(\d{1,2})\b", state.prompt.lower())
+        if match:
+            return max(1, min(10, int(match.group(1))))
+        return 1
+
+    def _resolve_variant(self, db: Session, state: AssistantGraphState) -> ProductVariant | None:
+        candidates = self._identifier_candidates(state)
+        for candidate in candidates:
+            variant = self._variant_by_identifier(db, candidate)
+            if variant is not None:
+                return variant
+
+        query = self._product_query(state)
+        if not query:
+            return None
+        products = list_products(db, query=query, published_only=True)
+        if isinstance(products, tuple):
+            products = products[0]
+        for product in products:
+            hydrated = hydrate_product_read_model(db, product)
+            variant = self._default_variant(hydrated)
+            if variant is not None and self._available_units(db, variant) > 0:
+                return variant
+        return None
+
+    def _identifier_candidates(self, state: AssistantGraphState) -> list[str]:
+        values: list[str] = []
+        for key in ("sku", "product_id"):
+            value = state.entities.get(key)
+            if value:
+                values.append(str(value))
+        uuid_matches = re.findall(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            state.prompt,
+        )
+        values.extend(uuid_matches)
+        ignored = {
+            "ADD",
+            "CART",
+            "BASKET",
+            "PLEASE",
+            "PRODUCT",
+            "SKU",
+            "ITEM",
+            "QTY",
+            "QUANTITY",
+            "REMOVE",
+            "DELETE",
+            "DROP",
+            "FROM",
+            "SET",
+            "UPDATE",
+            "CHANGE",
+        }
+        tokens = re.findall(r"[A-Z0-9][A-Z0-9_-]{2,}", state.prompt.upper())
+        values.extend(token for token in tokens if token not in ignored and not token.startswith(("ORD-", "RET-", "ITM-")))
+        deduped: list[str] = []
+        for value in values:
+            normalized = value.strip()
+            if normalized and normalized not in deduped:
+                deduped.append(normalized)
+        return deduped
+
+    def _variant_by_identifier(self, db: Session, identifier: str) -> ProductVariant | None:
+        text = identifier.strip()
+        compact = text.replace("_", "-")
+        return db.scalar(
+            select(ProductVariant)
+            .options(
+                selectinload(ProductVariant.product).selectinload(Product.media),
+                selectinload(ProductVariant.product).selectinload(Product.category),
+                selectinload(ProductVariant.product).selectinload(Product.brand),
+                selectinload(ProductVariant.inventory_items),
+            )
+            .join(Product)
+            .where(Product.is_deleted.is_(False), Product.is_published.is_(True))
+            .where(
+                ProductVariant.id == text,
+            )
+        ) or db.scalar(
+            select(ProductVariant)
+            .options(
+                selectinload(ProductVariant.product).selectinload(Product.media),
+                selectinload(ProductVariant.product).selectinload(Product.category),
+                selectinload(ProductVariant.product).selectinload(Product.brand),
+                selectinload(ProductVariant.inventory_items),
+            )
+            .join(Product)
+            .where(Product.is_deleted.is_(False), Product.is_published.is_(True))
+            .where(
+                (ProductVariant.sku.ilike(text))
+                | (ProductVariant.sku.ilike(compact))
+                | (Product.id == text)
+                | (Product.slug.ilike(text.lower()))
+            )
+        )
+
+    def _product_query(self, state: AssistantGraphState) -> str:
+        explicit_query = state.entities.get("product_query")
+        if explicit_query:
+            return str(explicit_query)
+        cleaned = re.sub(r"\b(add|put|move|to|into|cart|basket|please|sku|product|item|qty|quantity)\b", " ", state.prompt, flags=re.I)
+        cleaned = re.sub(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            " ",
+            cleaned,
+        )
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
+
+    def _default_variant(self, product: Product) -> ProductVariant | None:
+        if not product.variants:
+            return None
+        return next((variant for variant in product.variants if variant.is_default), product.variants[0])
+
+    def _available_units(self, db: Session, variant: ProductVariant) -> int:
+        inventory = get_inventory_item(db, variant_id=variant.id)
+        if inventory is not None:
+            return inventory.available
+        return variant.quantity_available
+
+
+class CartRemoveTool(CartAddTool):
+    name = "cart.remove_product"
+    intent_names = ("cart_help",)
+
+    def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
+        if "CART_REMOVE" not in state.intents or not self._is_remove_request(state.prompt):
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="No remove-from-cart request detected.")
+            )
+            return state
+        if state.context.user_id is None:
+            state.metadata["auth_required"] = True
+            state.metadata["cart_action"] = {"status": "auth_required"}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="Authentication required.")
+            )
+            return state
+
+        variant = self._resolve_variant(db, state)
+        if variant is None:
+            state.metadata["cart_action"] = {"status": "not_found"}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="No matching product or SKU found.")
+            )
+            return state
+
+        product = variant.product
+        cart = get_cart(db, user_id=state.context.user_id)
+        active_variant_ids = {item.variant_id for item in cart.items if item.status == "active"}
+        if variant.id not in active_variant_ids:
+            state.metadata["cart_action"] = {
+                "status": "not_in_cart",
+                "product_id": product.id,
+                "variant_id": variant.id,
+                "sku": variant.sku,
+                "product_name": product.name,
+            }
+            state.products = [hydrate_product_read_model(db, product)]
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="Product is not in active cart.")
+            )
+            return state
+
+        try:
+            update_cart_item(db, user_id=state.context.user_id, variant_id=variant.id, quantity=0)
+        except ValueError as exc:
+            state.metadata["cart_action"] = {"status": "failed", "message": str(exc)}
+            state.tool_records.append(ToolCallRecord(tool_name=self.name, status="failed", detail=str(exc)))
+            return state
+
+        state.metadata["cart_action"] = {
+            "status": "removed",
+            "product_id": product.id,
+            "variant_id": variant.id,
+            "sku": variant.sku,
+            "product_name": product.name,
+        }
+        state.metadata["quick_replies"] = ["What is in my cart?", "Find products", "Proceed to checkout"]
+        state.tool_records.append(
+            ToolCallRecord(
+                tool_name=self.name,
+                status="completed",
+                detail=f"Removed SKU {variant.sku} from cart.",
+            )
+        )
+        return state
+
+    def _is_remove_request(self, prompt: str) -> bool:
+        normalized = prompt.lower()
+        return bool(
+            re.search(r"\b(remove|delete|drop)\b.*\b(cart|crat|crt|caart|carrt|basket)\b", normalized)
+            or re.search(r"\b(cart|crat|crt|caart|carrt|basket)\b.*\b(remove|delete|drop)\b", normalized)
+        )
+
+
+class CartUpdateTool(CartAddTool):
+    name = "cart.update_quantity"
+    intent_names = ("cart_help",)
+
+    def run(self, db: Session, state: AssistantGraphState) -> AssistantGraphState:
+        if "CART_UPDATE" not in state.intents or not self._is_update_request(state.prompt):
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="No cart quantity update detected.")
+            )
+            return state
+        if state.context.user_id is None:
+            state.metadata["auth_required"] = True
+            state.metadata["cart_action"] = {"status": "auth_required"}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="skipped", detail="Authentication required.")
+            )
+            return state
+
+        variant = self._resolve_variant(db, state)
+        if variant is None:
+            state.metadata["cart_action"] = {"status": "not_found"}
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="No matching product or SKU found.")
+            )
+            return state
+
+        quantity = self._quantity(state)
+        product = variant.product
+        cart = get_cart(db, user_id=state.context.user_id)
+        active_variant_ids = {item.variant_id for item in cart.items if item.status == "active"}
+        if variant.id not in active_variant_ids:
+            state.metadata["cart_action"] = {
+                "status": "not_in_cart",
+                "product_id": product.id,
+                "variant_id": variant.id,
+                "sku": variant.sku,
+                "product_name": product.name,
+            }
+            state.products = [hydrate_product_read_model(db, product)]
+            state.tool_records.append(
+                ToolCallRecord(tool_name=self.name, status="completed", detail="Product is not in active cart.")
+            )
+            return state
+
+        try:
+            update_cart_item(db, user_id=state.context.user_id, variant_id=variant.id, quantity=quantity)
+        except ValueError as exc:
+            state.metadata["cart_action"] = {"status": "failed", "message": str(exc)}
+            state.tool_records.append(ToolCallRecord(tool_name=self.name, status="failed", detail=str(exc)))
+            return state
+
+        state.metadata["cart_action"] = {
+            "status": "updated" if quantity > 0 else "removed",
+            "product_id": product.id,
+            "variant_id": variant.id,
+            "sku": variant.sku,
+            "product_name": product.name,
+            "quantity": quantity,
+        }
+        state.metadata["quick_replies"] = ["What is in my cart?", "Proceed to checkout", "Find products"]
+        state.tool_records.append(
+            ToolCallRecord(
+                tool_name=self.name,
+                status="completed",
+                detail=f"Updated SKU {variant.sku} cart quantity to {quantity}.",
+            )
+        )
+        return state
+
+    def _is_update_request(self, prompt: str) -> bool:
+        normalized = prompt.lower()
+        return bool(
+            re.search(r"\b(set|update|change)\b.*\b(qty|quantity)\b", normalized)
+            or re.search(r"\b(qty|quantity)\b.*\b(set|update|change)\b", normalized)
+        )
+
+    def _quantity(self, state: AssistantGraphState) -> int:
+        value = state.entities.get("quantity")
+        if value not in (None, ""):
+            try:
+                return max(0, min(20, int(value)))
+            except (TypeError, ValueError):
+                pass
+        match = re.search(r"\b(?:qty|quantity|x)\s*(\d{1,2})\b", state.prompt.lower())
+        if match:
+            return max(0, min(20, int(match.group(1))))
+        return 1
+
+
 class CartSnapshotTool(AssistantTool):
     name = "cart.snapshot"
     intent_names = ("cart_help", "checkout_help")
@@ -78,11 +452,36 @@ class CartSnapshotTool(AssistantTool):
             state.metadata["auth_required"] = True
             return state
         cart = build_cart_response(db, cart=get_cart(db, user_id=state.context.user_id))
+        cart_model = get_cart(db, user_id=state.context.user_id)
+        active_cart_items = [item for item in cart_model.items if item.status == "active"]
+        cart_products: list[Product] = []
+        seen_product_ids: set[str] = set()
+        for item in active_cart_items:
+            product = item.variant.product
+            if product.id in seen_product_ids:
+                continue
+            seen_product_ids.add(product.id)
+            cart_products.append(hydrate_product_read_model(db, product))
         state.metadata["cart"] = {
             "total_items": cart.total_items,
             "subtotal": str(cart.subtotal),
             "currency": cart.currency,
+            "items": [
+                {
+                    "product_id": item.variant.product.id,
+                    "variant_id": item.variant_id,
+                    "product_name": item.product_name,
+                    "variant_name": item.variant_name,
+                    "sku": item.sku,
+                    "quantity": item.quantity,
+                    "unit_price": str(item.unit_price),
+                    "line_total": str(item.line_total),
+                    "currency": item.currency,
+                }
+                for item in cart.items[:10]
+            ],
         }
+        state.products = cart_products[:10]
         state.tool_records.append(
             ToolCallRecord(
                 tool_name=self.name,

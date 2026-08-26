@@ -233,12 +233,34 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     }
 
     const activeVariantIds = new Set(backendCart.items.map((item) => item.variant_id));
+    const productByVariantId = new Map(
+      productService
+        .all()
+        .filter((product) => product.defaultVariantId)
+        .map((product) => [product.defaultVariantId, product]),
+    );
     patch((s) => {
-      const cart = s.cart.filter((line) => {
+      const backendLines = backendCart.items
+        .map((item) => {
+          const product = productByVariantId.get(item.variant_id);
+          return product ? { productId: product.id, quantity: item.quantity } : null;
+        })
+        .filter((line): line is CartLine => Boolean(line));
+      const backendProductIds = new Set(backendLines.map((line) => line.productId));
+      const preservedUnknownLines = s.cart.filter((line) => {
         const product = productService.byId(line.productId);
-        return product?.defaultVariantId ? activeVariantIds.has(product.defaultVariantId) : true;
+        return !backendProductIds.has(line.productId) && product?.defaultVariantId
+          ? activeVariantIds.has(product.defaultVariantId)
+          : false;
       });
-      return cart.length === s.cart.length ? s : { ...s, cart, coupon: cart.length ? s.coupon : null };
+      const cart = [...backendLines, ...preservedUnknownLines];
+      const sameCart =
+        cart.length === s.cart.length &&
+        cart.every((line) => {
+          const existing = s.cart.find((item) => item.productId === line.productId);
+          return existing?.quantity === line.quantity;
+        });
+      return sameCart ? s : { ...s, cart, coupon: cart.length ? s.coupon : null };
     });
   }, [patch]);
 

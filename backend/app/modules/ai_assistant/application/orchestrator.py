@@ -7,7 +7,10 @@ from app.core.config import settings
 from app.modules.ai_assistant.application.graph import AssistantGraph, classify_intent, classify_intents
 from app.modules.ai_assistant.application.tool_registry import ToolRegistry
 from app.modules.ai_assistant.application.tools import (
+    CartAddTool,
+    CartRemoveTool,
     CartSnapshotTool,
+    CartUpdateTool,
     CatalogSearchTool,
     LangChainSemanticSearchTool,
     NotificationSummaryTool,
@@ -31,6 +34,9 @@ def build_tool_registry() -> ToolRegistry:
             SearchSuggestionsTool(),
             PopularSearchesTool(),
             RecommendationTool(),
+            CartAddTool(),
+            CartRemoveTool(),
+            CartUpdateTool(),
             CartSnapshotTool(),
             OrderLookupTool(),
             ShipmentStatusTool(),

@@ -189,6 +189,7 @@ export interface ChatMessage {
   usedTools?: string[];
   orchestrator?: string;
   source?: "backend" | "fallback";
+  cartAction?: AssistantCartAction;
   returnConfirmation?: {
     referenceId: string;
     status: string;
@@ -196,6 +197,27 @@ export interface ChatMessage {
     productName?: string;
   };
   returnTicket?: AssistantReturnTicket;
+}
+
+export interface AssistantCartAction {
+  status:
+    | "added"
+    | "removed"
+    | "updated"
+    | "not_found"
+    | "not_in_cart"
+    | "out_of_stock"
+    | "needs_product_id"
+    | "failed"
+    | "auth_required"
+    | string;
+  productId?: string;
+  variantId?: string;
+  sku?: string;
+  productName?: string;
+  quantity?: number;
+  availableQuantity?: number;
+  message?: string;
 }
 
 export interface AssistantReturnTicket {

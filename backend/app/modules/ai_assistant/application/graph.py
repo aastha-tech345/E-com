@@ -183,8 +183,10 @@ Schema:
     "return_ticket_id": "RET-ABC12345",
     "order_id": "ORD-ABC123",
     "order_item_id": "ITM-ABC123",
+    "sku": "SKU-123",
     "product_id": "uuid-or-id",
     "product_query": "samsung phone",
+    "quantity": 1,
     "max_price": 50000,
     "status_filter": "delivered",
     "requested_limit": 2,
@@ -197,6 +199,7 @@ Use these primary_intent values only: product_search, product_recommendation, pr
 Use legacy intent names from ecommerce support flows, for example ORDER_HISTORY, ORDER_TRACKING, RETURN_REQUEST, REPLACEMENT_REQUEST, REFUND_REQUEST, PRODUCT_SEARCH, PRODUCT_PRICE, PRODUCT_AVAILABILITY, RETURN_POLICY.
 If the customer types WORD-... as an order id, normalize it to ORD-....
 For ticket/reference IDs starting RET-, choose return_support and include return_ticket_id.
+For add-to-cart requests, choose cart_help, include CART_ADD in intents, and extract sku/product_id/product_query/quantity.
 For damaged, broken, cracked, defective, refund, return, replace, exchange, choose return_support.
 For latest/last/recent delivered orders, choose order_support and include status_filter/requested_limit.
 For product search, include product_query and max_price/in_stock_only when present.
@@ -218,6 +221,19 @@ def classify_intents(prompt: str, conversation_summary: str = "") -> list[str]:
     recent_tokens = ("latest", "last", "recent", "past", "history")
     if any(token in normalized for token in order_context_tokens) and any(token in normalized for token in recent_tokens):
         intents.insert(0, "ORDER_HISTORY")
+    cart_word_pattern = r"\b(?:cart|crat|crt|caart|carrt|basket)\b"
+    if re.search(rf"\b(add|put|move)\b.*{cart_word_pattern}", normalized):
+        intents.insert(0, "CART_ADD")
+    if re.search(rf"\b(remove|delete|drop)\b.*{cart_word_pattern}", normalized) or re.search(
+        rf"{cart_word_pattern}.*\b(remove|delete|drop)\b", normalized
+    ):
+        intents.insert(0, "CART_REMOVE")
+    if re.search(rf"\b(set|update|change)\b.*\b(qty|quantity)\b", normalized) or re.search(
+        rf"\b(qty|quantity)\b.*\b(set|update|change)\b", normalized
+    ):
+        intents.insert(0, "CART_UPDATE")
+    elif re.search(cart_word_pattern, normalized):
+        intents.insert(0, "CART_VIEW")
     if any(token in normalized for token in return_tokens):
         intents.insert(0, "RETURN_REQUEST")
     if re.search(RETURN_TICKET_PATTERN, prompt.upper()) or (
@@ -294,9 +310,11 @@ def _clean_entities(entities: dict[str, Any]) -> dict[str, Any]:
         "order_id",
         "order_item_id",
         "return_ticket_id",
+        "sku",
         "product_id",
         "product_query",
         "keywords",
+        "quantity",
         "max_price",
         "status_filter",
         "requested_limit",
@@ -313,6 +331,11 @@ def _clean_entities(entities: dict[str, Any]) -> dict[str, Any]:
                 text_value = f"ORD-{text_value[5:]}"
             cleaned[key] = text_value
         elif key == "requested_limit":
+            try:
+                cleaned[key] = max(1, min(10, int(value)))
+            except (TypeError, ValueError):
+                continue
+        elif key == "quantity":
             try:
                 cleaned[key] = max(1, min(10, int(value)))
             except (TypeError, ValueError):
@@ -425,6 +448,10 @@ class AssistantGraph:
             entities["order_item_id"] = order_item_match.group(0)
         if return_ticket_match := re.search(RETURN_TICKET_PATTERN, state.prompt.upper()):
             entities["return_ticket_id"] = return_ticket_match.group(0)
+        if quantity_match := re.search(r"\b(?:qty|quantity|x)\s*(\d{1,2})\b", state.prompt.lower()):
+            entities["quantity"] = max(1, min(10, int(quantity_match.group(1))))
+        elif add_quantity_match := re.search(r"\badd\s+(\d{1,2})\b", state.prompt.lower()):
+            entities["quantity"] = max(1, min(10, int(add_quantity_match.group(1))))
         if budget_match := re.search(PRICE_PATTERN, state.prompt.lower()):
             entities["max_price"] = budget_match.group(1).replace(",", "")
         product_terms = [
@@ -629,6 +656,26 @@ class AssistantGraph:
 
     def _compose_support_answer(self, state: AssistantGraphState, llm_content: str) -> str:
         fragments: list[str] = []
+        if isinstance(state.metadata.get("cart_action"), dict):
+            action = state.metadata["cart_action"]
+            product_name = action.get("product_name", "that product")
+            if action.get("status") == "added":
+                sku_text = f" SKU: {action.get('sku')}." if action.get("sku") else ""
+                return f"Added {product_name} to your cart.{sku_text}"
+            if action.get("status") == "removed":
+                return f"Removed {product_name} from your cart."
+            if action.get("status") == "updated":
+                return f"Updated {product_name} quantity to {action.get('quantity', 1)}."
+            if action.get("status") == "not_found":
+                return "I could not find that SKU or product ID. Please copy the SKU from a product card and try again."
+            if action.get("status") == "not_in_cart":
+                return f"{product_name} is not in your cart right now."
+            if action.get("status") == "out_of_stock":
+                return f"{product_name} is currently out of stock, so I cannot add it to your cart."
+            if action.get("status") == "needs_product_id":
+                return "Please share the SKU or product ID you want me to add to your cart."
+            if action.get("status") == "failed":
+                return str(action.get("message") or "I could not add that product to your cart right now.")
         if isinstance(state.metadata.get("return_ticket"), dict):
             ticket = state.metadata["return_ticket"]
             return (
@@ -650,9 +697,20 @@ class AssistantGraph:
                 return "I could not find any return or replacement tickets on your account yet."
         if isinstance(state.metadata.get("cart"), dict):
             cart = state.metadata["cart"]
-            fragments.append(
-                f"Your cart currently has {cart.get('total_items', 0)} item(s) worth {cart.get('currency', 'INR')} {cart.get('subtotal', '0')}."
+            items = cart.get("items", [])
+            total_text = (
+                f"Your cart currently has {cart.get('total_items', 0)} item(s) "
+                f"worth {cart.get('currency', 'INR')} {cart.get('subtotal', '0')}."
             )
+            if isinstance(items, list) and items:
+                item_lines = ", ".join(
+                    f"{item.get('quantity', 1)} x {item.get('product_name', 'item')}"
+                    for item in items[:5]
+                    if isinstance(item, dict)
+                )
+                fragments.append(f"{total_text} Items: {item_lines}.")
+            else:
+                fragments.append(total_text)
         if isinstance(state.metadata.get("orders"), list) and state.metadata["orders"]:
             orders = state.metadata["orders"]
             lookup = state.metadata.get("order_lookup", {})
